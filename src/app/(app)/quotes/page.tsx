@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
+import { FileText, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, quoteItems, quotes } from "@/db/schema";
 import {
@@ -8,6 +9,8 @@ import {
   Card,
   EmptyState,
   PageHeader,
+  THead,
+  Table,
   Td,
   Th,
   buttonClass,
@@ -42,17 +45,28 @@ export default async function QuotesPage() {
         subtitle="Proposals and quotations for clients."
         action={
           <Link href="/quotes/new" className={buttonClass}>
-            New quote
+            <Plus /> New quote
           </Link>
         }
       />
 
       {rows.length === 0 ? (
-        <EmptyState>No quotes yet. Create one to get started.</EmptyState>
+        <EmptyState
+          icon={<FileText />}
+          title="No quotes yet"
+          action={
+            <Link href="/quotes/new" className={buttonClass}>
+              <Plus /> New quote
+            </Link>
+          }
+        >
+          Create a quote, add line items, and share a polished printable proposal
+          with your client.
+        </EmptyState>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50">
+        <Card className="overflow-visible">
+          <Table>
+            <THead>
               <tr>
                 <Th>Quote</Th>
                 <Th>Client</Th>
@@ -60,28 +74,31 @@ export default async function QuotesPage() {
                 <Th>Valid until</Th>
                 <Th className="text-right">Total</Th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </THead>
+            <tbody className="divide-y divide-edge">
               {rows.map((q) => {
                 const subtotal = Number(q.subtotal);
                 const total = subtotal * (1 + Number(q.taxRate) / 100);
                 return (
-                  <tr key={q.id} className="hover:bg-slate-50">
+                  <tr key={q.id} className="group transition-colors hover:bg-subtle">
                     <Td>
                       <Link
                         href={`/quotes/${q.id}`}
-                        className="font-medium hover:text-purple-700"
+                        className="font-medium text-fg transition-colors group-hover:text-primary"
                       >
-                        Q-{String(q.id).padStart(4, "0")} {q.title}
+                        <span className="mr-1.5 font-mono text-xs text-faint">
+                          Q-{String(q.id).padStart(4, "0")}
+                        </span>
+                        {q.title}
                       </Link>
                     </Td>
-                    <Td className="text-slate-500">{q.clientName}</Td>
+                    <Td className="text-muted">{q.clientName}</Td>
                     <Td>
                       <Badge tone={quoteStatusMeta[q.status].tone}>
                         {quoteStatusMeta[q.status].label}
                       </Badge>
                     </Td>
-                    <Td className="text-slate-500">{fmtDate(q.validUntil)}</Td>
+                    <Td className="text-muted tabular-nums">{fmtDate(q.validUntil)}</Td>
                     <Td className="text-right font-medium tabular-nums">
                       {fmtMoney(total, q.currency)}
                     </Td>
@@ -89,7 +106,7 @@ export default async function QuotesPage() {
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </Card>
       )}
     </div>

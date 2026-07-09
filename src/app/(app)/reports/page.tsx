@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
+import { ClipboardList, LayoutTemplate, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, reports } from "@/db/schema";
 import {
@@ -8,6 +9,8 @@ import {
   Card,
   EmptyState,
   PageHeader,
+  THead,
+  Table,
   Td,
   Th,
   buttonClass,
@@ -38,25 +41,33 @@ export default async function ReportsPage() {
         title="Reports"
         subtitle="Customer-facing reports generated from your templates."
         action={
-          <div className="flex gap-2">
+          <>
             <Link href="/reports/templates" className={buttonSecondaryClass}>
-              Templates
+              <LayoutTemplate /> Templates
             </Link>
             <Link href="/reports/new" className={buttonClass}>
-              New report
+              <Plus /> New report
             </Link>
-          </div>
+          </>
         }
       />
 
       {rows.length === 0 ? (
-        <EmptyState>
-          No reports yet. Define a template, then generate your first report.
+        <EmptyState
+          icon={<ClipboardList />}
+          title="No reports yet"
+          action={
+            <Link href="/reports/new" className={buttonClass}>
+              <Plus /> New report
+            </Link>
+          }
+        >
+          Define a template, then generate your first client-facing report from it.
         </EmptyState>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50">
+        <Card className="overflow-visible">
+          <Table>
+            <THead>
               <tr>
                 <Th>Report</Th>
                 <Th>Client</Th>
@@ -64,30 +75,30 @@ export default async function ReportsPage() {
                 <Th>Created</Th>
                 <Th>Sent</Th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </THead>
+            <tbody className="divide-y divide-edge">
               {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} className="group transition-colors hover:bg-subtle">
                   <Td>
                     <Link
                       href={`/reports/${r.id}`}
-                      className="font-medium hover:text-purple-700"
+                      className="font-medium text-fg transition-colors group-hover:text-primary"
                     >
                       {r.title}
                     </Link>
                   </Td>
-                  <Td className="text-slate-500">{r.clientName ?? "—"}</Td>
+                  <Td className="text-muted">{r.clientName ?? "—"}</Td>
                   <Td>
                     <Badge tone={reportStatusMeta[r.status].tone}>
                       {reportStatusMeta[r.status].label}
                     </Badge>
                   </Td>
-                  <Td className="text-slate-500">{fmtDateTime(r.createdAt)}</Td>
-                  <Td className="text-slate-500">{fmtDateTime(r.sentAt)}</Td>
+                  <Td className="text-muted tabular-nums">{fmtDateTime(r.createdAt)}</Td>
+                  <Td className="text-muted tabular-nums">{fmtDateTime(r.sentAt)}</Td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </Card>
       )}
     </div>

@@ -1,16 +1,167 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+ * Waxxor Ops design tokens
+ * Semantic first: components reference roles (canvas/surface/edge/fg/…),
+ * never raw palette values, so the theme switch cascades everywhere.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* Surfaces */
+  --wx-canvas: #f8fafc;
+  --wx-surface: #ffffff;
+  --wx-subtle: #f8fafc;
+  --wx-inset: #f1f5f9;
+  --wx-sidebar: #0b1120;
+
+  /* Borders */
+  --wx-edge: #e5e7eb;
+  --wx-edge-strong: #d1d5db;
+
+  /* Text */
+  --wx-fg: #111827;
+  --wx-muted: #64748b;
+  --wx-faint: #94a3b8;
+
+  /* Brand */
+  --wx-primary: #7c3aed;
+  --wx-primary-hover: #8b5cf6;
+  --wx-primary-soft: #f5f3ff;
+
+  /* Semantic status */
+  --wx-success: #10b981;
+  --wx-warning: #f59e0b;
+  --wx-danger: #ef4444;
+}
+
+.dark {
+  --wx-canvas: #0b1120;
+  --wx-surface: #101a30;
+  --wx-subtle: #14203a;
+  --wx-inset: #0d1526;
+  --wx-sidebar: #080d1a;
+
+  --wx-edge: #1e2a45;
+  --wx-edge-strong: #2b3a5c;
+
+  --wx-fg: #f1f5f9;
+  --wx-muted: #94a3b8;
+  --wx-faint: #64748b;
+
+  --wx-primary: #8b5cf6;
+  --wx-primary-hover: #a78bfa;
+  --wx-primary-soft: rgba(139, 92, 246, 0.14);
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-canvas: var(--wx-canvas);
+  --color-surface: var(--wx-surface);
+  --color-subtle: var(--wx-subtle);
+  --color-inset: var(--wx-inset);
+  --color-sidebar: var(--wx-sidebar);
+
+  --color-edge: var(--wx-edge);
+  --color-edge-strong: var(--wx-edge-strong);
+
+  --color-fg: var(--wx-fg);
+  --color-muted: var(--wx-muted);
+  --color-faint: var(--wx-faint);
+
+  --color-primary: var(--wx-primary);
+  --color-primary-hover: var(--wx-primary-hover);
+  --color-primary-soft: var(--wx-primary-soft);
+
+  --color-success: var(--wx-success);
+  --color-warning: var(--wx-warning);
+  --color-danger: var(--wx-danger);
+
+  /* Elevation — Untitled UI-style soft shadows */
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+  --shadow-card-hover:
+    0 4px 8px -2px rgb(16 24 40 / 0.1), 0 2px 4px -2px rgb(16 24 40 / 0.06);
+  --shadow-overlay:
+    0 20px 24px -4px rgb(16 24 40 / 0.08), 0 8px 8px -4px rgb(16 24 40 / 0.03);
+
+  /* Motion */
+  --animate-pop: wx-pop 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade: wx-fade 0.18s ease-out;
+  --animate-rise: wx-rise 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes wx-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.97) translateY(-2px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @keyframes wx-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes wx-rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 body {
-  @apply bg-slate-100 text-slate-900;
+  @apply bg-canvas text-fg antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: color-mix(in srgb, var(--wx-primary) 22%, transparent);
+}
+
+/* Thin, unobtrusive scrollbars (WebKit + Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wx-edge-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--wx-edge-strong);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 @media print {
+  :root,
+  .dark {
+    --wx-canvas: #ffffff;
+    --wx-surface: #ffffff;
+    --wx-subtle: #f8fafc;
+    --wx-inset: #f1f5f9;
+    --wx-edge: #e5e7eb;
+    --wx-edge-strong: #d1d5db;
+    --wx-fg: #111827;
+    --wx-muted: #64748b;
+    --wx-faint: #94a3b8;
+  }
   body {
-    @apply bg-white;
+    background: #ffffff;
   }
 }

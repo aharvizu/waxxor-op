@@ -1,5 +1,13 @@
 import Link from "next/link";
 import { count, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  ArrowUpRight,
+  CircleDollarSign,
+  FolderKanban,
+  LifeBuoy,
+  Percent,
+  Send,
+} from "lucide-react";
 import { db } from "@/db";
 import {
   clients,
@@ -10,14 +18,26 @@ import {
   quotes,
   tickets,
 } from "@/db/schema";
-import { Badge, Card, PageHeader, Td, Th } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  PageHeader,
+  Progress,
+  StatCard,
+  Table,
+  Td,
+  Th,
+} from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
 
 export default async function DashboardPage() {
   const [
     [openTickets],
+    [totalTickets],
     [activeProjects],
+    [totalProjects],
     [pendingQuotes],
     [acceptedQuotes],
     [decidedQuotes],
@@ -29,7 +49,9 @@ export default async function DashboardPage() {
       .select({ value: count() })
       .from(tickets)
       .where(inArray(tickets.status, ["open", "in_progress", "waiting_on_customer"])),
+    db.select({ value: count() }).from(tickets),
     db.select({ value: count() }).from(projects).where(eq(projects.status, "active")),
+    db.select({ value: count() }).from(projects),
     db.select({ value: count() }).from(quotes).where(eq(quotes.status, "sent")),
     db.select({ value: count() }).from(quotes).where(eq(quotes.status, "accepted")),
     db
@@ -78,53 +100,86 @@ export default async function DashboardPage() {
       ? Math.round((acceptedQuotes.value / decidedQuotes.value) * 100)
       : null;
 
-  const stats = [
-    { label: "Open tickets", value: String(openTickets.value), href: "/helpdesk" },
-    { label: "Active projects", value: String(activeProjects.value), href: "/projects" },
-    { label: "Quotes awaiting reply", value: String(pendingQuotes.value), href: "/quotes" },
-    { label: "Pipeline (sent quotes)", value: fmtMoney(pipeline.value), href: "/quotes" },
-    {
-      label: "Quote acceptance rate",
-      value: acceptanceRate === null ? "—" : `${acceptanceRate}%`,
-      href: "/quotes",
-    },
-  ];
-
   return (
     <div>
       <PageHeader
         title="Dashboard"
-        subtitle="A snapshot of Waxxor's day-to-day operations."
+        subtitle="A snapshot of Waxxor’s day-to-day operations."
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {stats.map((s) => (
-          <Link key={s.label} href={s.href}>
-            <Card className="p-5 transition-shadow hover:shadow-md">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {s.label}
-              </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums">{s.value}</div>
-            </Card>
-          </Link>
-        ))}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
+        <Link href="/helpdesk" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <StatCard
+            icon={<LifeBuoy />}
+            label="Open tickets"
+            value={String(openTickets.value)}
+            hint="Tickets that are open, in progress, or waiting on the customer"
+            footer={`of ${totalTickets.value} total`}
+          />
+        </Link>
+        <Link href="/projects" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <StatCard
+            icon={<FolderKanban />}
+            label="Active projects"
+            value={String(activeProjects.value)}
+            hint="Projects currently in the active state"
+            footer={`of ${totalProjects.value} total`}
+          />
+        </Link>
+        <Link href="/quotes" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <StatCard
+            icon={<Send />}
+            label="Quotes awaiting reply"
+            value={String(pendingQuotes.value)}
+            hint="Quotes sent to clients and awaiting a decision"
+            footer="sent, no decision yet"
+          />
+        </Link>
+        <Link href="/quotes" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <StatCard
+            icon={<CircleDollarSign />}
+            label="Pipeline"
+            value={fmtMoney(pipeline.value)}
+            hint="Combined value of all sent quotes"
+            footer={`across ${pendingQuotes.value} sent ${pendingQuotes.value === 1 ? "quote" : "quotes"}`}
+          />
+        </Link>
+        <Link href="/quotes" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <StatCard
+            icon={<Percent />}
+            label="Quote acceptance"
+            value={acceptanceRate === null ? "—" : `${acceptanceRate}%`}
+            hint="Accepted quotes as a share of all decided quotes"
+            footer={
+              decidedQuotes.value > 0
+                ? `${acceptedQuotes.value} of ${decidedQuotes.value} decided`
+                : "no decided quotes yet"
+            }
+          />
+        </Link>
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="overflow-hidden xl:col-span-2">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold">Recent tickets</h2>
-            <Link href="/helpdesk" className="text-sm font-medium text-purple-700 hover:underline">
-              View all
-            </Link>
-          </div>
+          <CardHeader
+            title="Recent tickets"
+            description="Latest activity across the helpdesk."
+            action={
+              <Link
+                href="/helpdesk"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary-hover"
+              >
+                View all <ArrowUpRight className="size-3.5" />
+              </Link>
+            }
+          />
           {recentTickets.length === 0 ? (
-            <p className="p-6 text-sm text-slate-500">
+            <p className="px-5 py-8 text-sm text-muted">
               No tickets yet. Create one from the Helpdesk page.
             </p>
           ) : (
-            <table className="w-full">
-              <thead className="bg-slate-50">
+            <Table>
+              <thead>
                 <tr>
                   <Th>Ticket</Th>
                   <Th>Client</Th>
@@ -132,18 +187,19 @@ export default async function DashboardPage() {
                   <Th>Status</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-edge">
                 {recentTickets.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50">
+                  <tr key={t.id} className="transition-colors hover:bg-subtle">
                     <Td>
                       <Link
                         href={`/helpdesk/${t.id}`}
-                        className="font-medium text-slate-900 hover:text-purple-700"
+                        className="font-medium text-fg transition-colors hover:text-primary"
                       >
-                        #{t.id} {t.subject}
+                        <span className="mr-1.5 text-faint">#{t.id}</span>
+                        {t.subject}
                       </Link>
                     </Td>
-                    <Td className="text-slate-500">{t.clientName ?? "—"}</Td>
+                    <Td className="text-muted">{t.clientName ?? "—"}</Td>
                     <Td>
                       <Badge tone={ticketPriorityMeta[t.priority].tone}>
                         {ticketPriorityMeta[t.priority].label}
@@ -157,37 +213,58 @@ export default async function DashboardPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           )}
         </Card>
 
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold">KPIs</h2>
-            <Link href="/kpis" className="text-sm font-medium text-purple-700 hover:underline">
-              Manage
-            </Link>
-          </div>
+        <Card className="h-fit overflow-hidden">
+          <CardHeader
+            title="KPIs"
+            description="Latest value vs. target."
+            action={
+              <Link
+                href="/kpis"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary-hover"
+              >
+                Manage <ArrowUpRight className="size-3.5" />
+              </Link>
+            }
+          />
           {kpiRows.length === 0 ? (
-            <p className="p-6 text-sm text-slate-500">
+            <p className="px-5 py-8 text-sm text-muted">
               No KPIs defined yet. Add them on the KPIs page.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {kpiRows.map((k) => (
-                <li key={k.id} className="flex items-center justify-between px-4 py-3">
-                  <span className="text-sm text-slate-700">{k.name}</span>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {k.latest ?? "—"}
-                    {k.unit ? ` ${k.unit}` : ""}
-                    {k.target ? (
-                      <span className="ml-1 font-normal text-slate-400">
-                        / {k.target}
+            <ul className="divide-y divide-edge">
+              {kpiRows.map((k) => {
+                const latest = k.latest === null ? null : Number(k.latest);
+                const target = k.target ? Number(k.target) : null;
+                const pct =
+                  latest !== null && target ? (latest / target) * 100 : null;
+                return (
+                  <li key={k.id} className="px-5 py-3.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="truncate text-sm font-medium text-fg">
+                        {k.name}
                       </span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {latest ?? "—"}
+                        {k.unit ? (
+                          <span className="ml-1 font-normal text-muted">{k.unit}</span>
+                        ) : null}
+                        {target !== null ? (
+                          <span className="ml-1 font-normal text-faint">
+                            / {target}
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
+                    {pct !== null ? (
+                      <Progress value={pct} className="mt-2.5" />
                     ) : null}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

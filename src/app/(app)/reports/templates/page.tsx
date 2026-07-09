@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { reportTemplates } from "@/db/schema";
-import { Card, EmptyState, PageHeader, inputClass, labelClass } from "@/components/ui";
+import { LayoutTemplate, Trash2 } from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { createTemplate, deleteTemplate } from "../actions";
 
@@ -21,28 +29,32 @@ export default async function TemplatesPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="space-y-4">
           {rows.length === 0 ? (
-            <EmptyState>No templates yet — create one on the right.</EmptyState>
+            <EmptyState icon={<LayoutTemplate />} title="No templates yet">
+              Create a reusable report body on the right — placeholders are filled
+              in automatically when you generate a report.
+            </EmptyState>
           ) : (
             rows.map((t) => (
-              <Card key={t.id} className="p-5">
+              <Card key={t.id} className="p-5 hover:shadow-card-hover">
                 <div className="mb-2 flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-sm font-semibold">{t.name}</h2>
                     {t.description ? (
-                      <p className="mt-0.5 text-sm text-slate-500">{t.description}</p>
+                      <p className="mt-0.5 text-sm text-muted">{t.description}</p>
                     ) : null}
                   </div>
                   <form action={deleteTemplate}>
                     <input type="hidden" name="id" value={t.id} />
                     <button
                       type="submit"
-                      className="text-xs font-medium text-red-600 hover:underline"
+                      aria-label={`Delete template ${t.name}`}
+                      className="flex size-8 items-center justify-center rounded-lg text-faint transition-colors duration-150 hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
                     >
-                      Delete
+                      <Trash2 className="size-4" />
                     </button>
                   </form>
                 </div>
-                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-600">
+                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border border-edge bg-inset p-3 font-mono text-xs text-muted">
                   {t.content}
                 </pre>
               </Card>
@@ -50,9 +62,9 @@ export default async function TemplatesPage() {
           )}
         </div>
 
-        <Card className="h-fit p-5">
-          <h2 className="mb-4 text-sm font-semibold">New template</h2>
-          <form action={createTemplate} className="space-y-4">
+        <Card className="h-fit overflow-hidden">
+          <CardHeader title="New template" description="A reusable report body." />
+          <form action={createTemplate} className="space-y-4 p-5">
             <div>
               <label htmlFor="name" className={labelClass}>
                 Name

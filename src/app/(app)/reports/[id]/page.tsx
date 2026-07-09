@@ -57,12 +57,12 @@ export default async function ReportPage({
 
       {/* Printable report document */}
       <Card className="hidden p-8 print:block print:rounded-none print:border-0 print:shadow-none">
-        <div className="mb-6 flex items-center justify-between border-b border-slate-300 pb-4">
+        <div className="mb-6 flex items-center justify-between border-b border-edge-strong pb-4">
           <div>
             <div className="text-lg font-semibold">Waxxor — Information Security</div>
-            <div className="text-xs text-slate-500">waxxor.com</div>
+            <div className="text-xs text-muted">waxxor.com</div>
           </div>
-          <div className="text-right text-sm text-slate-500">
+          <div className="text-right text-sm text-muted">
             {row.clientName ?? ""}
           </div>
         </div>

@@ -8,6 +8,13 @@
       "when": 1783555607424,
       "tag": "0000_clumsy_bushwacker",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783566087716,
+      "tag": "0001_faulty_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

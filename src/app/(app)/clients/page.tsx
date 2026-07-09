@@ -1,9 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { asc } from "drizzle-orm";
+import { Building2 } from "lucide-react";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
-import { Card, EmptyState, PageHeader, Td, Th, inputClass, labelClass } from "@/components/ui";
+import {
+  Avatar,
+  Card,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  THead,
+  Table,
+  Td,
+  Th,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { createClient } from "./actions";
 
@@ -19,43 +32,47 @@ export default async function ClientsPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
           {rows.length === 0 ? (
-            <EmptyState>No clients yet — add your first one on the right.</EmptyState>
+            <EmptyState icon={<Building2 />} title="No clients yet">
+              Add your first client on the right — they’ll be available across
+              tickets, projects, quotes, and reports.
+            </EmptyState>
           ) : (
-            <Card className="overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-50">
+            <Card className="overflow-visible">
+              <Table>
+                <THead>
                   <tr>
                     <Th>Name</Th>
                     <Th>Contact</Th>
                     <Th>Email</Th>
                     <Th>Phone</Th>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+                </THead>
+                <tbody className="divide-y divide-edge">
                   {rows.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
+                    <tr key={c.id} className="group transition-colors hover:bg-subtle">
                       <Td>
                         <Link
                           href={`/clients/${c.id}`}
-                          className="font-medium hover:text-purple-700"
+                          className="flex items-center gap-3 font-medium text-fg transition-colors group-hover:text-primary"
                         >
+                          <Avatar name={c.name} size="sm" square />
                           {c.name}
                         </Link>
                       </Td>
-                      <Td className="text-slate-500">{c.contactName ?? "—"}</Td>
-                      <Td className="text-slate-500">{c.email ?? "—"}</Td>
-                      <Td className="text-slate-500">{c.phone ?? "—"}</Td>
+                      <Td className="text-muted">{c.contactName ?? "—"}</Td>
+                      <Td className="text-muted">{c.email ?? "—"}</Td>
+                      <Td className="text-muted tabular-nums">{c.phone ?? "—"}</Td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </Card>
           )}
         </div>
 
-        <Card className="h-fit p-5">
-          <h2 className="mb-4 text-sm font-semibold">Add client</h2>
-          <form action={createClient} className="space-y-4">
+        <Card className="h-fit overflow-hidden">
+          <CardHeader title="Add client" description="A new customer account." />
+          <form action={createClient} className="space-y-4 p-5">
             <div>
               <label htmlFor="name" className={labelClass}>
                 Company name

@@ -3,7 +3,15 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, ticketComments, tickets, users } from "@/db/schema";
-import { Badge, Card, PageHeader, inputClass, labelClass } from "@/components/ui";
+import {
+  Avatar,
+  Badge,
+  Card,
+  CardHeader,
+  PageHeader,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDateTime } from "@/lib/format";
 import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
@@ -67,49 +75,67 @@ export default async function TicketPage({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {t.description ? (
-            <Card className="p-5">
-              <h2 className="mb-2 text-sm font-semibold">Description</h2>
-              <p className="whitespace-pre-wrap text-sm text-slate-700">{t.description}</p>
+            <Card className="overflow-hidden">
+              <CardHeader title="Description" />
+              <p className="p-5 text-sm leading-6 whitespace-pre-wrap text-fg">
+                {t.description}
+              </p>
             </Card>
           ) : null}
 
-          <Card className="p-5">
-            <h2 className="mb-4 text-sm font-semibold">
-              Activity {comments.length > 0 ? `(${comments.length})` : ""}
-            </h2>
-            <ul className="space-y-4">
-              {comments.map((c) => (
-                <li key={c.id} className="rounded-lg bg-slate-50 p-4">
-                  <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-medium text-slate-700">
-                      {c.authorName ?? "Unknown"}
-                    </span>
-                    <span>{fmtDateTime(c.createdAt)}</span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm text-slate-700">{c.body}</p>
-                </li>
-              ))}
-              {comments.length === 0 ? (
-                <li className="text-sm text-slate-500">No comments yet.</li>
-              ) : null}
-            </ul>
-            <form action={addComment} className="mt-4 space-y-3">
-              <input type="hidden" name="ticketId" value={t.id} />
-              <textarea
-                name="body"
-                rows={3}
-                required
-                placeholder="Add a comment…"
-                className={inputClass}
-              />
-              <SubmitButton>Comment</SubmitButton>
-            </form>
+          <Card className="overflow-hidden">
+            <CardHeader
+              title={`Activity${comments.length > 0 ? ` (${comments.length})` : ""}`}
+              description="Comments and updates on this ticket."
+            />
+            <div className="p-5">
+              <ul className="space-y-5">
+                {comments.map((c, i) => (
+                  <li key={c.id} className="relative flex gap-3.5">
+                    {i < comments.length - 1 ? (
+                      <span
+                        aria-hidden
+                        className="absolute top-9 left-4 h-[calc(100%-16px)] w-px bg-edge"
+                      />
+                    ) : null}
+                    <Avatar name={c.authorName ?? "?"} size="sm" className="mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm font-medium text-fg">
+                          {c.authorName ?? "Unknown"}
+                        </span>
+                        <span className="shrink-0 text-xs text-faint tabular-nums">
+                          {fmtDateTime(c.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-muted">
+                        {c.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+                {comments.length === 0 ? (
+                  <li className="text-sm text-muted">No comments yet.</li>
+                ) : null}
+              </ul>
+              <form action={addComment} className="mt-5 space-y-3 border-t border-edge pt-5">
+                <input type="hidden" name="ticketId" value={t.id} />
+                <textarea
+                  name="body"
+                  rows={3}
+                  required
+                  placeholder="Add a comment…"
+                  className={inputClass}
+                />
+                <SubmitButton>Comment</SubmitButton>
+              </form>
+            </div>
           </Card>
         </div>
 
-        <Card className="h-fit p-5">
-          <h2 className="mb-4 text-sm font-semibold">Manage</h2>
-          <form action={updateTicket} className="space-y-4">
+        <Card className="h-fit overflow-hidden">
+          <CardHeader title="Manage" description="Status, priority, and owner." />
+          <form action={updateTicket} className="space-y-4 p-5">
             <input type="hidden" name="id" value={t.id} />
             <div>
               <label htmlFor="status" className={labelClass}>

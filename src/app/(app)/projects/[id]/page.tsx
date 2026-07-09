@@ -3,7 +3,15 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, projects, tasks, users } from "@/db/schema";
-import { Badge, Card, PageHeader, cx, inputClass, labelClass } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  PageHeader,
+  cx,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { projectStatusMeta, taskStatusMeta } from "@/lib/labels";
@@ -59,90 +67,99 @@ export default async function ProjectPage({
       />
 
       {p.description ? (
-        <Card className="mb-6 p-5">
-          <h2 className="mb-2 text-sm font-semibold">Description</h2>
-          <p className="whitespace-pre-wrap text-sm text-slate-700">{p.description}</p>
+        <Card className="mb-6 overflow-hidden">
+          <CardHeader title="Description" />
+          <p className="p-5 text-sm leading-6 whitespace-pre-wrap text-fg">
+            {p.description}
+          </p>
         </Card>
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card className="p-5">
-            <h2 className="mb-4 text-sm font-semibold">
-              Tasks {taskRows.length > 0 ? `(${done}/${taskRows.length} done)` : ""}
-            </h2>
-            <ul className="space-y-2">
-              {taskRows.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-4 py-3"
-                >
-                  <div>
-                    <div
-                      className={cx(
-                        "text-sm font-medium",
-                        t.status === "done" && "text-slate-400 line-through",
-                      )}
-                    >
-                      {t.title}
+          <Card className="overflow-hidden">
+            <CardHeader
+              title={`Tasks${taskRows.length > 0 ? ` (${done}/${taskRows.length} done)` : ""}`}
+              description="Work items for this engagement."
+            />
+            <div className="p-5">
+              <ul className="space-y-2">
+                {taskRows.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-edge bg-subtle px-4 py-3 transition-colors hover:border-edge-strong"
+                  >
+                    <div className="min-w-0">
+                      <div
+                        className={cx(
+                          "truncate text-sm font-medium text-fg",
+                          t.status === "done" && "text-faint line-through",
+                        )}
+                      >
+                        {t.title}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {t.assigneeName ?? "Unassigned"}
+                        {t.dueDate ? ` · Due ${fmtDate(t.dueDate)}` : ""}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {t.assigneeName ?? "Unassigned"}
-                      {t.dueDate ? ` · Due ${fmtDate(t.dueDate)}` : ""}
-                    </div>
-                  </div>
-                  <form action={updateTaskStatus} className="flex items-center gap-2">
-                    <input type="hidden" name="id" value={t.id} />
-                    <input type="hidden" name="projectId" value={p.id} />
-                    <select
-                      name="status"
-                      defaultValue={t.status}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs"
-                    >
-                      {Object.entries(taskStatusMeta).map(([key, meta]) => (
-                        <option key={key} value={key}>
-                          {meta.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="submit"
-                      className="text-xs font-medium text-purple-700 hover:underline"
-                    >
-                      Set
-                    </button>
-                  </form>
-                </li>
-              ))}
-              {taskRows.length === 0 ? (
-                <li className="text-sm text-slate-500">No tasks yet.</li>
-              ) : null}
-            </ul>
-
-            <form action={createTask} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
-              <input type="hidden" name="projectId" value={p.id} />
-              <input
-                name="title"
-                required
-                placeholder="New task…"
-                className={cx(inputClass, "sm:col-span-2")}
-              />
-              <select name="assigneeId" className={inputClass}>
-                <option value="">Unassigned</option>
-                {userRows.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
+                    <form action={updateTaskStatus} className="flex shrink-0 items-center gap-2">
+                      <input type="hidden" name="id" value={t.id} />
+                      <input type="hidden" name="projectId" value={p.id} />
+                      <select
+                        name="status"
+                        defaultValue={t.status}
+                        aria-label={`Status for ${t.title}`}
+                        className={cx(inputClass, "h-8 w-auto text-xs")}
+                      >
+                        {Object.entries(taskStatusMeta).map(([key, meta]) => (
+                          <option key={key} value={key}>
+                            {meta.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="submit"
+                        className="rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      >
+                        Set
+                      </button>
+                    </form>
+                  </li>
                 ))}
-              </select>
-              <SubmitButton>Add task</SubmitButton>
-            </form>
+                {taskRows.length === 0 ? (
+                  <li className="text-sm text-muted">No tasks yet.</li>
+                ) : null}
+              </ul>
+
+              <form
+                action={createTask}
+                className="mt-4 grid grid-cols-1 gap-3 border-t border-edge pt-4 sm:grid-cols-4"
+              >
+                <input type="hidden" name="projectId" value={p.id} />
+                <input
+                  name="title"
+                  required
+                  placeholder="New task…"
+                  className={cx(inputClass, "sm:col-span-2")}
+                />
+                <select name="assigneeId" aria-label="Assignee" className={inputClass}>
+                  <option value="">Unassigned</option>
+                  {userRows.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+                <SubmitButton>Add task</SubmitButton>
+              </form>
+            </div>
           </Card>
         </div>
 
-        <Card className="h-fit p-5">
-          <h2 className="mb-4 text-sm font-semibold">Manage</h2>
-          <form action={updateProjectStatus} className="space-y-4">
+        <Card className="h-fit overflow-hidden">
+          <CardHeader title="Manage" description="Project state." />
+          <form action={updateProjectStatus} className="space-y-4 p-5">
             <input type="hidden" name="id" value={p.id} />
             <div>
               <label htmlFor="status" className={labelClass}>

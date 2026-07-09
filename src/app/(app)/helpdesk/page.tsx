@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
+import { LifeBuoy, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, tickets, users } from "@/db/schema";
 import {
+  Avatar,
   Badge,
   Card,
   EmptyState,
   PageHeader,
+  THead,
+  Table,
   Td,
   Th,
   buttonClass,
@@ -62,21 +66,22 @@ export default async function HelpdeskPage({
         subtitle="Customer support tickets and internal issues."
         action={
           <Link href="/helpdesk/new" className={buttonClass}>
-            New ticket
+            <Plus /> New ticket
           </Link>
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-5 inline-flex flex-wrap items-center gap-1 rounded-lg border border-edge bg-surface p-1 shadow-card">
         {filters.map((f) => (
           <Link
             key={f.key}
             href={f.key === "all" ? "/helpdesk" : `/helpdesk?status=${f.key}`}
+            aria-current={active === f.key ? "page" : undefined}
             className={cx(
-              "rounded-full px-3 py-1 text-sm font-medium",
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
               active === f.key
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50",
+                ? "bg-primary-soft text-primary"
+                : "text-muted hover:bg-subtle hover:text-fg",
             )}
           >
             {f.label}
@@ -85,11 +90,22 @@ export default async function HelpdeskPage({
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState>No tickets match this filter.</EmptyState>
+        <EmptyState
+          icon={<LifeBuoy />}
+          title="No tickets here"
+          action={
+            <Link href="/helpdesk/new" className={buttonClass}>
+              <Plus /> New ticket
+            </Link>
+          }
+        >
+          No tickets match this filter. New customer requests and internal issues
+          will show up here.
+        </EmptyState>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50">
+        <Card className="overflow-visible">
+          <Table>
+            <THead>
               <tr>
                 <Th>Ticket</Th>
                 <Th>Client</Th>
@@ -98,20 +114,30 @@ export default async function HelpdeskPage({
                 <Th>Status</Th>
                 <Th>Updated</Th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </THead>
+            <tbody className="divide-y divide-edge">
               {rows.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50">
+                <tr key={t.id} className="group transition-colors hover:bg-subtle">
                   <Td>
                     <Link
                       href={`/helpdesk/${t.id}`}
-                      className="font-medium hover:text-purple-700"
+                      className="font-medium text-fg transition-colors group-hover:text-primary"
                     >
-                      #{t.id} {t.subject}
+                      <span className="mr-1.5 text-faint">#{t.id}</span>
+                      {t.subject}
                     </Link>
                   </Td>
-                  <Td className="text-slate-500">{t.clientName ?? "—"}</Td>
-                  <Td className="text-slate-500">{t.assigneeName ?? "Unassigned"}</Td>
+                  <Td className="text-muted">{t.clientName ?? "—"}</Td>
+                  <Td>
+                    {t.assigneeName ? (
+                      <span className="flex items-center gap-2 text-fg">
+                        <Avatar name={t.assigneeName} size="xs" />
+                        {t.assigneeName}
+                      </span>
+                    ) : (
+                      <span className="text-faint">Unassigned</span>
+                    )}
+                  </Td>
                   <Td>
                     <Badge tone={ticketPriorityMeta[t.priority].tone}>
                       {ticketPriorityMeta[t.priority].label}
@@ -122,11 +148,11 @@ export default async function HelpdeskPage({
                       {ticketStatusMeta[t.status].label}
                     </Badge>
                   </Td>
-                  <Td className="text-slate-500">{fmtDateTime(t.updatedAt)}</Td>
+                  <Td className="text-muted tabular-nums">{fmtDateTime(t.updatedAt)}</Td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </Card>
       )}
     </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
+import { FolderKanban, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, projects, tasks } from "@/db/schema";
 import {
@@ -8,6 +9,9 @@ import {
   Card,
   EmptyState,
   PageHeader,
+  Progress,
+  THead,
+  Table,
   Td,
   Th,
   buttonClass,
@@ -42,54 +46,77 @@ export default async function ProjectsPage() {
         subtitle="Engagements, assessments, and internal projects."
         action={
           <Link href="/projects/new" className={buttonClass}>
-            New project
+            <Plus /> New project
           </Link>
         }
       />
 
       {rows.length === 0 ? (
-        <EmptyState>No projects yet. Create your first engagement.</EmptyState>
+        <EmptyState
+          icon={<FolderKanban />}
+          title="No projects yet"
+          action={
+            <Link href="/projects/new" className={buttonClass}>
+              <Plus /> New project
+            </Link>
+          }
+        >
+          Create your first engagement to start tracking tasks, budgets, and due
+          dates.
+        </EmptyState>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50">
+        <Card className="overflow-visible">
+          <Table>
+            <THead>
               <tr>
                 <Th>Project</Th>
                 <Th>Client</Th>
                 <Th>Status</Th>
                 <Th>Tasks</Th>
                 <Th>Due</Th>
-                <Th>Budget</Th>
+                <Th className="text-right">Budget</Th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+            </THead>
+            <tbody className="divide-y divide-edge">
               {rows.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50">
+                <tr key={p.id} className="group transition-colors hover:bg-subtle">
                   <Td>
                     <Link
                       href={`/projects/${p.id}`}
-                      className="font-medium hover:text-purple-700"
+                      className="font-medium text-fg transition-colors group-hover:text-primary"
                     >
                       {p.name}
                     </Link>
                   </Td>
-                  <Td className="text-slate-500">{p.clientName ?? "Internal"}</Td>
+                  <Td className="text-muted">{p.clientName ?? "Internal"}</Td>
                   <Td>
                     <Badge tone={projectStatusMeta[p.status].tone}>
                       {projectStatusMeta[p.status].label}
                     </Badge>
                   </Td>
-                  <Td className="text-slate-500">
-                    {p.taskCount > 0 ? `${p.doneCount}/${p.taskCount} done` : "—"}
+                  <Td>
+                    {p.taskCount > 0 ? (
+                      <span className="flex items-center gap-2.5">
+                        <Progress
+                          value={(p.doneCount / p.taskCount) * 100}
+                          className="w-20"
+                        />
+                        <span className="text-xs text-muted tabular-nums">
+                          {p.doneCount}/{p.taskCount}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
                   </Td>
-                  <Td className="text-slate-500">{fmtDate(p.dueDate)}</Td>
-                  <Td className="text-slate-500">
-                    {p.budget ? fmtMoney(p.budget) : "—"}
+                  <Td className="text-muted tabular-nums">{fmtDate(p.dueDate)}</Td>
+                  <Td className="text-right font-medium tabular-nums">
+                    {p.budget ? fmtMoney(p.budget) : <span className="text-faint">—</span>}
                   </Td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </Card>
       )}
     </div>
