@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  @apply bg-slate-100 text-slate-900;
+}
+
+@media print {
+  body {
+    @apply bg-white;
+  }
+}
