@@ -13,7 +13,7 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-1">
       <aside className="fixed inset-y-0 left-0 flex w-60 flex-col bg-slate-950 print:hidden">
         <div className="flex items-center gap-3 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-600 font-bold text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600 font-bold text-white">
             W
           </div>
           <div>

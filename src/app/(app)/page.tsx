@@ -114,7 +114,7 @@ export default async function DashboardPage() {
         <Card className="overflow-hidden xl:col-span-2">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold">Recent tickets</h2>
-            <Link href="/helpdesk" className="text-sm font-medium text-cyan-700 hover:underline">
+            <Link href="/helpdesk" className="text-sm font-medium text-purple-700 hover:underline">
               View all
             </Link>
           </div>
@@ -138,7 +138,7 @@ export default async function DashboardPage() {
                     <Td>
                       <Link
                         href={`/helpdesk/${t.id}`}
-                        className="font-medium text-slate-900 hover:text-cyan-700"
+                        className="font-medium text-slate-900 hover:text-purple-700"
                       >
                         #{t.id} {t.subject}
                       </Link>
@@ -164,7 +164,7 @@ export default async function DashboardPage() {
         <Card className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold">KPIs</h2>
-            <Link href="/kpis" className="text-sm font-medium text-cyan-700 hover:underline">
+            <Link href="/kpis" className="text-sm font-medium text-purple-700 hover:underline">
               Manage
             </Link>
           </div>

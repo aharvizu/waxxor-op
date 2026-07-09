@@ -107,7 +107,7 @@ export default async function ProjectPage({
                     </select>
                     <button
                       type="submit"
-                      className="text-xs font-medium text-cyan-700 hover:underline"
+                      className="text-xs font-medium text-purple-700 hover:underline"
                     >
                       Set
                     </button>

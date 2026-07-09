@@ -13,7 +13,7 @@ export default async function LoginPage() {
     <main className="flex min-h-screen flex-1 items-center justify-center bg-slate-950 p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600 text-xl font-bold text-white">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-600 text-xl font-bold text-white">
             W
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">

@@ -105,7 +105,7 @@ export default async function HelpdeskPage({
                   <Td>
                     <Link
                       href={`/helpdesk/${t.id}`}
-                      className="font-medium hover:text-cyan-700"
+                      className="font-medium hover:text-purple-700"
                     >
                       #{t.id} {t.subject}
                     </Link>

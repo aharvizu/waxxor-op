@@ -68,7 +68,7 @@ export default async function ProjectsPage() {
                   <Td>
                     <Link
                       href={`/projects/${p.id}`}
-                      className="font-medium hover:text-cyan-700"
+                      className="font-medium hover:text-purple-700"
                     >
                       {p.name}
                     </Link>

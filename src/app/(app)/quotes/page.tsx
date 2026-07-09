@@ -70,7 +70,7 @@ export default async function QuotesPage() {
                     <Td>
                       <Link
                         href={`/quotes/${q.id}`}
-                        className="font-medium hover:text-cyan-700"
+                        className="font-medium hover:text-purple-700"
                       >
                         Q-{String(q.id).padStart(4, "0")} {q.title}
                       </Link>

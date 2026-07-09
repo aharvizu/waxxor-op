@@ -31,7 +31,7 @@ export function SidebarNav() {
             className={cx(
               "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
               active
-                ? "bg-cyan-600/15 text-cyan-300"
+                ? "bg-purple-600/15 text-purple-300"
                 : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
             )}
           >

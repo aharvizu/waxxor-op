@@ -37,7 +37,7 @@ export default async function ClientsPage() {
                       <Td>
                         <Link
                           href={`/clients/${c.id}`}
-                          className="font-medium hover:text-cyan-700"
+                          className="font-medium hover:text-purple-700"
                         >
                           {c.name}
                         </Link>

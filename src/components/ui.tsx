@@ -50,7 +50,7 @@ export type BadgeTone =
   | "green"
   | "red"
   | "violet"
-  | "cyan";
+  | "purple";
 
 const badgeTones: Record<BadgeTone, string> = {
   slate: "bg-slate-100 text-slate-700 ring-slate-200",
@@ -59,7 +59,7 @@ const badgeTones: Record<BadgeTone, string> = {
   green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   red: "bg-red-50 text-red-700 ring-red-200",
   violet: "bg-violet-50 text-violet-700 ring-violet-200",
-  cyan: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+  purple: "bg-purple-50 text-purple-700 ring-purple-200",
 };
 
 export function Badge({
@@ -82,15 +82,15 @@ export function Badge({
 }
 
 export const inputClass =
-  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-cyan-600 focus:outline-none focus:ring-1 focus:ring-cyan-600";
+  "block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-purple-600 focus:outline-none focus:ring-1 focus:ring-purple-600";
 
 export const labelClass = "block text-sm font-medium text-slate-700 mb-1";
 
 export const buttonClass =
-  "inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2 disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-purple-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-offset-2 disabled:opacity-50";
 
 export const buttonSecondaryClass =
-  "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2";
+  "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-offset-2";
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
