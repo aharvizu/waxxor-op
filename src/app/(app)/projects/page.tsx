@@ -4,6 +4,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { FolderKanban, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, projects, tasks } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import {
   Badge,
   Card,
@@ -22,6 +23,7 @@ import { projectStatusMeta } from "@/lib/labels";
 export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsPage() {
+  const user = await requireUser();
   const rows = await db
     .select({
       id: projects.id,
@@ -36,6 +38,7 @@ export default async function ProjectsPage() {
     .from(projects)
     .leftJoin(clients, eq(projects.clientId, clients.id))
     .leftJoin(tasks, eq(tasks.projectId, projects.id))
+    .where(eq(projects.organizationId, user.organizationId))
     .groupBy(projects.id, clients.name)
     .orderBy(desc(projects.createdAt));
 

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { AlertCircle, Users } from "lucide-react";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { requireAdmin } from "@/lib/session";
+import { roleMeta } from "@/lib/labels";
+import { ROLES } from "@/lib/roles";
+import { requireRole } from "@/lib/session";
 import {
   Avatar,
   Badge,
@@ -33,9 +35,13 @@ export default async function UsersPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireAdmin();
+  const me = await requireRole("superadmin");
   const { error } = await searchParams;
-  const rows = await db.select().from(users).orderBy(asc(users.name));
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.organizationId, me.organizationId))
+    .orderBy(asc(users.name));
 
   return (
     <div>
@@ -88,8 +94,8 @@ export default async function UsersPage({
                         </Link>
                       </Td>
                       <Td>
-                        <Badge tone={u.role === "admin" ? "purple" : "slate"}>
-                          {u.role === "admin" ? "Admin" : "Member"}
+                        <Badge tone={roleMeta[u.role]?.tone ?? "slate"}>
+                          {roleMeta[u.role]?.label ?? u.role}
                         </Badge>
                       </Td>
                       <Td className="text-muted">{u.title ?? "—"}</Td>
@@ -125,9 +131,12 @@ export default async function UsersPage({
                 <label htmlFor="role" className={labelClass}>
                   Role
                 </label>
-                <select id="role" name="role" defaultValue="member" className={inputClass}>
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
+                <select id="role" name="role" defaultValue="technician" className={inputClass}>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {roleMeta[r]?.label ?? r}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { requireAdmin } from "@/lib/session";
+import { roleMeta } from "@/lib/labels";
+import { ROLES } from "@/lib/roles";
+import { requireRole } from "@/lib/session";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { Card, CardHeader, PageHeader, buttonDangerClass, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -25,12 +27,15 @@ export default async function UserPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireAdmin();
+  const me = await requireRole("superadmin");
   const [{ id }, { error }] = await Promise.all([params, searchParams]);
   const userId = Number(id);
   if (!Number.isInteger(userId)) notFound();
 
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.organizationId, me.organizationId)));
   if (!user) notFound();
 
   return (
@@ -87,8 +92,11 @@ export default async function UserPage({
                 defaultValue={user.role}
                 className={inputClass}
               >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {roleMeta[r]?.label ?? r}
+                  </option>
+                ))}
               </select>
             </div>
             <div>

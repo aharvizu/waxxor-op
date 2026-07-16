@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   ArrowUpRight,
   CircleDollarSign,
@@ -17,6 +17,7 @@ import {
   quoteItems,
   quotes,
   tickets,
+  workItems,
 } from "@/db/schema";
 import {
   Badge,
@@ -30,9 +31,12 @@ import {
   Th,
 } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
+import { requireUser } from "@/lib/session";
 import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
 
 export default async function DashboardPage() {
+  const user = await requireUser();
+  const orgId = user.organizationId;
   const [
     [openTickets],
     [totalTickets],
@@ -47,36 +51,61 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     db
       .select({ value: count() })
-      .from(tickets)
-      .where(inArray(tickets.status, ["open", "in_progress", "waiting_on_customer"])),
-    db.select({ value: count() }).from(tickets),
-    db.select({ value: count() }).from(projects).where(eq(projects.status, "active")),
-    db.select({ value: count() }).from(projects),
-    db.select({ value: count() }).from(quotes).where(eq(quotes.status, "sent")),
-    db.select({ value: count() }).from(quotes).where(eq(quotes.status, "accepted")),
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, orgId),
+          eq(workItems.type, "ticket"),
+          inArray(workItems.status, ["new", "assigned", "in_progress", "waiting_customer", "waiting_third_party", "scheduled", "reopened"]),
+        ),
+      ),
+    db
+      .select({ value: count() })
+      .from(workItems)
+      .where(and(eq(workItems.organizationId, orgId), eq(workItems.type, "ticket"))),
+    db
+      .select({ value: count() })
+      .from(projects)
+      .where(and(eq(projects.organizationId, orgId), eq(projects.status, "active"))),
+    db.select({ value: count() }).from(projects).where(eq(projects.organizationId, orgId)),
     db
       .select({ value: count() })
       .from(quotes)
-      .where(inArray(quotes.status, ["accepted", "rejected", "expired"])),
+      .where(and(eq(quotes.organizationId, orgId), eq(quotes.status, "sent"))),
+    db
+      .select({ value: count() })
+      .from(quotes)
+      .where(and(eq(quotes.organizationId, orgId), eq(quotes.status, "accepted"))),
+    db
+      .select({ value: count() })
+      .from(quotes)
+      .where(
+        and(
+          eq(quotes.organizationId, orgId),
+          inArray(quotes.status, ["accepted", "rejected", "expired"]),
+        ),
+      ),
     db
       .select({
         value: sql<string>`coalesce(sum(${quoteItems.quantity} * ${quoteItems.unitPrice}), 0)`,
       })
       .from(quoteItems)
       .innerJoin(quotes, eq(quoteItems.quoteId, quotes.id))
-      .where(eq(quotes.status, "sent")),
+      .where(and(eq(quotes.organizationId, orgId), eq(quotes.status, "sent"))),
     db
       .select({
         id: tickets.id,
-        subject: tickets.subject,
-        status: tickets.status,
-        priority: tickets.priority,
+        subject: workItems.title,
+        status: workItems.status,
+        priority: workItems.priority,
         clientName: clients.name,
-        createdAt: tickets.createdAt,
+        createdAt: workItems.createdAt,
       })
       .from(tickets)
-      .leftJoin(clients, eq(tickets.clientId, clients.id))
-      .orderBy(desc(tickets.createdAt))
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .where(eq(tickets.organizationId, orgId))
+      .orderBy(desc(workItems.createdAt))
       .limit(6),
     db
       .select({
@@ -91,6 +120,7 @@ export default async function DashboardPage() {
         )`,
       })
       .from(kpis)
+      .where(eq(kpis.organizationId, orgId))
       .orderBy(kpis.name)
       .limit(8),
   ]);

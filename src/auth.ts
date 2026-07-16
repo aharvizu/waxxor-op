@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { normalizeRole, type Role } from "@/lib/roles";
 
 declare module "next-auth" {
   interface Session {
@@ -11,7 +12,9 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
-      role: "admin" | "member";
+      role: Role;
+      /** null only for JWTs issued before the organization migration. */
+      organizationId: number | null;
     };
   }
 }
@@ -47,6 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           email: user.email,
           role: user.role,
+          organizationId: user.organizationId,
         };
       },
     }),
@@ -55,14 +59,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: "admin" | "member" }).role ?? "member";
+        token.role = normalizeRole((user as { role?: string }).role);
+        token.organizationId = (user as { organizationId?: number }).organizationId;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = (token.role as "admin" | "member") ?? "member";
+        // normalizeRole also maps roles from JWTs issued before the
+        // six-role migration (admin → superadmin, member → technician).
+        session.user.role = normalizeRole(token.role);
+        // Pre-migration JWTs have no organizationId; requireUser forces
+        // those sessions through a fresh sign-in.
+        session.user.organizationId =
+          typeof token.organizationId === "number" ? token.organizationId : null;
       }
       return session;
     },

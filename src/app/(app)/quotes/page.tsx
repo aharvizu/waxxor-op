@@ -4,6 +4,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { FileText, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, quoteItems, quotes } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import {
   Badge,
   Card,
@@ -21,6 +22,7 @@ import { quoteStatusMeta } from "@/lib/labels";
 export const metadata: Metadata = { title: "Quotes" };
 
 export default async function QuotesPage() {
+  const user = await requireUser();
   const rows = await db
     .select({
       id: quotes.id,
@@ -35,6 +37,7 @@ export default async function QuotesPage() {
     .from(quotes)
     .innerJoin(clients, eq(quotes.clientId, clients.id))
     .leftJoin(quoteItems, eq(quoteItems.quoteId, quotes.id))
+    .where(eq(quotes.organizationId, user.organizationId))
     .groupBy(quotes.id, clients.name)
     .orderBy(desc(quotes.createdAt));
 

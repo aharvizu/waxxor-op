@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { asc, desc, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { Gauge, Trash2 } from "lucide-react";
 import { db } from "@/db";
 import { kpiEntries, kpis } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -20,7 +21,12 @@ import { addKpiEntry, createKpi, deleteKpi } from "./actions";
 export const metadata: Metadata = { title: "KPIs" };
 
 export default async function KpisPage() {
-  const kpiRows = await db.select().from(kpis).orderBy(asc(kpis.name));
+  const user = await requireUser();
+  const kpiRows = await db
+    .select()
+    .from(kpis)
+    .where(eq(kpis.organizationId, user.organizationId))
+    .orderBy(asc(kpis.name));
   const entries =
     kpiRows.length > 0
       ? await db

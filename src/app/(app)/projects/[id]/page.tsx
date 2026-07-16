@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, projects, tasks, users } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import {
   Badge,
   Card,
@@ -24,6 +25,7 @@ export default async function ProjectPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireUser();
   const { id } = await params;
   const projectId = Number(id);
   if (!Number.isInteger(projectId)) notFound();
@@ -32,7 +34,9 @@ export default async function ProjectPage({
     .select({ project: projects, clientName: clients.name })
     .from(projects)
     .leftJoin(clients, eq(projects.clientId, clients.id))
-    .where(eq(projects.id, projectId));
+    .where(
+      and(eq(projects.id, projectId), eq(projects.organizationId, user.organizationId)),
+    );
   if (!row) notFound();
 
   const [taskRows, userRows] = await Promise.all([
@@ -48,7 +52,11 @@ export default async function ProjectPage({
       .leftJoin(users, eq(tasks.assigneeId, users.id))
       .where(eq(tasks.projectId, projectId))
       .orderBy(asc(tasks.createdAt)),
-    db.select({ id: users.id, name: users.name }).from(users).orderBy(users.name),
+    db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.organizationId, user.organizationId))
+      .orderBy(users.name),
   ]);
 
   const p = row.project;

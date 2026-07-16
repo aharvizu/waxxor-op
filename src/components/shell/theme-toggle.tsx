@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { cx, iconButtonClass } from "@/components/ui";
 
-export function ThemeToggle() {
-  const [dark, setDark] = useState<boolean | null>(null);
+const emptySubscribe = () => () => {};
 
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+export function ThemeToggle() {
+  // Hydration gate: false on the server and during hydration, true after mount,
+  // so the <html> class is only read once it is safe to diverge from server HTML.
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const [override, setOverride] = useState<boolean | null>(null);
+  const dark =
+    override ??
+    (mounted ? document.documentElement.classList.contains("dark") : null);
 
   function toggle() {
     const next = !document.documentElement.classList.contains("dark");
@@ -19,7 +23,7 @@ export function ThemeToggle() {
     } catch {
       // storage unavailable (private mode) — theme still applies for the session
     }
-    setDark(next);
+    setOverride(next);
   }
 
   return (

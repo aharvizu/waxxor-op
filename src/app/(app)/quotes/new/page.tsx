@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import { Card, PageHeader, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { createQuote } from "../actions";
@@ -9,9 +10,11 @@ import { createQuote } from "../actions";
 export const metadata: Metadata = { title: "New quote" };
 
 export default async function NewQuotePage() {
+  const user = await requireUser();
   const clientRows = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(eq(clients.organizationId, user.organizationId))
     .orderBy(asc(clients.name));
 
   return (

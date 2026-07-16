@@ -1,7 +1,7 @@
-import { count, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { signOut } from "@/auth";
 import { db } from "@/db";
-import { tickets } from "@/db/schema";
+import { workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { AppShell } from "@/components/shell/app-shell";
 
@@ -13,8 +13,14 @@ export default async function AppLayout({
   const user = await requireUser();
   const [openTickets] = await db
     .select({ value: count() })
-    .from(tickets)
-    .where(inArray(tickets.status, ["open", "in_progress", "waiting_on_customer"]));
+    .from(workItems)
+    .where(
+      and(
+        eq(workItems.organizationId, user.organizationId),
+        eq(workItems.type, "ticket"),
+        inArray(workItems.status, ["new", "assigned", "in_progress", "waiting_customer", "waiting_third_party", "scheduled", "reopened"]),
+      ),
+    );
 
   return (
     <AppShell

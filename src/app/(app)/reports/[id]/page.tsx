@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, reports } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import { Badge, Card, PageHeader, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { PrintButton } from "@/components/print-button";
@@ -17,6 +18,7 @@ export default async function ReportPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireUser();
   const { id } = await params;
   const reportId = Number(id);
   if (!Number.isInteger(reportId)) notFound();
@@ -25,7 +27,7 @@ export default async function ReportPage({
     .select({ report: reports, clientName: clients.name })
     .from(reports)
     .leftJoin(clients, eq(reports.clientId, clients.id))
-    .where(eq(reports.id, reportId));
+    .where(and(eq(reports.id, reportId), eq(reports.organizationId, user.organizationId)));
   if (!row) notFound();
 
   const r = row.report;

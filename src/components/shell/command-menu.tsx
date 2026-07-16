@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Timer,
+  ClipboardCheck,
   Building2,
   ClipboardList,
   FileText,
@@ -29,6 +31,8 @@ type Item = {
 
 const items: Item[] = [
   { label: "Dashboard", href: "/", group: "Navigate", icon: LayoutDashboard, keywords: "home overview" },
+  { label: "Activities", href: "/activities", group: "Navigate", icon: ClipboardCheck, keywords: "tasks follow-up work" },
+  { label: "SLA", href: "/sla", group: "Navigate", icon: Timer, keywords: "sla service level targets calendar" },
   { label: "Helpdesk", href: "/helpdesk", group: "Navigate", icon: LifeBuoy, keywords: "tickets support" },
   { label: "Projects", href: "/projects", group: "Navigate", icon: FolderKanban, keywords: "engagements tasks" },
   { label: "Quotes", href: "/quotes", group: "Navigate", icon: FileText, keywords: "proposals pricing" },
@@ -37,6 +41,7 @@ const items: Item[] = [
   { label: "KPIs", href: "/kpis", group: "Navigate", icon: Gauge, keywords: "metrics numbers" },
   { label: "Clients", href: "/clients", group: "Navigate", icon: Building2, keywords: "customers accounts" },
   { label: "Users", href: "/users", group: "Navigate", icon: Users, keywords: "team members" },
+  { label: "New activity", href: "/activities/new", group: "Create", icon: Plus, keywords: "create activity task" },
   { label: "New ticket", href: "/helpdesk/new", group: "Create", icon: Plus, keywords: "create ticket support" },
   { label: "New project", href: "/projects/new", group: "Create", icon: Plus, keywords: "create project" },
   { label: "New quote", href: "/quotes/new", group: "Create", icon: Plus, keywords: "create quote proposal" },

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Bell,
   Building2,
   Check,
   ChevronDown,
   ChevronsUpDown,
+  ClipboardCheck,
   ClipboardList,
   FileText,
   FolderKanban,
@@ -22,6 +23,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Timer,
   Users,
 } from "lucide-react";
 import { Avatar, Badge, cx, iconButtonClass } from "@/components/ui";
@@ -39,7 +41,20 @@ type NavItem = {
 
 type NavSection = { name: string | null; items: NavItem[] };
 
-export type ShellUser = { name: string; email: string; role: "admin" | "member" };
+import type { Role } from "@/lib/roles";
+import { roleMeta } from "@/lib/labels";
+
+export type ShellUser = { name: string; email: string; role: Role };
+
+const emptySubscribe = () => () => {};
+
+function readStoredCollapsed() {
+  try {
+    return localStorage.getItem("wx-sidebar") === "collapsed";
+  } catch {
+    return false;
+  }
+}
 
 /* ------------------------------------------------------------------ Shell */
 
@@ -54,27 +69,21 @@ export function AppShell({
   signOut: () => Promise<void>;
   children: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  // Hydration gate: false on the server and during hydration, true after mount,
+  // so localStorage is only read once it is safe to diverge from server HTML.
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(null);
+  const collapsed =
+    collapsedOverride ?? (mounted ? readStoredCollapsed() : false);
 
-  useEffect(() => {
+  function toggleSidebar() {
+    const next = !collapsed;
     try {
-      setCollapsed(localStorage.getItem("wx-sidebar") === "collapsed");
+      localStorage.setItem("wx-sidebar", next ? "collapsed" : "expanded");
     } catch {
       // ignore
     }
-    setMounted(true);
-  }, []);
-
-  function toggleSidebar() {
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem("wx-sidebar", c ? "expanded" : "collapsed");
-      } catch {
-        // ignore
-      }
-      return !c;
-    });
+    setCollapsedOverride(next);
   }
 
   const sections: NavSection[] = [
@@ -85,6 +94,7 @@ export function AppShell({
     {
       name: "Operations",
       items: [
+        { href: "/activities", label: "Activities", icon: ClipboardCheck },
         { href: "/helpdesk", label: "Helpdesk", icon: LifeBuoy, badge: openTickets },
         { href: "/projects", label: "Projects", icon: FolderKanban },
       ],
@@ -101,6 +111,7 @@ export function AppShell({
       name: "Organization",
       items: [
         { href: "/clients", label: "Clients", icon: Building2 },
+        { href: "/sla", label: "SLA", icon: Timer },
         { href: "/users", label: "Users", icon: Users },
       ],
     },
@@ -337,6 +348,9 @@ function Topbar({ user, signOut }: { user: ShellUser; signOut: () => Promise<voi
           }
         >
           <MenuLabel>Quick create</MenuLabel>
+          <Link href="/activities/new" className={menuItemClass}>
+            <ClipboardCheck /> New activity
+          </Link>
           <Link href="/helpdesk/new" className={menuItemClass}>
             <LifeBuoy /> New ticket
           </Link>
@@ -404,7 +418,7 @@ function Topbar({ user, signOut }: { user: ShellUser; signOut: () => Promise<voi
           <div className="px-2.5 pb-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-primary">
               <ShieldCheck className="size-3" />
-              {user.role === "admin" ? "Administrator" : "Member"}
+              {roleMeta[user.role]?.label ?? user.role}
             </span>
           </div>
           <MenuSeparator />

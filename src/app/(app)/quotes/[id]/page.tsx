@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, quoteItems, quotes } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import { Trash2 } from "lucide-react";
 import {
   Badge,
@@ -28,6 +29,7 @@ export default async function QuotePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requireUser();
   const { id } = await params;
   const quoteId = Number(id);
   if (!Number.isInteger(quoteId)) notFound();
@@ -36,7 +38,7 @@ export default async function QuotePage({
     .select({ quote: quotes, client: clients })
     .from(quotes)
     .innerJoin(clients, eq(quotes.clientId, clients.id))
-    .where(eq(quotes.id, quoteId));
+    .where(and(eq(quotes.id, quoteId), eq(quotes.organizationId, user.organizationId)));
   if (!row) notFound();
 
   const items = await db

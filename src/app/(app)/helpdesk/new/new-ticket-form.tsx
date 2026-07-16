@@ -1,0 +1,129 @@
+"use client";
+
+import { useActionState } from "react";
+import { inputClass, labelClass } from "@/components/ui";
+import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SubmitButton } from "@/components/submit-button";
+import type { ActionState } from "@/lib/action-result";
+import { createTicket } from "../actions";
+
+type Option = { id: number; name: string };
+
+export function NewTicketForm({
+  clients,
+  users,
+  slas,
+}: {
+  clients: Option[];
+  users: Option[];
+  slas: Option[]; // empty for non-superadmins
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(createTicket, null);
+  const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  return (
+    <form action={formAction} className="space-y-4">
+      <FormAlert state={state} />
+      <div>
+        <label htmlFor="subject" className={labelClass}>
+          Subject
+        </label>
+        <input
+          id="subject"
+          name="subject"
+          required
+          aria-invalid={errors.subject ? true : undefined}
+          className={inputClass}
+        />
+        <FieldError errors={errors.subject} />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="clientId" className={labelClass}>
+            Client
+          </label>
+          <select id="clientId" name="clientId" className={inputClass}>
+            <option value="">— None —</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="priority" className={labelClass}>
+            Priority
+          </label>
+          <select id="priority" name="priority" defaultValue="medium" className={inputClass}>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="assigneeId" className={labelClass}>
+            Assignee
+          </label>
+          <select id="assigneeId" name="assigneeId" className={inputClass}>
+            <option value="">Unassigned</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="category" className={labelClass}>
+            Category (optional)
+          </label>
+          <input id="category" name="category" className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="channel" className={labelClass}>
+            Channel (optional)
+          </label>
+          <select id="channel" name="channel" defaultValue="" className={inputClass}>
+            <option value="">—</option>
+            {["email", "phone", "whatsapp", "portal", "in_person", "internal"].map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="contact" className={labelClass}>
+            Contact (optional)
+          </label>
+          <input id="contact" name="contact" className={inputClass} />
+        </div>
+      </div>
+      {slas.length > 0 ? (
+        <div>
+          <label htmlFor="slaDefinitionId" className={labelClass}>
+            SLA (SuperAdmin — leave empty for the priority default)
+          </label>
+          <select id="slaDefinitionId" name="slaDefinitionId" className={inputClass}>
+            <option value="">Automatic (default for priority)</option>
+            {slas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      <div>
+        <label htmlFor="description" className={labelClass}>
+          Description
+        </label>
+        <textarea id="description" name="description" rows={6} className={inputClass} />
+      </div>
+      <SubmitButton>Create ticket</SubmitButton>
+    </form>
+  );
+}

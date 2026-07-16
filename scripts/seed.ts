@@ -5,7 +5,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { reportTemplates, users } from "../src/db/schema";
+import { organizations, reportTemplates, users } from "../src/db/schema";
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -20,6 +20,19 @@ async function main() {
 
   const db = drizzle(neon(url));
 
+  // Default organization: everything belongs to Watson (slug: watson).
+  let [org] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.slug, "watson"));
+  if (!org) {
+    [org] = await db
+      .insert(organizations)
+      .values({ name: "Watson", slug: "watson" })
+      .returning();
+    console.log(`Created organization ${org.name} (id ${org.id}).`);
+  }
+
   const [existing] = await db.select().from(users).where(eq(users.email, email));
   if (existing) {
     console.log(`Admin user ${email} already exists (id ${existing.id}) — skipping.`);
@@ -27,7 +40,7 @@ async function main() {
     const passwordHash = await bcrypt.hash(password, 12);
     const [user] = await db
       .insert(users)
-      .values({ name, email, passwordHash, role: "admin" })
+      .values({ name, email, passwordHash, role: "superadmin", organizationId: org.id })
       .returning({ id: users.id });
     console.log(`Created admin user ${email} (id ${user.id}).`);
   }
@@ -100,7 +113,7 @@ Classification: CONFIDENTIAL
       console.log(`Template "${t.name}" already exists — skipping.`);
       continue;
     }
-    await db.insert(reportTemplates).values(t);
+    await db.insert(reportTemplates).values({ ...t, organizationId: org.id });
     console.log(`Created report template "${t.name}".`);
   }
 

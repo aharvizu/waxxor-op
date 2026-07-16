@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { ClipboardList, LayoutTemplate, Plus } from "lucide-react";
 import { db } from "@/db";
 import { clients, reports } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import {
   Badge,
   Card,
@@ -22,6 +23,7 @@ import { reportStatusMeta } from "@/lib/labels";
 export const metadata: Metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
+  const user = await requireUser();
   const rows = await db
     .select({
       id: reports.id,
@@ -33,6 +35,7 @@ export default async function ReportsPage() {
     })
     .from(reports)
     .leftJoin(clients, eq(reports.clientId, clients.id))
+    .where(eq(reports.organizationId, user.organizationId))
     .orderBy(desc(reports.createdAt));
 
   return (

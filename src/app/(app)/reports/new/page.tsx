@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clients, reportTemplates } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import { Card, PageHeader, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { createReport } from "../actions";
@@ -9,12 +10,18 @@ import { createReport } from "../actions";
 export const metadata: Metadata = { title: "New report" };
 
 export default async function NewReportPage() {
+  const user = await requireUser();
   const [templateRows, clientRows] = await Promise.all([
     db
       .select({ id: reportTemplates.id, name: reportTemplates.name })
       .from(reportTemplates)
+      .where(eq(reportTemplates.organizationId, user.organizationId))
       .orderBy(asc(reportTemplates.name)),
-    db.select({ id: clients.id, name: clients.name }).from(clients).orderBy(asc(clients.name)),
+    db
+      .select({ id: clients.id, name: clients.name })
+      .from(clients)
+      .where(eq(clients.organizationId, user.organizationId))
+      .orderBy(asc(clients.name)),
   ]);
 
   return (

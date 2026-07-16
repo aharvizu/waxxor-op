@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reportTemplates } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import { LayoutTemplate, Trash2 } from "lucide-react";
 import {
   Card,
@@ -17,7 +18,12 @@ import { createTemplate, deleteTemplate } from "../actions";
 export const metadata: Metadata = { title: "Report templates" };
 
 export default async function TemplatesPage() {
-  const rows = await db.select().from(reportTemplates).orderBy(asc(reportTemplates.name));
+  const user = await requireUser();
+  const rows = await db
+    .select()
+    .from(reportTemplates)
+    .where(eq(reportTemplates.organizationId, user.organizationId))
+    .orderBy(asc(reportTemplates.name));
 
   return (
     <div>

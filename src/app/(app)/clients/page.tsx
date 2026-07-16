@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { Building2 } from "lucide-react";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
+import { requireUser } from "@/lib/session";
 import {
   Avatar,
   Card,
@@ -14,16 +15,18 @@ import {
   Table,
   Td,
   Th,
-  inputClass,
-  labelClass,
 } from "@/components/ui";
-import { SubmitButton } from "@/components/submit-button";
-import { createClient } from "./actions";
+import { ClientForm } from "./client-form";
 
 export const metadata: Metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
-  const rows = await db.select().from(clients).orderBy(asc(clients.name));
+  const user = await requireUser();
+  const rows = await db
+    .select()
+    .from(clients)
+    .where(eq(clients.organizationId, user.organizationId))
+    .orderBy(asc(clients.name));
 
   return (
     <div>
@@ -72,39 +75,9 @@ export default async function ClientsPage() {
 
         <Card className="h-fit overflow-hidden">
           <CardHeader title="Add client" description="A new customer account." />
-          <form action={createClient} className="space-y-4 p-5">
-            <div>
-              <label htmlFor="name" className={labelClass}>
-                Company name
-              </label>
-              <input id="name" name="name" required className={inputClass} />
-            </div>
-            <div>
-              <label htmlFor="contactName" className={labelClass}>
-                Contact person
-              </label>
-              <input id="contactName" name="contactName" className={inputClass} />
-            </div>
-            <div>
-              <label htmlFor="email" className={labelClass}>
-                Email
-              </label>
-              <input id="email" name="email" type="email" className={inputClass} />
-            </div>
-            <div>
-              <label htmlFor="phone" className={labelClass}>
-                Phone
-              </label>
-              <input id="phone" name="phone" className={inputClass} />
-            </div>
-            <div>
-              <label htmlFor="notes" className={labelClass}>
-                Notes
-              </label>
-              <textarea id="notes" name="notes" rows={3} className={inputClass} />
-            </div>
-            <SubmitButton>Add client</SubmitButton>
-          </form>
+          <div className="p-5">
+            <ClientForm submitLabel="Add client" />
+          </div>
         </Card>
       </div>
     </div>
