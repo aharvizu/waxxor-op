@@ -235,10 +235,11 @@ export async function markConversationAttended(
           ),
         );
       if (!conv) throw new Error("not_found");
-      if (conv.status === "attended") return;
+      // Inbox status machine (2026-07-18): "attended" is now "closed".
+      if (conv.status === "closed") return;
       await tx
         .update(conversations)
-        .set({ status: "attended", updatedAt: new Date() })
+        .set({ status: "closed", updatedAt: new Date() })
         .where(eq(conversations.id, conv.id));
       await recordAudit(tx, {
         organizationId: user.organizationId,
@@ -248,7 +249,7 @@ export async function markConversationAttended(
         action: "update",
         field: "status",
         oldValue: conv.status,
-        newValue: "attended",
+        newValue: "closed",
         metadata: { event: "conversation_attended", ticketId: conv.ticketId },
       });
     });

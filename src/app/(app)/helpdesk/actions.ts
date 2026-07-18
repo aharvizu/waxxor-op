@@ -30,6 +30,7 @@ import {
   saveAttachment,
 } from "@/lib/attachments";
 import { diffFields, recordAudit } from "@/lib/audit";
+import { postConversationMessage } from "@/lib/conversations";
 import { addWorkingMinutes, workingMinutesBetween } from "@/lib/business-time";
 import {
   buildSlaSnapshot,
@@ -968,58 +969,33 @@ export async function logMessage(
       const row = await loadTicket(tx, user, data.id);
       const conversation = await getOrCreateConversation(tx, user, row);
       const now = new Date();
-      const [message] = await tx
-        .insert(messages)
-        .values({
-          organizationId: user.organizationId,
-          conversationId: conversation.id,
-          direction,
-          authorUserId: Number(user.id),
-          body: data.body,
-          channel,
-          occurredAt: now,
-          metadata:
-            data.kind === "call"
-              ? { call: true }
-              : data.kind === "confirmation_request"
-                ? { confirmationRequest: true }
-                : null,
-        })
-        .returning({ id: messages.id });
-      await tx
-        .update(conversations)
-        .set({ updatedAt: now })
-        .where(eq(conversations.id, conversation.id));
+      // Shared conversation service (Inbox): message write, conversation bump,
+      // read cursor and the SLA first-response stamp live in ONE place.
+      const message = await postConversationMessage(tx, {
+        organizationId: user.organizationId,
+        actorUserId: Number(user.id),
+        conversationId: conversation.id,
+        direction,
+        body: data.body,
+        channel,
+        occurredAt: now,
+        metadata:
+          data.kind === "call"
+            ? { call: true }
+            : data.kind === "confirmation_request"
+              ? { confirmationRequest: true }
+              : null,
+      });
       await tx
         .update(workItems)
         .set({ updatedAt: now })
         .where(eq(workItems.id, row.item.id));
 
-      if (direction === "outbound") {
-        // SLA first response from the first outbound customer contact — never overwritten
-        if (!row.ticket.firstResponseAt) {
-          await tx
-            .update(tickets)
-            .set({ firstResponseAt: now })
-            .where(and(eq(tickets.id, row.ticket.id), isNull(tickets.firstResponseAt)));
-          await recordAudit(tx, {
-            organizationId: user.organizationId,
-            userId: Number(user.id),
-            entityType: "ticket",
-            entityId: row.ticket.id,
-            action: "update",
-            field: "firstResponseAt",
-            oldValue: null,
-            newValue: now.toISOString(),
-            metadata: { event: "first_response_registered", source: "outbound_message" },
-          });
-        }
-        if (data.kind === "confirmation_request") {
-          await tx
-            .update(tickets)
-            .set({ lastContactAttemptAt: now })
-            .where(eq(tickets.id, row.ticket.id));
-        }
+      if (direction === "outbound" && data.kind === "confirmation_request") {
+        await tx
+          .update(tickets)
+          .set({ lastContactAttemptAt: now })
+          .where(eq(tickets.id, row.ticket.id));
       }
 
       await recordAudit(tx, {

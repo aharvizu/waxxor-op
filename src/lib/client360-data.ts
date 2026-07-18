@@ -209,7 +209,7 @@ export async function getClientSummary(orgId: number, clientId: number) {
           and(
             eq(conversations.organizationId, orgId),
             eq(conversations.clientId, clientId),
-            ne(conversations.status, "attended"),
+            sql`${conversations.status} in ('open', 'pending')`,
             sql`exists (select 1 from ${messages} m where m.conversation_id = ${conversations.id} and m.direction = 'inbound' and m.occurred_at = (select max(m2.occurred_at) from ${messages} m2 where m2.conversation_id = ${conversations.id}))`,
           ),
         ),

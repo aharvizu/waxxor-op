@@ -194,11 +194,17 @@ export const conversationChannel = pgEnum("conversation_channel", [
   "phone",
   "portal",
   "internal",
+  // Append-only: added for the Inbox feature (2026-07-18). No external
+  // integration exists — see src/lib/channels.ts for adapter status.
+  "teams",
+  "api",
 ]);
 export const messageDirection = pgEnum("message_direction", [
   "inbound",
   "outbound",
   "internal",
+  // Append-only: system events (status changes, links) — Inbox 2026-07-18.
+  "system",
 ]);
 export const clientStatus = pgEnum("client_status", [
   "active",
@@ -744,16 +750,82 @@ export const conversations = pgTable(
       .references(() => organizations.id),
     clientId: integer("client_id").references(() => clients.id),
     contactId: integer("contact_id"),
+    /**
+     * Optional since Inbox (2026-07-18): a conversation may relate to a
+     * ticket, an activity (workItemId), a client and/or a project. A ticket
+     * still has at most ONE conversation (unique holds on non-null values).
+     */
     ticketId: integer("ticket_id")
-      .notNull()
       .unique()
       .references(() => tickets.id, { onDelete: "cascade" }),
+    workItemId: integer("work_item_id").references(() => workItems.id),
+    projectId: integer("project_id").references(() => projects.id),
+    subject: text("subject"),
     channel: conversationChannel("channel").notNull().default("manual"),
+    /** open | pending | closed | archived (legacy "attended" migrated to closed). */
     status: text("status").notNull().default("open"),
+    createdById: integer("created_by_id").references(() => users.id),
+    archivedAt: timestamp("archived_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [index("conversations_org_idx").on(table.organizationId)],
+  (table) => [
+    index("conversations_org_idx").on(table.organizationId),
+    index("conversations_org_status_idx").on(table.organizationId, table.status),
+    index("conversations_client_idx").on(table.clientId),
+    index("conversations_project_idx").on(table.projectId),
+    index("conversations_work_item_idx").on(table.workItemId),
+  ],
+);
+
+/**
+ * Per-user state of a conversation: read cursor, pin and favorite. Child table
+ * (no organization_id) — every access goes through its conversation, which is
+ * org-scoped. Rows are created lazily on first interaction.
+ */
+export const conversationParticipants = pgTable(
+  "conversation_participants",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at"),
+    pinnedAt: timestamp("pinned_at"),
+    favoriteAt: timestamp("favorite_at"),
+    addedById: integer("added_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("conversation_participants_unique_idx").on(table.conversationId, table.userId),
+    index("conversation_participants_user_idx").on(table.userId),
+  ],
+);
+
+/**
+ * Explicit user mentions inside a message (selected in the composer, never
+ * parsed heuristically). Feeds the "Menciones" filter and Today.
+ */
+export const messageMentions = pgTable(
+  "message_mentions",
+  {
+    id: serial("id").primaryKey(),
+    messageId: integer("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("message_mentions_unique_idx").on(table.messageId, table.userId),
+    index("message_mentions_user_idx").on(table.userId, table.readAt),
+  ],
 );
 
 export const messages = pgTable(
@@ -773,6 +845,9 @@ export const messages = pgTable(
     channel: conversationChannel("channel").notNull().default("manual"),
     occurredAt: timestamp("occurred_at").notNull().defaultNow(),
     editedAt: timestamp("edited_at"),
+    /** Logical delete (Inbox): body hidden in UI, row and audit preserved. */
+    deletedAt: timestamp("deleted_at"),
+    deletedById: integer("deleted_by_id").references(() => users.id),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

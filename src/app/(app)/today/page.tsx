@@ -934,7 +934,7 @@ async function MessagesSection({
         case "all":
           return true;
         default: // unattended
-          return m.direction === "inbound" && m.conversationStatus !== "attended";
+          return m.direction === "inbound" && m.conversationStatus !== "closed" && m.conversationStatus !== "archived";
       }
   });
 
@@ -986,7 +986,7 @@ async function MessagesSection({
                   <Link href={`/helpdesk/${m.ticketId}?tab=conversation#composer`} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
                     Registrar respuesta
                   </Link>
-                  {m.conversationStatus !== "attended" ? (
+                  {m.conversationStatus !== "closed" && m.conversationStatus !== "archived" ? (
                     <AttendConversationButton conversationId={m.conversationId} />
                   ) : (
                     <Badge tone="green">Atendida</Badge>

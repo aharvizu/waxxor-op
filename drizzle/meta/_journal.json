@@ -134,6 +134,13 @@
       "when": 1784350054432,
       "tag": "0018_regular_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784386519343,
+      "tag": "0019_cooing_random",
+      "breakpoints": true
     }
   ]
 }
