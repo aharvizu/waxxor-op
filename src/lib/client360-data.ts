@@ -364,6 +364,7 @@ export async function getClientConversations(orgId: number, clientId: number, li
     .select({
       conversationId: conversations.id,
       status: conversations.status,
+      subject: conversations.subject,
       ticketId: tickets.id,
       folio: tickets.folio,
       title: workItems.title,
@@ -374,12 +375,12 @@ export async function getClientConversations(orgId: number, clientId: number, li
       occurredAt: lastMessage.occurredAt,
     })
     .from(conversations)
-    .innerJoin(lastMessage, eq(lastMessage.conversationId, conversations.id))
-    .innerJoin(tickets, eq(conversations.ticketId, tickets.id))
-    .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+    .leftJoin(lastMessage, eq(lastMessage.conversationId, conversations.id))
+    .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
+    .leftJoin(workItems, eq(tickets.workItemId, workItems.id))
     .leftJoin(users, eq(workItems.assigneeId, users.id))
     .where(and(eq(conversations.organizationId, orgId), eq(conversations.clientId, clientId)))
-    .orderBy(desc(lastMessage.occurredAt))
+    .orderBy(sql`${lastMessage.occurredAt} desc nulls last`)
     .limit(limit);
 }
 

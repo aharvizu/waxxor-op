@@ -376,7 +376,12 @@ function ConversationPane({
                       <span>{fmtDateTime(m.occurredAt)}</span>
                       {m.editedAt && !m.deletedAt ? <span>(editado)</span> : null}
                       {!m.deletedAt && m.authorUserId === userId ? (
-                        <MessageActions messageId={m.id} conversationId={conv.id} body={m.body} />
+                        <MessageActions
+                          key={`${m.id}-${m.editedAt?.getTime() ?? 0}`}
+                          messageId={m.id}
+                          conversationId={conv.id}
+                          body={m.body}
+                        />
                       ) : null}
                     </div>
                     {m.deletedAt ? (
@@ -410,6 +415,7 @@ function ConversationPane({
         </div>
 
         <Composer
+          key={`composer-${detail.messages[detail.messages.length - 1]?.id ?? 0}`}
           conversationId={conv.id}
           internalUsers={internalUsers}
           archived={conv.status === "archived"}

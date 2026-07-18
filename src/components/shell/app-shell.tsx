@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
+  MessageSquare,
   Settings,
   Bell,
   Building2,
@@ -94,6 +95,7 @@ export function AppShell({
       name: null,
       items: [
         { href: "/today", label: "Hoy", icon: Home },
+        { href: "/inbox", label: "Inbox", icon: MessageSquare },
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       ],
     },

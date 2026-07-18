@@ -1119,21 +1119,39 @@ async function RecurrentesTab({
 
 async function ConversacionesTab({ clientId, orgId }: { clientId: number; orgId: number }) {
   const rows = await getClientConversations(orgId, clientId);
+  const inboxActions = (
+    <div className="flex gap-2">
+      <Link href={`/inbox?clientId=${clientId}`} className={cx(buttonSecondaryClass, "h-8 text-xs")}>
+        Abrir en Inbox
+      </Link>
+      <Link href={`/inbox?clientId=${clientId}&new=1`} className={cx(buttonSecondaryClass, "h-8 text-xs")}>
+        Nueva conversación
+      </Link>
+    </div>
+  );
   if (rows.length === 0) {
     return (
-      <EmptyState icon={<MessagesSquare />} title="Sin conversaciones">
-        Este cliente no tiene conversaciones registradas todavía.
-      </EmptyState>
+      <div className="space-y-4">
+        {inboxActions}
+        <EmptyState icon={<MessagesSquare />} title="Sin conversaciones">
+          Este cliente no tiene conversaciones registradas todavía.
+        </EmptyState>
+      </div>
     );
   }
   return (
-    <Card className="overflow-hidden">
+    <div className="space-y-4">
+      {inboxActions}
+      <Card className="overflow-hidden">
       <ul className="divide-y divide-edge">
         {rows.map((c) => (
           <li key={c.conversationId} className="px-5 py-3.5 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <Link href={`/helpdesk/${c.ticketId}?tab=conversation`} className="font-medium text-fg hover:text-primary">
-                {c.folio} · {c.title}
+              <Link
+                href={c.ticketId ? `/helpdesk/${c.ticketId}?tab=conversation` : `/inbox?c=${c.conversationId}`}
+                className="font-medium text-fg hover:text-primary"
+              >
+                {c.ticketId ? `${c.folio} · ${c.title}` : (c.subject ?? `Conversación #${c.conversationId}`)}
               </Link>
               <span className="shrink-0 text-xs text-faint tabular-nums">
                 {c.occurredAt ? fmtDateTime(c.occurredAt) : "—"}
@@ -1146,7 +1164,8 @@ async function ConversacionesTab({ clientId, orgId }: { clientId: number; orgId:
           </li>
         ))}
       </ul>
-    </Card>
+      </Card>
+    </div>
   );
 }
 

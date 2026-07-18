@@ -554,6 +554,22 @@ async function ResumenTab({
           </div>
         </Card>
 
+        <Card className="p-5">
+          <CardHeader
+            title="Conversaciones"
+            description="Hilos del proyecto en el Inbox unificado."
+            className="mb-3 px-0 pt-0"
+          />
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href={`/inbox?projectId=${projectId}`} className="font-medium text-primary hover:underline">
+              Ver conversaciones
+            </Link>
+            <Link href={`/inbox?projectId=${projectId}&new=1`} className="font-medium text-primary hover:underline">
+              Nueva conversación
+            </Link>
+          </div>
+        </Card>
+
         {recurrences.length > 0 ? (
           <Card className="overflow-hidden">
             <CardHeader

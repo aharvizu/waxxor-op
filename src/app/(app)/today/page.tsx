@@ -42,6 +42,7 @@ import {
   getUnassignedCounts,
   type TodayScope,
 } from "@/lib/today-data";
+import { getUserUnreadMentions } from "@/lib/inbox-data";
 import { TicketRowActions } from "@/app/(app)/helpdesk/ticket-row-actions";
 import { db } from "@/db";
 import { and, asc, eq, ne } from "drizzle-orm";
@@ -919,8 +920,12 @@ async function MessagesSection({
   qs: (o: Record<string, string>) => string;
 }) {
   let all: Awaited<ReturnType<typeof getRecentMessages>>;
+  let mentions: Awaited<ReturnType<typeof getUserUnreadMentions>>;
   try {
-    all = await getRecentMessages(user.organizationId);
+    [all, mentions] = await Promise.all([
+      getRecentMessages(user.organizationId),
+      getUserUnreadMentions(user.organizationId, Number(user.id), 5),
+    ]);
   } catch {
     return <SectionError title="Mensajes recientes" />;
   }
@@ -943,7 +948,7 @@ async function MessagesSection({
       <Card className="overflow-hidden">
         <CardHeader
           title="Mensajes recientes"
-          description="Última interacción por conversación (registro manual)."
+          description="Última interacción por conversación — la bandeja completa vive en Inbox."
           action={
             <span className="flex gap-1 text-xs">
               {[["unattended", "No atendidos"], ["mine", "Míos"], ["unassigned", "Sin asignar"], ["all", "Todos"]].map(([k, label]) => (
@@ -961,6 +966,26 @@ async function MessagesSection({
             </span>
           }
         />
+        {mentions.length > 0 ? (
+          <div className="border-b border-edge bg-primary-soft/40 px-5 py-3">
+            <p className="mb-1.5 text-xs font-semibold text-primary">
+              Te mencionaron ({mentions.length})
+            </p>
+            <ul className="space-y-1">
+              {mentions.map((m) => (
+                <li key={m.mentionId} className="truncate text-xs text-muted">
+                  <Link href={`/inbox?c=${m.conversationId}`} className="hover:text-primary">
+                    <span className="font-medium text-fg">{m.authorName ?? "Alguien"}</span>
+                    {m.clientName ? ` · ${m.clientName}` : ""}: {m.body.slice(0, 90)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Link href="/inbox?view=mentions" className="mt-1.5 inline-block text-xs text-primary hover:underline">
+              Ver todas en Inbox →
+            </Link>
+          </div>
+        ) : null}
         {rows.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted">Sin conversaciones en este filtro.</p>
         ) : (

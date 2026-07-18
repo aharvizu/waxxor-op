@@ -86,6 +86,9 @@ export default async function ActivityPage({
             <ArrowRightLeft /> Convert to ticket
           </Link>
         ) : null}
+        <Link href={`/inbox?workItemId=${w.id}`} className={buttonSecondaryClass}>
+          Conversaciones
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -26,7 +26,7 @@ import {
 } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { getCatalog } from "@/lib/settings-data";
-import { Badge, Card, CardHeader } from "@/components/ui";
+import { Badge, Card, CardHeader, buttonSecondaryClass } from "@/components/ui";
 import { SlaPanel } from "@/components/sla-panel";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
@@ -348,6 +348,11 @@ export default async function TicketPage({
               <CardHeader
                 title="Conversation & activity"
                 description="Messages, notes, calls, time and operational changes — newest first. Nothing is sent externally in the MVP."
+                action={
+                  <Link href={`/inbox?ticketId=${t.id}`} className={buttonSecondaryClass}>
+                    Abrir en Inbox
+                  </Link>
+                }
               />
               <div className="space-y-4 p-5">
                 <div id="composer">
