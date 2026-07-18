@@ -1,11 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Paperclip, Pencil, Pin, Star, Trash2 } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
 import {
-  buttonDangerClass,
   buttonSecondaryClass,
   cx,
   inputClass,
@@ -48,18 +47,13 @@ export function Composer({
   internalUsers: Option[];
   archived: boolean;
 }) {
+  // The parent remounts this component (key) after a successful send, so the
+  // textarea clears without effect-driven state.
   const [state, formAction] = useActionState<ActionState, FormData>(sendInboxMessage, null);
   const [kind, setKind] = useState<"reply" | "note" | "inbound">("reply");
   const [showMentions, setShowMentions] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
-
-  useEffect(() => {
-    if (state?.ok) {
-      formRef.current?.reset();
-      setShowMentions(false);
-    }
-  }, [state]);
 
   if (archived) {
     return (
@@ -163,15 +157,13 @@ export function MessageActions({
   conversationId: number;
   body: string;
 }) {
+  // Successful edits change editedAt upstream, which remounts this component
+  // (key at the call site) — the editor closes without effect-driven state.
   const [editing, setEditing] = useState(false);
   const [editState, editAction] = useActionState<ActionState, FormData>(editInboxMessage, null);
   const [deleteState, deleteAction] = useActionState<ActionState, FormData>(deleteInboxMessage, null);
 
-  useEffect(() => {
-    if (editState?.ok) setEditing(false);
-  }, [editState]);
-
-  if (editing) {
+  if (editing && !editState?.ok) {
     return (
       <form action={editAction} className="mt-1 space-y-1.5">
         <input type="hidden" name="messageId" value={messageId} />
