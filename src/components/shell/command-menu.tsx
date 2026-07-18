@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Home,
   Timer,
   ClipboardCheck,
   Building2,
@@ -30,7 +31,8 @@ type Item = {
 };
 
 const items: Item[] = [
-  { label: "Dashboard", href: "/", group: "Navigate", icon: LayoutDashboard, keywords: "home overview" },
+  { label: "Dashboard", href: "/dashboard", group: "Navigate", icon: LayoutDashboard, keywords: "home overview" },
+  { label: "Hoy", href: "/today", group: "Navigate", icon: Home, keywords: "today home hoy pendientes" },
   { label: "Activities", href: "/activities", group: "Navigate", icon: ClipboardCheck, keywords: "tasks follow-up work" },
   { label: "SLA", href: "/sla", group: "Navigate", icon: Timer, keywords: "sla service level targets calendar" },
   { label: "Helpdesk", href: "/helpdesk", group: "Navigate", icon: LifeBuoy, keywords: "tickets support" },

@@ -27,7 +27,9 @@ export type ConversionBlock =
   | "already_converted"
   | "archived"
   | "no_client"
-  | "needs_confirmation";
+  | "needs_confirmation"
+  | "needs_project_confirmation"
+  | "has_subactivities";
 
 export class ConversionError extends Error {
   constructor(public readonly reason: ConversionBlock) {
@@ -48,6 +50,8 @@ export type ConvertInput = {
   /** Already validated against the org. undefined = keep the activity's assignee. */
   assigneeId?: number | null;
   confirmCancelled?: boolean;
+  /** Required when the activity belongs to a project: converting unlinks it. */
+  confirmProject?: boolean;
   /** Honored only when the caller is superadmin (checked by the action). */
   slaDefinitionId?: number | null;
 };
@@ -59,12 +63,21 @@ export function conversionBlockReason(state: {
   status: string;
   finalClientId: number | null;
   confirmCancelled: boolean;
+  /** Project linkage (2026-07-17): converting unlinks — needs explicit confirmation. */
+  projectId?: number | null;
+  confirmProject?: boolean;
+  /** Subactivities can't belong to a ticket — resolve them first. */
+  hasSubactivities?: boolean;
 }): ConversionBlock | null {
   if (state.convertedAt) return "already_converted";
   if (state.archivedAt) return "archived";
   if (!state.finalClientId) return "no_client";
+  if (state.hasSubactivities) return "has_subactivities";
   if (state.status === "cancelled" && !state.confirmCancelled) {
     return "needs_confirmation";
+  }
+  if (state.projectId && !state.confirmProject) {
+    return "needs_project_confirmation";
   }
   return null;
 }
@@ -92,12 +105,19 @@ export async function convertActivityToTicket(
     if (!row) throw new ConversionError("not_found");
 
     const finalClientId = input.clientId ?? row.item.clientId;
+    const [subactivities] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(activities)
+      .where(eq(activities.parentActivityId, row.activity.id));
     const blocked = conversionBlockReason({
       convertedAt: row.activity.convertedAt,
       archivedAt: row.activity.archivedAt,
       status: row.item.status,
       finalClientId,
       confirmCancelled: input.confirmCancelled ?? false,
+      projectId: row.activity.projectId,
+      confirmProject: input.confirmProject ?? false,
+      hasSubactivities: subactivities.n > 0,
     });
     if (blocked) throw new ConversionError(blocked);
 
@@ -154,10 +174,18 @@ export async function convertActivityToTicket(
       })
       .returning({ id: tickets.id, folio: tickets.folio });
 
-    // 3. deactivate the activity as a tombstone that redirects old links
+    // 3. deactivate the activity as a tombstone that redirects old links.
+    // Converting also unlinks it from its project/list/parent (tickets never
+    // belong to projects — PRD R3); the previous linkage stays in the audit row.
     await tx
       .update(activities)
-      .set({ convertedTicketId: ticket.id, convertedAt: new Date() })
+      .set({
+        convertedTicketId: ticket.id,
+        convertedAt: new Date(),
+        projectId: null,
+        projectListId: null,
+        parentActivityId: null,
+      })
       .where(eq(activities.id, row.activity.id));
 
     // 4. full audit: the conversion on the work item + the ticket's birth
@@ -175,6 +203,12 @@ export async function convertActivityToTicket(
           activityId: row.activity.id,
           ticketId: ticket.id,
           folio: ticket.folio,
+          ...(row.activity.projectId
+            ? {
+                unlinkedProjectId: row.activity.projectId,
+                unlinkedProjectListId: row.activity.projectListId,
+              }
+            : {}),
         },
       },
       {

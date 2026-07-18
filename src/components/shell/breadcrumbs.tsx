@@ -29,7 +29,7 @@ export function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
       <Link
-        href="/"
+        href="/today"
         aria-label="Dashboard"
         className="flex items-center rounded-md p-1 text-faint transition-colors hover:bg-subtle hover:text-fg"
       >

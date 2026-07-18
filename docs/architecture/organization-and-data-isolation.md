@@ -1,20 +1,25 @@
 # Organization & Data Isolation
 
 > Status: adopted 2026-07-15. Resolves OQ-01 (tenancy): the schema is multi-organization-ready, the product runs as a single organization ("Watson") with no switcher, no multi-company admin, no way to change organization.
-> Verified end-to-end with a temporary second organization (see §6); invariants re-checkable with `npx tsx scripts/verify-organization.ts`.
+> Verified end-to-end with a temporary second organization (see §6); invariants re-checkable with `npx tsx scripts/verify-organization.ts` (core tables), `npx tsx scripts/verify-client360.ts` (contacts/services/contracts/renewals, added 2026-07-17), `npx tsx scripts/verify-projects.ts` (2026-07-17), `npx tsx scripts/verify-recurring.ts` (recurrence definitions/executions, added 2026-07-18) `npx tsx scripts/verify-reports.ts` (reports/versions/generation, added 2026-07-18: cross-org report lookup returns empty, cross-org generation rejected) and `npx tsx scripts/verify-settings.ts` (settings/catalogs/api keys, added 2026-07-18: another org sees no settings or catalogs).
 
 ## 1. Model
 
 ```
 organizations (id, name, slug UNIQUE, status active|inactive, created_at, updated_at)
       │ 1
-      └──* users, clients, tickets, projects, tasks, quotes,
-           report_templates, reports, kpis, audit_logs
+      └──* users, clients, contacts, services, client_services, contracts,
+           client_notes, tickets, projects, tasks, quotes,
+           report_templates, reports, kpis, audit_logs,
+           recurrence_definitions, recurrence_executions,
+           indicator_thresholds (unique (organization_id, key)),
+           organization_settings (unique (organization_id, key)),
+           catalog_items, api_keys
            (organization_id integer NOT NULL, FK → organizations)
 ```
 
 - Default organization: **Watson** (`slug: watson`), created by migration `drizzle/0004_premium_songbird.sql`; the seed script is idempotent about it.
-- **Child tables** (`ticket_comments`, `quote_items`, `kpi_entries`) deliberately have **no** `organization_id`: they belong to exactly one parent that has it, and every mutation on them first verifies the parent belongs to the caller's org. One source of truth, no denormalized column to drift.
+- **Child tables** (`ticket_comments`, `quote_items`, `kpi_entries`, `report_versions`) deliberately have **no** `organization_id`: they belong to exactly one parent that has it, and every mutation on them first verifies the parent belongs to the caller's org. One source of truth, no denormalized column to drift.
 - `audit_logs.organization_id` is NOT NULL — every audit event belongs to an organization (`AuditEvent.organizationId` is a required field in `src/lib/audit.ts`).
 
 ## 2. Isolation strategy
@@ -24,7 +29,7 @@ Application-level scoping (no Postgres RLS yet):
 1. **The org comes from the session, never from the client.** `users.organization_id` is written into the JWT at sign-in and exposed as `session.user.organizationId`. JWTs issued before this migration lack it — `requireUser()` sends those sessions to `/login` once to refresh.
 2. **Every query filters by it.** All list/detail pages and the dashboard add `eq(table.organizationId, user.organizationId)` (detail pages combine it with the id, so guessing another org's URL yields the 404 page — verified, zero data in the response).
 3. **Every insert stamps it.** Create actions write `organizationId: user.organizationId` server-side.
-4. **Foreign ids from forms are re-validated.** Select inputs post ids (`clientId`, `assigneeId`, `projectId`, `quoteId`, `kpiId`, `templateId`, `ticketId`); each action resolves them **within the org** (e.g. `orgClientId`, `orgUserId` helpers) and nulls/rejects anything foreign — a tampered id from another org cannot be attached.
+4. **Foreign ids from forms are re-validated.** Select inputs post ids (`clientId`, `assigneeId`, `projectId`, `quoteId`, `kpiId`, `templateId`, `ticketId`, `serviceId`, `contactId`, `accountOwnerId`, `defaultTechnicianId`); each action resolves them **within the org** (e.g. `orgClientId`, `orgUserId` helpers) and nulls/rejects anything foreign — a tampered id from another org cannot be attached.
 5. **`organizationId` can never arrive via FormData.** Zod schemas don't declare it (`parseForm` strips unknown keys — unit-tested) and legacy `fields()` parsers never read it. Verified live: posting `organizationId=1` as another org's user still created the row in the caller's org.
 
 ## 3. Getting the organizationId (the only correct way)

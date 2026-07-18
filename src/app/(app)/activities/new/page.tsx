@@ -8,8 +8,14 @@ import { ActivityForm } from "../activity-form";
 
 export const metadata: Metadata = { title: "New activity" };
 
-export default async function NewActivityPage() {
+export default async function NewActivityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; clientId?: string }>;
+}) {
   const user = await requireUser();
+  const { type, clientId } = await searchParams;
+  const defaultClientId = clientId ? Number(clientId) : undefined;
   const clientRows = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
@@ -23,7 +29,16 @@ export default async function NewActivityPage() {
         subtitle="Only the title is required — client, assignee and dates are optional."
       />
       <Card className="p-6">
-        <ActivityForm clients={clientRows} submitLabel="Create activity" />
+        <ActivityForm
+          clients={clientRows}
+          submitLabel="Create activity"
+          defaultType={type}
+          defaultClientId={
+            defaultClientId && clientRows.some((c) => c.id === defaultClientId)
+              ? defaultClientId
+              : undefined
+          }
+        />
       </Card>
     </div>
   );

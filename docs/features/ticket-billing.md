@@ -38,6 +38,11 @@ Ticket detail → right panel **Billing** card: status, modality, rates, period,
 
 90 billable minutes + remote @ $100/h → `calculated_amount = 150.00` with `billing_determined_by` stamped (HTTP flow); voided-entry exclusion and the 60m × $120 = $120.00 case in `scripts/verify-tickets-feature.ts`; unit tests for hourly, fixed and null cases in `src/lib/tickets.test.ts`.
 
+## Integración con Reportes e Indicadores (2026-07-18)
+
+- **Indicators → Billing Operations** (`/indicators?view=billing`): pendientes de revisión, monto potencial (tickets clasificados cobrables con tarifa), monto del periodo (`charged`), horas facturables vs no facturables, distribución por estado de cobro, cerrados con cobro sin resolver — todo desde `billingMetrics` de la capa central (`src/lib/report-metrics.ts`), con drill-down a la vista "Billable" de tickets. El panel deja explícito que Watson **no emite facturas**.
+- **Reportes**: el tipo `billing_support` (uso interno) y la sección `billing` de los snapshots congelan estos mismos agregados por periodo como soporte de cobro. La sección billing **nunca aparece en la salida externa** (PDF marca "Uso interno"). Ver `docs/features/reports.md`.
+
 ## Future
 
-Contract-driven rates and automatic overage detection (E-04/OQ-03) · monthly billing runs and reports (E-14) · fiscal invoicing (explicitly out of scope, PRD §10).
+Contract-driven rates and automatic overage detection (E-04/OQ-03) · fiscal invoicing (explicitly out of scope, PRD §10). Monthly billing runs shipped as reporting support (E-14, ver arriba) — invoice emission remains out of scope.

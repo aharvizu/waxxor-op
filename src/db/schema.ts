@@ -1,7 +1,10 @@
+import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
+  uniqueIndex,
   integer,
   jsonb,
   numeric,
@@ -74,12 +77,57 @@ export const workItemPriority = pgEnum("work_item_priority", [
   "high",
   "critical",
 ]);
+// Append-only: at_risk/archived added for the Projects feature (2026-07-17).
 export const projectStatus = pgEnum("project_status", [
   "planning",
   "active",
   "on_hold",
   "completed",
   "cancelled",
+  "at_risk",
+  "archived",
+]);
+export const projectPriority = pgEnum("project_priority", [
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
+export const projectHealth = pgEnum("project_health", [
+  "on_track",
+  "attention",
+  "at_risk",
+  "blocked",
+  "completed",
+  "not_set",
+]);
+export const projectMemberRole = pgEnum("project_member_role", [
+  "manager",
+  "coordinator",
+  "contributor",
+  "observer",
+]);
+export const projectListStatus = pgEnum("project_list_status", [
+  "planned",
+  "active",
+  "completed",
+  "archived",
+]);
+export const milestoneStatus = pgEnum("milestone_status", [
+  "pending",
+  "in_progress",
+  "completed",
+  "delayed",
+  "cancelled",
+]);
+export const riskProbability = pgEnum("risk_probability", ["low", "medium", "high"]);
+export const riskImpact = pgEnum("risk_impact", ["low", "medium", "high", "critical"]);
+export const riskStatus = pgEnum("risk_status", [
+  "open",
+  "monitoring",
+  "mitigated",
+  "occurred",
+  "closed",
 ]);
 export const taskStatus = pgEnum("task_status", ["todo", "in_progress", "done"]);
 export const quoteStatus = pgEnum("quote_status", [
@@ -89,7 +137,32 @@ export const quoteStatus = pgEnum("quote_status", [
   "rejected",
   "expired",
 ]);
-export const reportStatus = pgEnum("report_status", ["draft", "sent"]);
+// Append-only: workflow states added for Reportes e Indicadores (2026-07-18).
+export const reportStatus = pgEnum("report_status", [
+  "draft",
+  "sent",
+  "generating",
+  "ready_for_review",
+  "changes_requested",
+  "approved",
+  "failed",
+  "archived",
+]);
+export const reportType = pgEnum("report_type", [
+  "monthly_service",
+  "operational_summary",
+  "executive_summary",
+  "sla_report",
+  "time_report",
+  "project_report",
+  "billing_support",
+  "custom_internal",
+]);
+export const reportTemplateStatus = pgEnum("report_template_status", [
+  "active",
+  "inactive",
+  "archived",
+]);
 export const confirmationType = pgEnum("confirmation_type", [
   "whatsapp",
   "phone",
@@ -126,6 +199,61 @@ export const messageDirection = pgEnum("message_direction", [
   "inbound",
   "outbound",
   "internal",
+]);
+export const clientStatus = pgEnum("client_status", [
+  "active",
+  "inactive",
+  "prospect_legacy",
+  "archived",
+]);
+export const contactType = pgEnum("contact_type", [
+  "owner",
+  "primary",
+  "technical",
+  "administrative",
+  "billing",
+  "management",
+  "requester",
+  "other",
+]);
+export const serviceStatus = pgEnum("service_status", ["active", "inactive"]);
+export const clientServiceType = pgEnum("client_service_type", [
+  "recurring_service",
+  "license",
+  "support_contract",
+  "one_time_service",
+  "managed_service",
+]);
+export const supportCoverage = pgEnum("support_coverage", [
+  "included",
+  "incident_based",
+  "hourly_bundle",
+  "fixed_price",
+  "not_applicable",
+]);
+export const clientServiceStatus = pgEnum("client_service_status", [
+  "active",
+  "cancelled",
+  "archived",
+]);
+export const contractType = pgEnum("contract_type", [
+  "support",
+  "managed_service",
+  "licensing",
+  "consulting",
+  "maintenance",
+  "other",
+]);
+export const contractStatus = pgEnum("contract_status", [
+  "draft",
+  "active",
+  "cancelled",
+  "archived",
+]);
+export const reminderMarkStatus = pgEnum("reminder_mark_status", [
+  "snoozed",
+  "dismissed",
+  "resolved",
 ]);
 export const slaDefinitionStatus = pgEnum("sla_definition_status", [
   "active",
@@ -177,6 +305,9 @@ export const users = pgTable("users", {
   role: userRole("role").notNull().default("technician"),
   title: text("title"),
   phone: text("phone"),
+  isActive: boolean("is_active").notNull().default(true),
+  invitationToken: text("invitation_token").unique(),
+  invitedAt: timestamp("invited_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -186,12 +317,169 @@ export const clients = pgTable("clients", {
     .notNull()
     .references(() => organizations.id),
   name: text("name").notNull(),
+  legalName: text("legal_name"),
+  ownerName: text("owner_name"),
+  industry: text("industry"),
+  website: text("website"),
   contactName: text("contact_name"),
   email: text("email"),
   phone: text("phone"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  status: clientStatus("status").notNull().default("active"),
+  // no FK: contacts is defined after clients (circular) — validated in actions
+  primaryContactId: integer("primary_contact_id"),
+  accountOwnerId: integer("account_owner_id").references(() => users.id),
+  defaultTechnicianId: integer("default_technician_id").references(() => users.id),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    jobTitle: text("job_title"),
+    email: text("email"),
+    phone: text("phone"),
+    mobile: text("mobile"),
+    whatsappNumber: text("whatsapp_number"),
+    contactType: contactType("contact_type").notNull().default("other"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("contacts_client_idx").on(table.organizationId, table.clientId)],
+);
+
+/** Global per-org service catalog (Microsoft 365, backup, soporte, …). */
+export const services = pgTable("services", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("general"),
+  description: text("description"),
+  scope: text("scope"),
+  defaultRemoteRate: numeric("default_remote_rate", { precision: 12, scale: 2 }),
+  defaultOnsiteRate: numeric("default_onsite_rate", { precision: 12, scale: 2 }),
+  defaultFixedPrice: numeric("default_fixed_price", { precision: 12, scale: 2 }),
+  defaultSlaDefinitionId: integer("default_sla_definition_id").references(
+    () => slaDefinitions.id,
+  ),
+  isRenewable: boolean("is_renewable").notNull().default(false),
+  status: serviceStatus("status").notNull().default("active"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * A service contracted by a client. Licenses are rows with type "license"
+ * (provider/cost/cycle columns) — no separate entity needed. The same service
+ * can appear multiple times with different conditions (e.g. M365 with and
+ * without support policy). "expiring"/"expired" are DERIVED from dates.
+ */
+export const clientServices = pgTable(
+  "client_services",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    serviceId: integer("service_id")
+      .notNull()
+      .references(() => services.id),
+    serviceType: clientServiceType("service_type").notNull().default("recurring_service"),
+    status: clientServiceStatus("status").notNull().default("active"),
+    quantity: integer("quantity"),
+    provider: text("provider"),
+    billingCycle: text("billing_cycle"),
+    cost: numeric("cost", { precision: 12, scale: 2 }),
+    clientPrice: numeric("client_price", { precision: 12, scale: 2 }),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    renewalDate: date("renewal_date"),
+    supportCoverage: supportCoverage("support_coverage").notNull().default("not_applicable"),
+    includedHours: integer("included_hours"),
+    remoteRate: numeric("remote_rate", { precision: 12, scale: 2 }),
+    onsiteRate: numeric("onsite_rate", { precision: 12, scale: 2 }),
+    fixedPrice: numeric("fixed_price", { precision: 12, scale: 2 }),
+    slaDefinitionId: integer("sla_definition_id").references(() => slaDefinitions.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("client_services_client_idx").on(table.organizationId, table.clientId),
+    index("client_services_renewal_idx").on(table.renewalDate),
+  ],
+);
+
+export const contracts = pgTable(
+  "contracts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    contractType: contractType("contract_type").notNull().default("support"),
+    status: contractStatus("status").notNull().default("draft"),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date"),
+    autoRenew: boolean("auto_renew").notNull().default(false),
+    includedHours: integer("included_hours"),
+    monthlyAmount: numeric("monthly_amount", { precision: 12, scale: 2 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("contracts_client_idx").on(table.organizationId, table.clientId),
+    index("contracts_end_idx").on(table.endDate),
+  ],
+);
+
+/** Internal client notes (author-editable, audited). */
+export const clientNotes = pgTable(
+  "client_notes",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    authorId: integer("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    editedAt: timestamp("edited_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("client_notes_client_idx").on(table.organizationId, table.clientId)],
+);
 
 export const workItems = pgTable(
   "work_items",
@@ -359,8 +647,9 @@ export const tickets = pgTable(
 
 /**
  * Standalone-activity specialization, 1:1 with a work_items row (type "activity").
- * recurrence_template_id is prepared for the future Recurrence module (E-10):
- * plain nullable column, no FK until recurrence_templates exists.
+ * recurrence_template_id is unused: E-10 (Recurrences, 2026-07-18) shipped a
+ * different model (recurrenceDefinitions) and tracks generated activities via
+ * audit_logs.metadata.generatedByRecurrenceId instead — no FK back onto this column.
  */
 export const activities = pgTable("activities", {
   id: serial("id").primaryKey(),
@@ -381,6 +670,14 @@ export const activities = pgTable("activities", {
   // Related-activity link: this activity supports the given ticket (PRD R3
   // keeps tickets out of projects; activities linked here can't join projects).
   parentTicketId: integer("parent_ticket_id").references(() => tickets.id),
+  // Project membership (2026-07-17): a project activity always has BOTH
+  // projectId and projectListId; mutually exclusive with parentTicketId.
+  projectId: integer("project_id").references(() => projects.id),
+  projectListId: integer("project_list_id").references(() => projectLists.id),
+  // Subactivity: max two levels — a parent activity can never itself have a parent.
+  parentActivityId: integer("parent_activity_id").references(
+    (): AnyPgColumn => activities.id,
+  ),
 });
 
 /**
@@ -498,6 +795,7 @@ export const attachments = pgTable(
       .references(() => organizations.id),
     workItemId: integer("work_item_id").references(() => workItems.id),
     messageId: integer("message_id").references(() => messages.id),
+    projectId: integer("project_id").references(() => projects.id),
     filename: text("filename").notNull(),
     mimeType: text("mime_type").notNull(),
     size: integer("size").notNull(),
@@ -510,20 +808,227 @@ export const attachments = pgTable(
   (table) => [index("attachments_work_item_idx").on(table.workItemId)],
 );
 
-export const projects = pgTable("projects", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id")
-    .notNull()
-    .references(() => organizations.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  clientId: integer("client_id").references(() => clients.id),
-  status: projectStatus("status").notNull().default("planning"),
-  startDate: date("start_date"),
-  dueDate: date("due_date"),
-  budget: numeric("budget", { precision: 12, scale: 2 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+/**
+ * Operational projects: Project → Lists → Activities → Subactivities.
+ * Tickets NEVER belong to projects (PRD R3). clientId optional — internal
+ * projects exist without a client. targetDate/budgetAmount map onto the
+ * pre-existing due_date/budget columns (no destructive rename).
+ */
+export const projects = pgTable(
+  "projects",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    folio: text("folio").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    clientId: integer("client_id").references(() => clients.id),
+    status: projectStatus("status").notNull().default("planning"),
+    priority: projectPriority("priority").notNull().default("normal"),
+    healthStatus: projectHealth("health_status").notNull().default("not_set"),
+    projectManagerId: integer("project_manager_id").references(() => users.id),
+    ownerId: integer("owner_id").references(() => users.id),
+    startDate: date("start_date"),
+    targetDate: date("due_date"),
+    completedAt: timestamp("completed_at"),
+    archivedAt: timestamp("archived_at"),
+    estimatedMinutes: integer("estimated_minutes"),
+    budgetAmount: numeric("budget", { precision: 12, scale: 2 }),
+    billingType: text("billing_type"),
+    color: text("color"),
+    icon: text("icon"),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("projects_org_folio_idx").on(table.organizationId, table.folio),
+    index("projects_org_idx").on(table.organizationId),
+    index("projects_client_idx").on(table.clientId),
+    index("projects_status_idx").on(table.status),
+    index("projects_pm_idx").on(table.projectManagerId),
+    index("projects_target_idx").on(table.targetDate),
+  ],
+);
+
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    role: projectMemberRole("role").notNull().default("contributor"),
+    isActive: boolean("is_active").notNull().default(true),
+    joinedAt: timestamp("joined_at").notNull().defaultNow(),
+    removedAt: timestamp("removed_at"),
+  },
+  (table) => [
+    uniqueIndex("project_members_unique_idx").on(table.projectId, table.userId),
+    index("project_members_user_idx").on(table.userId),
+  ],
+);
+
+/** Lists group activities inside a project (stages, areas, deliverables…). */
+export const projectLists = pgTable(
+  "project_lists",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    position: integer("position").notNull().default(0),
+    status: projectListStatus("status").notNull().default("active"),
+    startDate: date("start_date"),
+    targetDate: date("target_date"),
+    color: text("color"),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (table) => [index("project_lists_project_idx").on(table.projectId)],
+);
+
+export const projectMilestones = pgTable(
+  "project_milestones",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    targetDate: date("target_date").notNull(),
+    status: milestoneStatus("status").notNull().default("pending"),
+    completedAt: timestamp("completed_at"),
+    ownerId: integer("owner_id").references(() => users.id),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("project_milestones_project_idx").on(table.projectId),
+    index("project_milestones_target_idx").on(table.targetDate),
+  ],
+);
+
+/** Optional link milestone ↔ activity (completing activities never auto-completes it). */
+export const milestoneActivities = pgTable(
+  "milestone_activities",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    milestoneId: integer("milestone_id")
+      .notNull()
+      .references(() => projectMilestones.id, { onDelete: "cascade" }),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("milestone_activities_unique_idx").on(table.milestoneId, table.activityId),
+  ],
+);
+
+export const projectRisks = pgTable(
+  "project_risks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    probability: riskProbability("probability").notNull().default("medium"),
+    impact: riskImpact("impact").notNull().default("medium"),
+    // severity is DERIVED (riskSeverity in src/lib/projects.ts) — never stored
+    status: riskStatus("status").notNull().default("open"),
+    ownerId: integer("owner_id").references(() => users.id),
+    mitigationPlan: text("mitigation_plan"),
+    dueDate: date("due_date"),
+    resolvedAt: timestamp("resolved_at"),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("project_risks_project_idx").on(table.projectId),
+    index("project_risks_status_idx").on(table.status),
+  ],
+);
+
+/**
+ * Directed dependency between work items: blocker blocks blocked.
+ * "blocks" and "blocked_by" are the two ends of the same row.
+ */
+export const workItemDependencies = pgTable(
+  "work_item_dependencies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    blockerWorkItemId: integer("blocker_work_item_id")
+      .notNull()
+      .references(() => workItems.id, { onDelete: "cascade" }),
+    blockedWorkItemId: integer("blocked_work_item_id")
+      .notNull()
+      .references(() => workItems.id, { onDelete: "cascade" }),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("work_item_dependencies_unique_idx").on(
+      table.blockerWorkItemId,
+      table.blockedWorkItemId,
+    ),
+    index("work_item_dependencies_blocked_idx").on(table.blockedWorkItemId),
+  ],
+);
+
+/** Project-level comments (work-item comments stay on their work item). */
+export const projectComments = pgTable(
+  "project_comments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    authorId: integer("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    editedAt: timestamp("edited_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("project_comments_project_idx").on(table.projectId)],
+);
 
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
@@ -568,6 +1073,12 @@ export const quoteItems = pgTable("quote_items", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+/**
+ * Report templates. Extended 2026-07-18 for operational reports: `sections`
+ * (jsonb array of { key, title, enabled, intro? }) drives what a generated
+ * report includes; the legacy free-text `content` column stays for the two
+ * seeded document-style templates (kept as-is, see docs/features/report-templates.md).
+ */
 export const reportTemplates = pgTable("report_templates", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
@@ -575,25 +1086,221 @@ export const reportTemplates = pgTable("report_templates", {
     .references(() => organizations.id),
   name: text("name").notNull(),
   description: text("description"),
-  content: text("content").notNull(),
+  content: text("content").notNull().default(""),
+  reportType: reportType("report_type").notNull().default("monthly_service"),
+  /** [{ key, title, enabled, intro? }] in display order */
+  sections: jsonb("sections"),
+  defaultPeriodRule: text("default_period_rule"),
+  includeLogo: boolean("include_logo").notNull().default(true),
+  includeCover: boolean("include_cover").notNull().default(true),
+  includeExecutiveSummary: boolean("include_executive_summary").notNull().default(true),
+  includeConclusions: boolean("include_conclusions").notNull().default(true),
+  includeRecommendations: boolean("include_recommendations").notNull().default(false),
+  status: reportTemplateStatus("status").notNull().default("active"),
+  createdById: integer("created_by_id").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  archivedAt: timestamp("archived_at"),
 });
 
-export const reports = pgTable("reports", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id")
-    .notNull()
-    .references(() => organizations.id),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  status: reportStatus("status").notNull().default("draft"),
-  templateId: integer("template_id").references(() => reportTemplates.id, {
-    onDelete: "set null",
-  }),
-  clientId: integer("client_id").references(() => clients.id),
-  sentAt: timestamp("sent_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+/**
+ * Operational reports (extended 2026-07-18). `content` holds the deterministic,
+ * editable narrative; contentSnapshot/metricsSnapshot freeze the generated data
+ * so history never changes when operational data changes later. Full workflow:
+ * draft → generating → ready_for_review → approved → sent (+ changes_requested,
+ * failed, archived). See docs/features/reports.md.
+ */
+export const reports = pgTable(
+  "reports",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    title: text("title").notNull(),
+    content: text("content").notNull().default(""),
+    status: reportStatus("status").notNull().default("draft"),
+    templateId: integer("template_id").references(() => reportTemplates.id, {
+      onDelete: "set null",
+    }),
+    clientId: integer("client_id").references(() => clients.id),
+    projectId: integer("project_id").references(() => projects.id),
+    reportType: reportType("report_type").notNull().default("custom_internal"),
+    description: text("description"),
+    periodStart: date("period_start"),
+    periodEnd: date("period_end"),
+    responsibleUserId: integer("responsible_user_id").references(() => users.id),
+    generatedByUserId: integer("generated_by_user_id").references(() => users.id),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+    sentByUserId: integer("sent_by_user_id").references(() => users.id),
+    generatedAt: timestamp("generated_at"),
+    reviewedAt: timestamp("reviewed_at"),
+    approvedAt: timestamp("approved_at"),
+    sentAt: timestamp("sent_at"),
+    archivedAt: timestamp("archived_at"),
+    deliveryChannel: text("delivery_channel"),
+    recipientContactId: integer("recipient_contact_id").references(() => contacts.id),
+    subject: text("subject"),
+    executiveSummary: text("executive_summary"),
+    conclusions: text("conclusions"),
+    recommendations: text("recommendations"),
+    /** never included in external output — see docs/features/report-generation.md */
+    internalNotes: text("internal_notes"),
+    contentSnapshot: jsonb("content_snapshot"),
+    metricsSnapshot: jsonb("metrics_snapshot"),
+    failureReason: text("failure_reason"),
+    version: integer("version").notNull().default(1),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("reports_org_status_idx").on(table.organizationId, table.status),
+    index("reports_client_idx").on(table.clientId),
+    index("reports_project_idx").on(table.projectId),
+    index("reports_responsible_idx").on(table.responsibleUserId),
+    index("reports_period_idx").on(table.periodEnd),
+  ],
+);
+
+/**
+ * Immutable evidence per report version: approving/sending always points at a
+ * specific version; regenerating after edits creates the next one. Never
+ * overwritten. See docs/features/report-versioning.md.
+ */
+export const reportVersions = pgTable(
+  "report_versions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    reportId: integer("report_id")
+      .notNull()
+      .references(() => reports.id, { onDelete: "cascade" }),
+    versionNumber: integer("version_number").notNull(),
+    contentSnapshot: jsonb("content_snapshot"),
+    metricsSnapshot: jsonb("metrics_snapshot"),
+    narrative: text("narrative"),
+    executiveSummary: text("executive_summary"),
+    conclusions: text("conclusions"),
+    recommendations: text("recommendations"),
+    authorId: integer("author_id").references(() => users.id),
+    changeReason: text("change_reason"),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+    approvedAt: timestamp("approved_at"),
+    sentAt: timestamp("sent_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("report_versions_unique_idx").on(table.reportId, table.versionNumber),
+  ],
+);
+
+/**
+ * Per-organization indicator thresholds (key → numeric value). Defaults live
+ * in src/lib/indicators.ts (INDICATOR_THRESHOLD_DEFAULTS); a row here overrides
+ * one key. Editable by SuperAdmin/Administrator only, audited.
+ */
+export const indicatorThresholds = pgTable(
+  "indicator_thresholds",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    key: text("key").notNull(),
+    value: numeric("value", { precision: 12, scale: 2 }).notNull(),
+    updatedById: integer("updated_by_id").references(() => users.id),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("indicator_thresholds_unique_idx").on(table.organizationId, table.key),
+  ],
+);
+
+/**
+ * Organization-level configuration, one row per (org, section key). The jsonb
+ * value is validated by the per-key Zod schema in src/lib/settings.ts — never
+ * written raw from the browser.
+ */
+export const organizationSettings = pgTable(
+  "organization_settings",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    key: text("key").notNull(),
+    value: jsonb("value").notNull(),
+    updatedById: integer("updated_by_id").references(() => users.id),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("organization_settings_unique_idx").on(table.organizationId, table.key),
+  ],
+);
+
+/**
+ * Shared org catalogs (ticket categories/subcategories, tags, project colors,
+ * project templates...). One table for every kind — kinds live in
+ * src/lib/settings.ts. Subcategories are rows whose parentId points at their
+ * category. Items archive (isActive = false), they are never hard-deleted while
+ * referenced by free-text fields.
+ */
+export const catalogItems = pgTable(
+  "catalog_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    parentId: integer("parent_id"),
+    color: text("color"),
+    description: text("description"),
+    config: jsonb("config"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("catalog_items_org_kind_idx").on(table.organizationId, table.kind),
+    uniqueIndex("catalog_items_unique_idx").on(
+      table.organizationId,
+      table.kind,
+      sql`coalesce(${table.parentId}, 0)`,
+      table.name,
+    ),
+  ],
+);
+
+/**
+ * API key infrastructure (preparation only — no external service consumes them
+ * yet). The plaintext token is shown exactly once at creation; only its SHA-256
+ * hash is stored. Revocation is soft (revokedAt) for auditability.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdById: integer("created_by_id").references(() => users.id),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("api_keys_org_idx").on(table.organizationId)],
+);
 
 export const kpis = pgTable("kpis", {
   id: serial("id").primaryKey(),
@@ -604,6 +1311,53 @@ export const kpis = pgTable("kpis", {
   unit: text("unit"),
   target: numeric("target", { precision: 12, scale: 2 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/**
+ * "No olvides" persistence: reminders are COMPUTED from live data by rules
+ * (src/lib/today-rules.ts); this table only stores user marks (snooze/dismiss/
+ * resolve). A mark hides the reminder; if the condition re-triggers later
+ * (conditionSince > actedAt) the reminder reappears. Org-wide by design.
+ */
+export const operationalReminders = pgTable(
+  "operational_reminders",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    ruleKey: text("rule_key").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    status: reminderMarkStatus("status").notNull(),
+    snoozedUntil: timestamp("snoozed_until"),
+    actedById: integer("acted_by_id")
+      .notNull()
+      .references(() => users.id),
+    actedAt: timestamp("acted_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("operational_reminders_identity_idx").on(
+      table.organizationId,
+      table.ruleKey,
+      table.entityType,
+      table.entityId,
+    ),
+  ],
+);
+
+/** Per-user UI preferences (Today scope/view/filters). One row per user. */
+export const userPreferences = pgTable("user_preferences", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  today: jsonb("today").notNull().default({}),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const auditLogs = pgTable(
@@ -641,3 +1395,161 @@ export const kpiEntries = pgTable("kpi_entries", {
   note: text("note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/* ------------------------------------------------------------- Recurrence */
+
+export const recurrenceTargetType = pgEnum("recurrence_target_type", [
+  "activity",
+  "ticket",
+  "project_activity",
+  "report",
+]);
+export const recurrenceStatus = pgEnum("recurrence_status", [
+  "draft",
+  "active",
+  "paused",
+  "completed",
+  "expired",
+  "error",
+  "archived",
+]);
+export const recurrenceScheduleType = pgEnum("recurrence_schedule_type", [
+  "interval",
+  "calendar",
+  "custom_rule",
+]);
+export const recurrenceFrequency = pgEnum("recurrence_frequency", [
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+  "semiannual",
+  "annual",
+  "weekdays",
+  "custom",
+]);
+export const recurrenceExecutionStatus = pgEnum("recurrence_execution_status", [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled",
+  "duplicate_prevented",
+]);
+export const recurrenceExecutionSource = pgEnum("recurrence_execution_source", [
+  "scheduler",
+  "manual",
+  "retry",
+  "backfill",
+]);
+
+/**
+ * A scheduled generator of operational work (Activity / Ticket / Project
+ * Activity; Report reserved). Schedule fields are typed columns — only
+ * templateData (the generated object's variable fields) lives in jsonb.
+ * See docs/features/recurring.md.
+ */
+export const recurrenceDefinitions = pgTable(
+  "recurrence_definitions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    targetType: recurrenceTargetType("target_type").notNull(),
+    status: recurrenceStatus("status").notNull().default("draft"),
+    timezone: text("timezone").notNull().default("America/Mexico_City"),
+    scheduleType: recurrenceScheduleType("schedule_type").notNull().default("calendar"),
+    frequency: recurrenceFrequency("frequency").notNull().default("monthly"),
+    /** every N periods of the frequency (2 = every 2 days/weeks/months…) */
+    interval: integer("interval").notNull().default(1),
+    /** ISO weekdays 1–7 for weekly/custom, e.g. [1,3,5] */
+    daysOfWeek: jsonb("days_of_week"),
+    /** 1–31, or -1 = last day of month */
+    dayOfMonth: integer("day_of_month"),
+    /** 1–12 for annual */
+    monthOfYear: integer("month_of_year"),
+    /** with weekOfMonth: "first Monday" = weekOfMonth 1 + daysOfWeek [1] */
+    weekOfMonth: integer("week_of_month"),
+    /** "HH:MM" wall-clock time in `timezone` */
+    timeOfDay: text("time_of_day").notNull().default("09:00"),
+    startAt: date("start_at").notNull(),
+    endAt: date("end_at"),
+    maxOccurrences: integer("max_occurrences"),
+    nextRunAt: timestamp("next_run_at"),
+    lastRunAt: timestamp("last_run_at"),
+    lastSuccessfulRunAt: timestamp("last_successful_run_at"),
+    lastFailedRunAt: timestamp("last_failed_run_at"),
+    occurrenceCount: integer("occurrence_count").notNull().default(0),
+    successfulCount: integer("successful_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    /** resets on success; at RECURRENCE_MAX_CONSECUTIVE_FAILURES → status error */
+    consecutiveFailedCount: integer("consecutive_failed_count").notNull().default(0),
+    clientId: integer("client_id").references(() => clients.id),
+    projectId: integer("project_id").references(() => projects.id),
+    projectListId: integer("project_list_id").references(() => projectLists.id),
+    assigneeId: integer("assignee_id").references(() => users.id),
+    createdById: integer("created_by_id").references(() => users.id),
+    updatedById: integer("updated_by_id").references(() => users.id),
+    /** target-type-discriminated template (title, description, priority, …) */
+    templateData: jsonb("template_data").notNull(),
+    generationRules: jsonb("generation_rules"),
+    isActive: boolean("is_active").notNull().default(false),
+    pauseReason: text("pause_reason"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (table) => [
+    index("recurrence_defs_due_idx").on(table.organizationId, table.status, table.nextRunAt),
+    index("recurrence_defs_client_idx").on(table.clientId),
+    index("recurrence_defs_project_idx").on(table.projectId),
+    index("recurrence_defs_assignee_idx").on(table.assigneeId),
+  ],
+);
+
+/**
+ * One row per attempted occurrence. The UNIQUE (definition, occurrenceKey)
+ * index is the idempotency guarantee: two concurrent processes can never both
+ * generate the same occurrence. See docs/architecture/recurrence-idempotency.md.
+ */
+export const recurrenceExecutions = pgTable(
+  "recurrence_executions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    recurrenceDefinitionId: integer("recurrence_definition_id")
+      .notNull()
+      .references(() => recurrenceDefinitions.id, { onDelete: "cascade" }),
+    /** local occurrence date (YYYY-MM-DD) for scheduled/backfill; manual-<ts> for manual */
+    occurrenceKey: text("occurrence_key").notNull(),
+    scheduledFor: timestamp("scheduled_for").notNull(),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    status: recurrenceExecutionStatus("status").notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    generatedEntityType: text("generated_entity_type"),
+    generatedEntityId: integer("generated_entity_id"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    metadata: jsonb("metadata"),
+    executedByUserId: integer("executed_by_user_id").references(() => users.id),
+    executionSource: recurrenceExecutionSource("execution_source").notNull().default("scheduler"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("recurrence_exec_occurrence_idx").on(
+      table.recurrenceDefinitionId,
+      table.occurrenceKey,
+    ),
+    index("recurrence_exec_schedule_idx").on(table.recurrenceDefinitionId, table.scheduledFor),
+    index("recurrence_exec_status_idx").on(table.organizationId, table.status),
+  ],
+);

@@ -59,6 +59,10 @@ Script `scripts/verify-time-entries.ts` (9 checks): log on activity and ticket; 
 
 Since 2026-07-16: closing a ticket requires at least one **active** (non-voided) time entry, or an audited time exception; ticket billing computes from non-voided entries marked `billable` (see `docs/features/ticket-billing.md`). Time entries also appear in the ticket's unified timeline.
 
+## Projects integration (2026-07-17)
+
+Project activities and subactivities are ordinary work items, so time registers on them with the existing card — no new model. The project detail's **Tiempo** tab consolidates per-project rollups (`getProjectTimeRollup`: totals by billing status, by person, by list, top activities, by modality — voided entries always excluded, verified in `scripts/verify-projects.ts`). There is **no direct project-level TimeEntry** by design: coordination/management time goes on a dedicated activity (documented in the tab). Project progress uses estimated vs logged minutes for the time-deviation signal.
+
 ## Postponed
 
 Contract-driven rates · monthly billing runs · full profitability · global day timeline · per-technician capacity · timer.

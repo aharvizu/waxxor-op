@@ -137,8 +137,10 @@ export default async function HelpdeskPage({
       conditions.push(inArray(tickets.billingStatus, ["billable", "contract_overage"]));
       break;
     case "recurrent":
-      // recurrence isn't implemented yet — the view exists and is empty by design
-      conditions.push(sql`false`);
+      conditions.push(
+        sql`exists (select 1 from recurrence_executions re
+          where re.generated_entity_type = 'ticket' and re.generated_entity_id = ${tickets.id})`,
+      );
       break;
     case "closed":
       conditions.push(inArray(workItems.status, ["closed", "cancelled"]));
@@ -355,15 +357,15 @@ export default async function HelpdeskPage({
       {rows.length === 0 ? (
         <EmptyState
           icon={<LifeBuoy />}
-          title={view === "recurrent" ? "Recurrence isn't implemented yet" : "No tickets here"}
+          title={view === "recurrent" ? "No recurring tickets yet" : "No tickets here"}
           action={
-            <Link href="/helpdesk/new" className={buttonClass}>
-              <Plus /> New ticket
+            <Link href={view === "recurrent" ? "/recurring/new?targetType=ticket" : "/helpdesk/new"} className={buttonClass}>
+              <Plus /> {view === "recurrent" ? "New recurrence" : "New ticket"}
             </Link>
           }
         >
           {view === "recurrent"
-            ? "This view is reserved: recurring tickets will appear here when the Recurrence module ships."
+            ? "Tickets generated automatically by a Recurrence will appear here."
             : "No tickets match this view or filters."}
         </EmptyState>
       ) : (

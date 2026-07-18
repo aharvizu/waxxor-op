@@ -1,23 +1,17 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reportTemplates } from "@/db/schema";
+import { reportTypeMeta } from "@/lib/labels";
+import { defaultSections } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
-import { LayoutTemplate, Trash2 } from "lucide-react";
-import {
-  Card,
-  CardHeader,
-  EmptyState,
-  PageHeader,
-  inputClass,
-  labelClass,
-} from "@/components/ui";
-import { SubmitButton } from "@/components/submit-button";
-import { createTemplate, deleteTemplate } from "../actions";
+import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
+import { TemplateEditor } from "./template-editor";
 
 export const metadata: Metadata = { title: "Report templates" };
 
-export default async function TemplatesPage() {
+export default async function ReportTemplatesPage() {
   const user = await requireUser();
   const rows = await db
     .select()
@@ -28,83 +22,46 @@ export default async function TemplatesPage() {
   return (
     <div>
       <PageHeader
-        title="Report templates"
-        subtitle="Reusable report bodies. Placeholders: {{client}}, {{date}}, {{title}}, {{author}}."
+        title="Plantillas de reporte"
+        subtitle="Secciones activas, orden y títulos de cada tipo de reporte — sin editor visual complejo."
+        action={<Link href="/reports" className={buttonSecondaryClass}>Volver a reportes</Link>}
       />
-
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="space-y-4">
-          {rows.length === 0 ? (
-            <EmptyState icon={<LayoutTemplate />} title="No templates yet">
-              Create a reusable report body on the right — placeholders are filled
-              in automatically when you generate a report.
-            </EmptyState>
-          ) : (
-            rows.map((t) => (
-              <Card key={t.id} className="p-5 hover:shadow-card-hover">
-                <div className="mb-2 flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-sm font-semibold">{t.name}</h2>
-                    {t.description ? (
-                      <p className="mt-0.5 text-sm text-muted">{t.description}</p>
-                    ) : null}
-                  </div>
-                  <form action={deleteTemplate}>
-                    <input type="hidden" name="id" value={t.id} />
-                    <button
-                      type="submit"
-                      aria-label={`Delete template ${t.name}`}
-                      className="flex size-8 items-center justify-center rounded-lg text-faint transition-colors duration-150 hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </form>
-                </div>
-                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border border-edge bg-inset p-3 font-mono text-xs text-muted">
-                  {t.content}
-                </pre>
-              </Card>
-            ))
-          )}
-        </div>
-
-        <Card className="h-fit overflow-hidden">
-          <CardHeader title="New template" description="A reusable report body." />
-          <form action={createTemplate} className="space-y-4 p-5">
-            <div>
-              <label htmlFor="name" className={labelClass}>
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                required
-                placeholder="e.g. Monthly security summary"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label htmlFor="description" className={labelClass}>
-                Description
-              </label>
-              <input id="description" name="description" className={inputClass} />
-            </div>
-            <div>
-              <label htmlFor="content" className={labelClass}>
-                Content
-              </label>
-              <textarea
-                id="content"
-                name="content"
-                rows={12}
-                required
-                placeholder={`# {{title}}\n\nPrepared for {{client}} on {{date}} by {{author}}.\n\n## Executive summary\n\n…`}
-                className={`${inputClass} font-mono`}
-              />
-            </div>
-            <SubmitButton>Create template</SubmitButton>
-          </form>
+        <Card className="p-6">
+          <CardHeader title="Nueva plantilla" className="mb-4 px-0 pt-0" />
+          <TemplateEditor defaultSectionsJson={JSON.stringify(defaultSections(), null, 2)} />
         </Card>
+        <div className="space-y-4">
+          {rows.map((t) => (
+            <Card key={t.id} className="p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="font-medium text-fg">{t.name}</span>
+                <Badge tone={reportTypeMeta[t.reportType]?.tone ?? "slate"}>
+                  {reportTypeMeta[t.reportType]?.label ?? t.reportType}
+                </Badge>
+              </div>
+              <details>
+                <summary className="cursor-pointer text-xs text-muted hover:text-fg">Editar</summary>
+                <div className="mt-3">
+                  <TemplateEditor
+                    template={{
+                      id: t.id,
+                      name: t.name,
+                      reportType: t.reportType,
+                      description: t.description,
+                      includeLogo: t.includeLogo,
+                      includeCover: t.includeCover,
+                      includeExecutiveSummary: t.includeExecutiveSummary,
+                      includeConclusions: t.includeConclusions,
+                      includeRecommendations: t.includeRecommendations,
+                    }}
+                    defaultSectionsJson={JSON.stringify(t.sections ?? defaultSections(), null, 2)}
+                  />
+                </div>
+              </details>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

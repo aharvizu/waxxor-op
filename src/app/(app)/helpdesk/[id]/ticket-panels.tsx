@@ -359,12 +359,12 @@ export function ResolveForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Category</label>
-          <input name="category" required defaultValue={category ?? ""} className={inputClass} />
+          <input name="category" required defaultValue={category ?? ""} list="ticket-category-options" className={inputClass} />
           <FieldError errors={errors.category} />
         </div>
         <div>
           <label className={labelClass}>Subcategory (optional)</label>
-          <input name="subcategory" defaultValue={subcategory ?? ""} className={inputClass} />
+          <input name="subcategory" defaultValue={subcategory ?? ""} list="ticket-subcategory-options" className={inputClass} />
         </div>
       </div>
       <div>
@@ -663,11 +663,11 @@ export function SidePanelForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Category</label>
-            <input name="category" defaultValue={defaults.category ?? ""} className={inputClass} />
+            <input name="category" defaultValue={defaults.category ?? ""} list="ticket-category-options" className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Subcategory</label>
-            <input name="subcategory" defaultValue={defaults.subcategory ?? ""} className={inputClass} />
+            <input name="subcategory" defaultValue={defaults.subcategory ?? ""} list="ticket-subcategory-options" className={inputClass} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">

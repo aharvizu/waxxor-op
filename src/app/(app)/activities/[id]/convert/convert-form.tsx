@@ -25,6 +25,7 @@ export function ConvertForm({
   assigneeId,
   priority,
   cancelled,
+  inProject,
   clients,
   users,
 }: {
@@ -33,6 +34,7 @@ export function ConvertForm({
   assigneeId: number | null;
   priority: string;
   cancelled: boolean;
+  inProject: boolean;
   clients: Option[];
   users: Option[];
 }) {
@@ -186,6 +188,13 @@ export function ConvertForm({
           ))}
         </select>
       </div>
+      {inProject ? (
+        <label className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-fg">
+          <input type="checkbox" name="confirmProject" required className="mt-0.5" />
+          Esta actividad pertenece a un proyecto — al convertirla dejará de formar
+          parte del proyecto y su lista. Confirmo la conversión.
+        </label>
+      ) : null}
       {cancelled ? (
         <label className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-fg">
           <input type="checkbox" name="confirmCancelled" required className="mt-0.5" />

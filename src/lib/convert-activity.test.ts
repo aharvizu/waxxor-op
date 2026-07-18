@@ -51,4 +51,19 @@ describe("conversion guard rules", () => {
       }),
     ).toBe("already_converted");
   });
+
+  it("requires explicit confirmation for project activities (they leave the project)", () => {
+    expect(conversionBlockReason({ ...base, projectId: 7 })).toBe(
+      "needs_project_confirmation",
+    );
+    expect(
+      conversionBlockReason({ ...base, projectId: 7, confirmProject: true }),
+    ).toBeNull();
+  });
+
+  it("blocks conversion while the activity has subactivities", () => {
+    expect(
+      conversionBlockReason({ ...base, projectId: 7, confirmProject: true, hasSubactivities: true }),
+    ).toBe("has_subactivities");
+  });
 });

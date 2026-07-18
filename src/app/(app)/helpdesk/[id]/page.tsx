@@ -25,6 +25,7 @@ import {
   workItems,
 } from "@/db/schema";
 import { requireUser } from "@/lib/session";
+import { getCatalog } from "@/lib/settings-data";
 import { Badge, Card, CardHeader } from "@/components/ui";
 import { SlaPanel } from "@/components/sla-panel";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
@@ -269,8 +270,27 @@ export default async function TicketPage({
     time: <ClipboardCheck className="size-3.5" />,
   } as const;
 
+  const categoryItems = await getCatalog(user.organizationId, "ticket_category");
+  const categoryNames = categoryItems.filter((c) => c.parentId === null).map((c) => c.name);
+  const subcategoryNames = [...new Set(categoryItems.filter((c) => c.parentId !== null).map((c) => c.name))];
+
   return (
     <div>
+      {/* Shared datalists: category inputs across the panels reference them. */}
+      {categoryNames.length > 0 ? (
+        <datalist id="ticket-category-options">
+          {categoryNames.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      ) : null}
+      {subcategoryNames.length > 0 ? (
+        <datalist id="ticket-subcategory-options">
+          {subcategoryNames.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      ) : null}
       {/* header */}
       <div className="mb-6 space-y-3">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">

@@ -41,6 +41,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .from(users)
           .where(eq(users.email, email.trim().toLowerCase()));
         if (!user) return null;
+        // Deactivated accounts and unaccepted invitations cannot sign in.
+        if (!user.isActive || user.invitationToken) return null;
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;

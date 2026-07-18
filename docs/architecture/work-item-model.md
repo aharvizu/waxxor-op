@@ -77,7 +77,7 @@ Updates go through `updateWorkItemFields` for the common part; ticket-only behav
 
 ## 6. Strategy for future Activities
 
-- `type: "activity"` (standalone, nullable client/date per R1) and `"project_activity"` (attached to a project List per R4) are already valid enum values.
+- `type: "activity"` (standalone, nullable client/date per R1) covers project activities too (2026-07-17): project membership lives in `activities.project_id`/`project_list_id`/`parent_activity_id`, not in the type — the `"project_activity"` enum value stays reserved/unused (enums are append-only). See `docs/features/project-activities.md`.
 - An `activities` specialization table is only needed if activities acquire exclusive fields; they may live as bare `work_items` rows.
 - **Conversion Activity→Ticket (R2) is implemented** — see "Conversión Activity → Ticket" below.
 - Activity statuses live in the shared enum since `drizzle/0007`.
@@ -105,7 +105,7 @@ Since `drizzle/0010`, tickets carry an SLA **snapshot** (frozen at assignment fr
 
 1. ~~`ticket_comments`~~ — **resolved 2026-07-16**: comments were migrated into the conversations/messages model (`drizzle/0012`) as internal notes; activities still lack their own notes UI (future step).
 2. ~~No files/attachments table~~ — **resolved 2026-07-16**: `attachments` metadata table (work item or message scoped) with a local-disk blob adapter; productive storage pending.
-3. **`tasks` (project tasks) are not migrated** to `work_items` (explicitly out of scope; they await the Projects hierarchy step, E-09).
+3. ~~`tasks` (project tasks) are not migrated~~ — **resolved 2026-07-17**: the 3 legacy rows were migrated to WorkItem/Activity inside a "General" list (`scripts/migrate-legacy-tasks.ts`, idempotent, audited with `source: "system"`); the `tasks` table stays frozen pending a destructive-drop decision.
 4. **Helpdesk forms still use the silent-fail pattern** — they now validate with Zod server-side, but don't render field errors (the ActionResult/useActionState migration of helpdesk screens is pending, per "minimal screen changes").
 5. Status enum mixes helpdesk semantics; activity semantics pending (OQ-11).
 

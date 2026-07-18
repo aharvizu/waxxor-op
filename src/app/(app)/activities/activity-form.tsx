@@ -35,10 +35,16 @@ export function ActivityForm({
   activity,
   clients,
   submitLabel,
+  defaultType,
+  defaultClientId,
 }: {
   activity?: ActivityFormDefaults;
   clients: Option[];
   submitLabel: string;
+  /** Optional preselected type for the create form (e.g. from Today's + Crear). */
+  defaultType?: string;
+  /** Optional preselected client for the create form (e.g. from Client 360's + Actividad). */
+  defaultClientId?: number;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     activity ? updateActivityDetails : createActivity,
@@ -47,6 +53,11 @@ export function ActivityForm({
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
   const value = (name: string, saved: string) => failed?.values?.[name] ?? saved;
+  const typeDefault =
+    activity?.activityType ??
+    ((ACTIVITY_TYPES as readonly string[]).includes(defaultType ?? "")
+      ? (defaultType as string)
+      : "general");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -87,7 +98,7 @@ export function ActivityForm({
           <select
             id="activityType"
             name="activityType"
-            defaultValue={value("activityType", activity?.activityType ?? "general")}
+            defaultValue={value("activityType", typeDefault)}
             className={inputClass}
           >
             {ACTIVITY_TYPES.map((t) => (
@@ -121,7 +132,14 @@ export function ActivityForm({
           <select
             id="clientId"
             name="clientId"
-            defaultValue={value("clientId", activity?.clientId ? String(activity.clientId) : "")}
+            defaultValue={value(
+              "clientId",
+              activity?.clientId
+                ? String(activity.clientId)
+                : defaultClientId
+                  ? String(defaultClientId)
+                  : "",
+            )}
             className={inputClass}
           >
             <option value="">— None —</option>

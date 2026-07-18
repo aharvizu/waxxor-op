@@ -77,6 +77,7 @@ export default async function ConvertActivityPage({
             assigneeId={row.item.assigneeId}
             priority={row.item.priority}
             cancelled={row.item.status === "cancelled"}
+            inProject={row.activity.projectId !== null}
             clients={clientRows}
             users={userRows}
           />

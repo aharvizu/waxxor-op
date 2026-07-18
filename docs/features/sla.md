@@ -55,6 +55,10 @@ Assignment happens inside the ticket-creating transaction; targets are computed 
 
 `scripts/verify-sla.ts` — 10 PASS: auto-assignment by priority with snapshot; explicit override; snapshot immune to definition edits; first response only once; met/breached classification; pause end accumulates and extends the target; duplicate-pause prevention; pause audit; rollback on audit failure during assignment; org isolation (outsider resolves nothing, even naming the id). Unit tests (11): timezone reading, business addition across weekends, off-window snapping, business-minutes measurement, signed remaining, all four threshold bands, met/breached. HTTP smoke: SuperAdmin created a definition through `/sla`; a technician got it auto-assigned on a new high ticket; panel rendered targets and health; explicit first response registered once; pause started/ended with audit (0 paused business-minutes at night — correct).
 
+## Compliance reporting (2026-07-18, E-14)
+
+La fórmula oficial de cumplimiento vive una sola vez en `slaMetrics` (`src/lib/report-metrics.ts`): sobre tickets **cerrados en el periodo** con SLA asignado, `% = cumplidos / evaluados` usando las banderas finales congeladas al cierre (`sla_resolution_met` / `sla_first_response_met`) — nunca recalculando contra targets vivos. Tickets sin SLA se excluyen y se reportan aparte (`excludedNoSla`); denominador 0 → "No disponible", nunca 0% ni 100% fabricado. Consumida por: el tipo de reporte `sla_report` y la sección SLA de los snapshots (desglose por prioridad), y el panel ejecutivo de `/indicators` (comparada contra el umbral configurable `sla_target_pct`, default 90). Ver `docs/features/reports.md` y `docs/features/indicator-definitions.md`.
+
 ## Postponed
 
-Holidays evaluation · per-client calendars/SLAs (OQ-03) · category catalogs (OQ-09) · automatic first response from messaging channels (E-17) · SLA re-apply action for existing tickets · SLA breach notifications · compliance reporting (E-14).
+Holidays evaluation · per-client calendars/SLAs (OQ-03) · category catalogs (OQ-09) · automatic first response from messaging channels (E-17) · SLA re-apply action for existing tickets · SLA breach notifications. Compliance reporting shipped (ver arriba).

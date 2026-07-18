@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
+  Settings,
   Bell,
   Building2,
   Check,
@@ -14,6 +15,7 @@ import {
   FileText,
   FolderKanban,
   Gauge,
+  Home,
   Inbox,
   LayoutDashboard,
   LifeBuoy,
@@ -21,6 +23,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Repeat,
   Search,
   ShieldCheck,
   Timer,
@@ -89,7 +92,10 @@ export function AppShell({
   const sections: NavSection[] = [
     {
       name: null,
-      items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
+      items: [
+        { href: "/today", label: "Hoy", icon: Home },
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      ],
     },
     {
       name: "Operations",
@@ -97,6 +103,7 @@ export function AppShell({
         { href: "/activities", label: "Activities", icon: ClipboardCheck },
         { href: "/helpdesk", label: "Helpdesk", icon: LifeBuoy, badge: openTickets },
         { href: "/projects", label: "Projects", icon: FolderKanban },
+        { href: "/recurring", label: "Recurring", icon: Repeat },
       ],
     },
     {
@@ -104,7 +111,8 @@ export function AppShell({
       items: [
         { href: "/quotes", label: "Quotes", icon: FileText },
         { href: "/reports", label: "Reports", icon: ClipboardList },
-        { href: "/kpis", label: "KPIs", icon: Gauge },
+        { href: "/indicators", label: "Indicators", icon: Gauge },
+        { href: "/kpis", label: "KPIs", icon: Inbox },
       ],
     },
     {
@@ -113,6 +121,7 @@ export function AppShell({
         { href: "/clients", label: "Clients", icon: Building2 },
         { href: "/sla", label: "SLA", icon: Timer },
         { href: "/users", label: "Users", icon: Users },
+        { href: "/settings", label: "Settings", icon: Settings },
       ],
     },
   ];

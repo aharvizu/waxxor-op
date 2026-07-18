@@ -8,13 +8,13 @@
 | Role | Access today | Notes |
 |---|---|---|
 | `superadmin` | **Total.** Passes every role check automatically; only role that can see/modify Users **and SLA definitions/work calendar** (`/sla`, PRD R7). Only role whose explicit SLA choice is honored on ticket creation/conversion. | |
-| `administrator` | Full operational access (all current modules). | Excluded from **technical global configuration** — that boundary materializes with the Configuration module (E-02); today the only such surface is Users, which is superadmin-only. |
+| `administrator` | Full operational access (all current modules) + business configuration in `/settings` (organización, catálogos, defaults, branding de reportes, umbrales, auditoría, salud). | Excluded from **technical configuration** — since 2026-07-18 that boundary is concrete: Usuarios, API Keys, Entorno y el calendario laboral dentro de `/settings` son superadmin-only. |
 | `director` | Operational + consultation access (all current modules). | Read-oriented restrictions arrive with granular permissions (deferred). |
 | `project_manager` | Operational access (all current modules). | |
 | `technician` | Operational access (all current modules). | Default role for new users and the fallback for unknown values. |
 | `client` | **No internal portal access.** Can authenticate; any internal page redirects to `/no-access` (clear, safe page — never a 500). | Customer portal is future scope (PRD §10). |
 
-Granular/individual/team/delegated permissions are **deliberately not implemented** (OQ-10 still open for the fine-grained matrix).
+Granular/individual/team/delegated permissions are **deliberately not implemented** (OQ-10 still open for the fine-grained matrix). `/settings/roles` shows the live capability matrix read-only — it renders this policy, it does not replace it.
 
 ## Where the role lives
 
@@ -22,6 +22,7 @@ Granular/individual/team/delegated permissions are **deliberately not implemente
 - **JWT/session**: set at sign-in from the DB row; propagated by the `jwt`/`session` callbacks in `src/auth.ts`. Both callbacks run `normalizeRole`, so tokens issued before the migration (`admin`/`member`) resolve to `superadmin`/`technician` without forcing re-login — and no invalid value can reach authorization code.
 - **Types**: `Role` (from the schema enum) is the single source; `Session.user.role: Role` via module augmentation.
 - Caveat (pre-existing, TD-11): a role changed in the DB reaches the session on next sign-in, not live.
+- **Account state (2026-07-18, Settings)**: `users.is_active = false` and pending invitations (`invitation_token` set) are rejected at sign-in (`authorize` in `src/auth.ts`). Deactivation blocks new sessions; an already-issued JWT lives until expiry (same TD-11 semantics). Invitation flow: `/invite/[token]` (public, single-use) — see `docs/features/settings.md`.
 
 ## Migration (`drizzle/0003_superb_excalibur.sql`)
 

@@ -11,13 +11,13 @@
 | `id` | serial PK | |
 | `organization_id` | integer, **NOT NULL**, FK → organizations | Required on every event since the organization migration (`drizzle/0004`); comes from the session user. |
 | `user_id` | integer, nullable, FK → users **on delete set null** | The actor. `set null` so audit rows never block user deletion and outlive the account. |
-| `entity_type` | text | Lower-case entity name: `client`, `user`, `work_item`, `ticket`, `activity`, `time_entry`, `sla_definition`, `business_calendar`, `message`, `attachment`, `ticket_comment` (legacy) |
+| `entity_type` | text | Lower-case entity name: `client`, `user`, `work_item`, `ticket`, `activity`, `time_entry`, `sla_definition`, `business_calendar`, `message`, `attachment`, `operational_reminder`, `conversation`, `contact`, `service`, `client_service`, `contract`, `client_note`, `project`, `project_member`, `project_list`, `project_milestone`, `project_risk`, `project_comment`, `work_item_dependency`, `recurrence_definition`, `recurrence_execution`, `report`, `report_template`, `indicator_threshold`, `organization_setting`, `catalog_item`, `api_key`, `ticket_comment` (legacy) |
 | `entity_id` | integer | PK of the affected row |
 | `action` | text | `"create"`, `"update"`, `"delete"` (free text so future actions like `"convert"` need no migration) |
 | `field` | text, nullable | Set on `update` events: the changed column (camelCase, as in the Drizzle schema) |
 | `old_value` / `new_value` | text, nullable | Stringified values (dates as ISO); `null` means the value was empty |
 | `metadata` | jsonb, nullable | Free-form context; on `create` holds `{ values: {...} }` snapshot |
-| `source` | text, default `"web"` | Channel: `"web"` (server actions), `"seed"`, `"system"` (future: recurrence jobs), `"api"` |
+| `source` | text, default `"web"` | Channel: `"web"` (server actions), `"seed"`, `"system"` (scheduler-originated writes — the legacy-tasks migration and, since 2026-07-18, every object the Recurrences engine generates), `"api"` |
 | `created_at` | timestamp, default now | |
 
 Indexes: `(entity_type, entity_id)` for per-entity history, `(created_at)` for time-range queries.
@@ -68,19 +68,38 @@ Rules:
 1. ~~Not atomic with the business write~~ — **resolved 2026-07-15**: the driver moved to `neon-serverless`/WebSocket (see `database-transactions.md`); `recordAudit` now joins the caller's transaction and an audit failure rolls back the business write.
 2. ~~`organization_id` is always null~~ — **resolved 2026-07-15**: mandatory and FK-backed since `drizzle/0004` (see `organization-and-data-isolation.md`).
 3. **No "from where" detail beyond channel**: `source` distinguishes web/seed/system, but IP/user-agent capture (via `headers()`) is deliberately deferred — add to `metadata` when there's a requirement.
-4. **UI**: tickets expose their full trail in the detail's History tab (2026-07-16); a global audit browser is still pending (E-15 backlog).
+4. **UI**: tickets expose their full trail in the detail's History tab (2026-07-16); Client 360's Historial tab (2026-07-17) shows a plain-language timeline to every internal role and the raw technical log to SuperAdmin/Administrator only (`describeClientAuditEvent` in `src/lib/client360.ts`). **The global audit browser shipped 2026-07-18** at `/settings/audit` (filters by entity/action/actor/id/date + CSV export via `/api/audit/export`, SuperAdmin/Administrator only) — see `docs/features/settings.md`.
 
 ## Coverage
 
 | Module | create | update | delete |
 |---|---|---|---|
 | Clients | ✅ | ✅ (per-field) | — (no delete flow exists) |
-| Users | ✅ | ✅ (incl. role/password events) | ✅ (snapshot) |
+| Users | ✅ (incl. `user_invited`) | ✅ (incl. role/password events · `invitation_accepted`/`regenerated` · `user_activated`/`user_deactivated` with reassignment counts) | ✅ (snapshot) |
 | Work items (shared) | ✅ | ✅ (per-field) | ✅ via ticket deletion |
 | Tickets | ✅ | ✅ (lifecycle, SLA, billing, confirmation, reopen, exception) | ✅ (SuperAdmin, snapshot) |
 | Activities | ✅ | ✅ (incl. archive/restore, link/unlink, convert) | — (archive instead) |
 | Time entries | ✅ | ✅ (incl. void) | ✅ (SuperAdmin, snapshot) |
 | SLA definitions / calendar | ✅ | ✅ | — (deactivate instead) |
 | Messages / attachments | ✅ | ✅ (note edits) | ✅ (SuperAdmin, snapshot) |
+| Reminders (No olvides) / conversations | — (computed) | ✅ (snooze/dismiss/resolve · attended) | — |
+| Contacts | ✅ | ✅ (per-field · `primary_contact_changed` · archive/restore) | ✅ (SuperAdmin, snapshot, blocked while referenced) |
+| Services catalog | ✅ | — (no edit flow yet) | — |
+| Client services / licenses | ✅ | ✅ (per-field · `renewal_updated`) | — (cancel/archive instead) |
+| Contracts | ✅ | ✅ (per-field · `renewal_updated`) | ✅ (SuperAdmin, snapshot) |
+| Client notes | ✅ | ✅ (`note_edited`, author-only) | — |
+| Projects | ✅ | ✅ (per-field · status/health incl. `health_set_manually`, `completed_with_exception`, `archived`/`restored`) | ✅ (SuperAdmin, snapshot, blocked with activities) |
+| Project members / lists / milestones / risks / comments | ✅ | ✅ (per-field + lifecycle events, all carrying `metadata.projectId`) | — (soft flows) |
+| Work item dependencies | ✅ | — | ✅ |
+| Project activities | ✅ (create incl. project/list/parent) | ✅ (`moved_to_list`, `hierarchy_changed`, `completed_while_blocked`; conversion adds `unlinkedProjectId`) | — (archive instead) |
+| Recurrence definitions | ✅ | ✅ (per-field + lifecycle events: `activated`, `paused`, `reactivated`, `archived`, `restored`, `occurrence_skipped`, `backfill`, `auto_paused_on_failures`, `health`/`template_updated`) | ✅ (SuperAdmin, blocked while it generated objects) |
+| Recurrence executions | — (create is the run itself) | ✅ (`retried`) | — |
+| Generated objects (activity/ticket/report via recurrence) | ✅ (`source: "system"`, `metadata.generatedByRecurrenceId`) | — | — |
+| Reports | ✅ | ✅ (per-field + lifecycle: `generated`/`regenerated` (with version), `generation_failed`, `changes_requested`, `approved`, `sent`/`sent_with_exception`, `approval_invalidated_by_edit`, `archived`/`restored`, `duplicated`, `exported_csv`) | ✅ (SuperAdmin, snapshot; versions cascade) |
+| Report templates | ✅ | ✅ (per-field) | — (archive instead) |
+| Indicator thresholds | ✅ (upsert) | ✅ (`threshold_set` with old default/value → new value) | — |
+| Organization settings | ✅ (`setting_saved`, logos redacted) | ✅ (old/new JSON per section) | — |
+| Catalog items | ✅ | ✅ (rename · archive/restore) | ✅ (SuperAdmin, snapshot, blocked with children) |
+| API keys | ✅ (name/prefix only — never token or hash) | ✅ (`api_key_revoked`) | — (revoke instead) |
 
 Verified end-to-end on 2026-07-15 against the dev database: create produced one `create` event with full snapshot; an edit changing two fields produced exactly two `update` events with correct old/new values (test rows cleaned up afterwards).

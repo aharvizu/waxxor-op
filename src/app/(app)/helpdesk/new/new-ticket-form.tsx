@@ -13,10 +13,15 @@ export function NewTicketForm({
   clients,
   users,
   slas,
+  defaultClientId,
+  categoryOptions = [],
 }: {
   clients: Option[];
   users: Option[];
   slas: Option[]; // empty for non-superadmins
+  defaultClientId?: number;
+  /** Active names from the org's ticket-category catalog (Settings). */
+  categoryOptions?: string[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createTicket, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
@@ -41,7 +46,12 @@ export function NewTicketForm({
           <label htmlFor="clientId" className={labelClass}>
             Client
           </label>
-          <select id="clientId" name="clientId" className={inputClass}>
+          <select
+            id="clientId"
+            name="clientId"
+            defaultValue={defaultClientId ? String(defaultClientId) : ""}
+            className={inputClass}
+          >
             <option value="">— None —</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
@@ -80,7 +90,14 @@ export function NewTicketForm({
           <label htmlFor="category" className={labelClass}>
             Category (optional)
           </label>
-          <input id="category" name="category" className={inputClass} />
+          <input id="category" name="category" list="ticket-category-options" className={inputClass} />
+          {categoryOptions.length > 0 ? (
+            <datalist id="ticket-category-options">
+              {categoryOptions.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          ) : null}
         </div>
         <div>
           <label htmlFor="channel" className={labelClass}>

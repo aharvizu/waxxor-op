@@ -115,6 +115,10 @@ const CONVERSION_MESSAGES: Record<string, string> = {
   no_client: "Select a client before converting: tickets always belong to a client.",
   needs_confirmation:
     "This activity is cancelled — confirm that you still want to convert it.",
+  needs_project_confirmation:
+    "This activity belongs to a project — converting removes it from the project. Confirm to continue.",
+  has_subactivities:
+    "This activity has subactivities — complete, move or detach them before converting.",
 };
 
 const convertSchema = z.object({
@@ -128,6 +132,9 @@ const convertSchema = z.object({
   priority: workItemPrioritySchema,
   assigneeId: optionalId,
   confirmCancelled: z
+    .preprocess((v) => v === "on" || v === "true", z.boolean())
+    .optional(),
+  confirmProject: z
     .preprocess((v) => v === "on" || v === "true", z.boolean())
     .optional(),
 });
@@ -156,6 +163,7 @@ export async function convertActivity(
       priority: data.priority,
       assigneeId,
       confirmCancelled: data.confirmCancelled,
+      confirmProject: data.confirmProject,
     });
     ticketId = result.ticketId;
   } catch (err) {
