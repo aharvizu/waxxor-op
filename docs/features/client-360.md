@@ -41,6 +41,10 @@ La pestaña Proyectos muestra datos reales del nuevo módulo: folio, estado, sal
 
 Pestaña **Recurrentes** (16ª pestaña): nombre, tipo, frecuencia legible, responsable, próxima ejecución y estado por recurrencia del cliente, con indicadores compactos (activas/pausadas/con error/próximas en 30 días) y acción "Crear recurrencia" con el cliente preseleccionado (`/recurring/new?clientId=`). Las recurrencias en `status = "error"` (pausadas automáticamente tras 3 fallos consecutivos) **alimentan las alertas del cliente** (`buildClientAlerts` gana el campo `recurrencesInError`, contado en el mismo `getClientRecurrences` que llena la pestaña — sin consulta duplicada). Ver `docs/features/recurring.md`.
 
+## Integración con Inbox (2026-07-19)
+
+La pestaña Conversaciones ahora incluye también conversaciones **sin ticket** (asunto libre, vinculadas solo al cliente o a una actividad/proyecto) — antes solo mostraba el hilo 1:1 de cada ticket. Acciones "Abrir en Inbox" y "Nueva conversación" con el cliente preseleccionado. La misma lectura (`getClientConversations`) alimenta la pestaña; sin consulta duplicada. Ver `docs/features/inbox.md`.
+
 ## Integración con Reportes (2026-07-18)
 
 La pestaña Reportes usa el modelo operativo nuevo: tipo, periodo, versión, estado del flujo y fecha de envío por reporte, con acciones "Crear reporte" (`/reports/new?clientId=`) y "Programar recurrente" (`/recurring/new?targetType=report&clientId=`). Los reportes por atender (borrador/revisión/cambios/fallidos/aprobados sin enviar) alimentan `buildClientAlerts` (`reportsNeedingAttention`), contados sobre el mismo `getClientReports` que llena la pestaña. Ver `docs/features/reports.md`.

@@ -1,7 +1,7 @@
 # Organization & Data Isolation
 
 > Status: adopted 2026-07-15. Resolves OQ-01 (tenancy): the schema is multi-organization-ready, the product runs as a single organization ("Watson") with no switcher, no multi-company admin, no way to change organization.
-> Verified end-to-end with a temporary second organization (see §6); invariants re-checkable with `npx tsx scripts/verify-organization.ts` (core tables), `npx tsx scripts/verify-client360.ts` (contacts/services/contracts/renewals, added 2026-07-17), `npx tsx scripts/verify-projects.ts` (2026-07-17), `npx tsx scripts/verify-recurring.ts` (recurrence definitions/executions, added 2026-07-18) `npx tsx scripts/verify-reports.ts` (reports/versions/generation, added 2026-07-18: cross-org report lookup returns empty, cross-org generation rejected) and `npx tsx scripts/verify-settings.ts` (settings/catalogs/api keys, added 2026-07-18: another org sees no settings or catalogs).
+> Verified end-to-end with a temporary second organization (see §6); invariants re-checkable with `npx tsx scripts/verify-organization.ts` (core tables), `npx tsx scripts/verify-client360.ts` (contacts/services/contracts/renewals, added 2026-07-17), `npx tsx scripts/verify-projects.ts` (2026-07-17), `npx tsx scripts/verify-recurring.ts` (recurrence definitions/executions, added 2026-07-18), `npx tsx scripts/verify-reports.ts` (reports/versions/generation, added 2026-07-18: cross-org report lookup returns empty, cross-org generation rejected), `npx tsx scripts/verify-settings.ts` (settings/catalogs/api keys, added 2026-07-18: another org sees no settings or catalogs) and `npx tsx scripts/verify-inbox.ts` (conversations/messages/mentions, added 2026-07-19: another org sees no conversations).
 
 ## 1. Model
 
@@ -14,12 +14,12 @@ organizations (id, name, slug UNIQUE, status active|inactive, created_at, update
            recurrence_definitions, recurrence_executions,
            indicator_thresholds (unique (organization_id, key)),
            organization_settings (unique (organization_id, key)),
-           catalog_items, api_keys
+           catalog_items, api_keys, conversations
            (organization_id integer NOT NULL, FK → organizations)
 ```
 
 - Default organization: **Watson** (`slug: watson`), created by migration `drizzle/0004_premium_songbird.sql`; the seed script is idempotent about it.
-- **Child tables** (`ticket_comments`, `quote_items`, `kpi_entries`, `report_versions`) deliberately have **no** `organization_id`: they belong to exactly one parent that has it, and every mutation on them first verifies the parent belongs to the caller's org. One source of truth, no denormalized column to drift.
+- **Child tables** (`ticket_comments`, `quote_items`, `kpi_entries`, `report_versions`, `conversation_participants`, `message_mentions`) deliberately have **no** `organization_id`: they belong to exactly one parent that has it, and every mutation on them first verifies the parent belongs to the caller's org. One source of truth, no denormalized column to drift.
 - `audit_logs.organization_id` is NOT NULL — every audit event belongs to an organization (`AuditEvent.organizationId` is a required field in `src/lib/audit.ts`).
 
 ## 2. Isolation strategy

@@ -77,6 +77,10 @@ Shipped 2026-07-15. "Convert to ticket" lives in the activity detail (not in the
 
 Since 2026-07-16 an activity can support a ticket (`parent_ticket_id`): created from the ticket's Activities tab or linked there if eligible (not archived, not converted, not already linked, same organization). Linked activities keep their own status, priority, assignee, dates, time and detail page; completing them never closes the parent ticket. PRD R3 still holds: these are activities, tickets themselves never join projects.
 
+## Conversaciones (2026-07-19)
+
+El detalle de actividad gana el botón "Conversaciones" (`/inbox?workItemId=`) que abre la bandeja unificada filtrada a los hilos de esa actividad — sin un módulo de mensajería paralelo. Ver `docs/features/inbox.md`.
+
 ## Time tracking
 
 Shipped 2026-07-15: the activity detail includes the shared **Time** card (`TimeEntriesCard`) — manual sessions per technician with totals, billable time, per-tech rollup, inline edit and voiding. Archived activities show it read-only. See `docs/features/time-entries.md`.

@@ -11,7 +11,7 @@
 | `id` | serial PK | |
 | `organization_id` | integer, **NOT NULL**, FK → organizations | Required on every event since the organization migration (`drizzle/0004`); comes from the session user. |
 | `user_id` | integer, nullable, FK → users **on delete set null** | The actor. `set null` so audit rows never block user deletion and outlive the account. |
-| `entity_type` | text | Lower-case entity name: `client`, `user`, `work_item`, `ticket`, `activity`, `time_entry`, `sla_definition`, `business_calendar`, `message`, `attachment`, `operational_reminder`, `conversation`, `contact`, `service`, `client_service`, `contract`, `client_note`, `project`, `project_member`, `project_list`, `project_milestone`, `project_risk`, `project_comment`, `work_item_dependency`, `recurrence_definition`, `recurrence_execution`, `report`, `report_template`, `indicator_threshold`, `organization_setting`, `catalog_item`, `api_key`, `ticket_comment` (legacy) |
+| `entity_type` | text | Lower-case entity name: `client`, `user`, `work_item`, `ticket`, `activity`, `time_entry`, `sla_definition`, `business_calendar`, `message`, `attachment`, `operational_reminder`, `conversation`, `contact`, `service`, `client_service`, `contract`, `client_note`, `project`, `project_member`, `project_list`, `project_milestone`, `project_risk`, `project_comment`, `work_item_dependency`, `recurrence_definition`, `recurrence_execution`, `report`, `report_template`, `indicator_threshold`, `organization_setting`, `catalog_item`, `api_key`, `conversation`, `ticket_comment` (legacy) |
 | `entity_id` | integer | PK of the affected row |
 | `action` | text | `"create"`, `"update"`, `"delete"` (free text so future actions like `"convert"` need no migration) |
 | `field` | text, nullable | Set on `update` events: the changed column (camelCase, as in the Drizzle schema) |
@@ -81,8 +81,8 @@ Rules:
 | Activities | ✅ | ✅ (incl. archive/restore, link/unlink, convert) | — (archive instead) |
 | Time entries | ✅ | ✅ (incl. void) | ✅ (SuperAdmin, snapshot) |
 | SLA definitions / calendar | ✅ | ✅ | — (deactivate instead) |
-| Messages / attachments | ✅ | ✅ (note edits) | ✅ (SuperAdmin, snapshot) |
-| Reminders (No olvides) / conversations | — (computed) | ✅ (snooze/dismiss/resolve · attended) | — |
+| Messages / attachments | ✅ | ✅ (note edits · `message_edited` · logical delete `message_deleted_logical`) | ✅ (SuperAdmin, snapshot; logical delete via Inbox is audited, not a delete row) |
+| Reminders (No olvides) / conversations | — (computed) | ✅ (snooze/dismiss/resolve · `conversation_status_changed`, `conversation_links_updated` — Inbox 2026-07-19) | — |
 | Contacts | ✅ | ✅ (per-field · `primary_contact_changed` · archive/restore) | ✅ (SuperAdmin, snapshot, blocked while referenced) |
 | Services catalog | ✅ | — (no edit flow yet) | — |
 | Client services / licenses | ✅ | ✅ (per-field · `renewal_updated`) | — (cancel/archive instead) |

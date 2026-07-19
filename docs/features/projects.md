@@ -66,6 +66,10 @@ El Resumen del proyecto incluye la tarjeta "Reportes": generar un reporte de est
 
 `/projects/new` acepta una **plantilla de proyecto** (Configuración → Proyectos): al elegirla, sus listas se crean transaccionalmente en lugar de la lista inicial única (plantilla archivada = rechazada con error de negocio). La salud y prioridad iniciales salen de los defaults de la organización (`projects.defaults`), siempre editables. Ver `docs/features/settings.md`.
 
+## Integración con Inbox (2026-07-19)
+
+El Resumen del proyecto incluye la tarjeta "Conversaciones": ver los hilos vinculados al proyecto (`/inbox?projectId=`) o crear uno nuevo con el proyecto preseleccionado. Una conversación puede vincularse a proyecto **junto con** cliente/ticket/actividad — no es exclusivo. Ver `docs/features/inbox.md`.
+
 ## Fuera de alcance / futuro
 
 Kanban, Gantt, ruta crítica, calendarios laborales, dependencias entre proyectos, portafolios, OKRs, sprints, estados personalizados de actividad, drag & drop. (Las plantillas de proyecto, antes futuras, shippearon 2026-07-18 vía Configuración — ver arriba.)
