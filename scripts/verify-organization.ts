@@ -11,7 +11,7 @@ config({ path: [".env.local", ".env"] });
 
 const BUSINESS_TABLES = [
   "users",
-  "clients",
+  "companies",
   "tickets",
   "work_items",
   "projects",

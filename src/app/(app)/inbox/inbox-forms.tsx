@@ -352,13 +352,13 @@ export function AutoMarkRead({ conversationId, hasUnread }: { conversationId: nu
 /* -------------------------------------------------- create / link / people */
 
 export function NewConversationForm({
-  clients,
+  companies,
   projects,
   prefill,
 }: {
-  clients: Option[];
+  companies: Option[];
   projects: Option[];
-  prefill?: { clientId?: number; projectId?: number; workItemId?: number; ticketId?: number };
+  prefill?: { companyId?: number; projectId?: number; workItemId?: number; ticketId?: number };
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createConversation, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
@@ -375,9 +375,9 @@ export function NewConversationForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Cliente (opcional)</label>
-          <select name="clientId" defaultValue={prefill?.clientId ?? ""} className={inputClass}>
+          <select name="companyId" defaultValue={prefill?.companyId ?? ""} className={inputClass}>
             <option value="">— Sin cliente —</option>
-            {clients.map((c) => (
+            {companies.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
@@ -403,15 +403,15 @@ export function NewConversationForm({
 
 export function LinkConversationForm({
   conversationId,
-  clients,
+  companies,
   projects,
   current,
 }: {
   conversationId: number;
-  clients: Option[];
+  companies: Option[];
   projects: Option[];
   current: {
-    clientId: number | null;
+    companyId: number | null;
     contactId: number | null;
     ticketId: number | null;
     workItemId: number | null;
@@ -427,9 +427,9 @@ export function LinkConversationForm({
       {current.ticketId ? <input type="hidden" name="ticketId" value={current.ticketId} /> : null}
       {current.workItemId ? <input type="hidden" name="workItemId" value={current.workItemId} /> : null}
       <div className="grid grid-cols-1 gap-2">
-        <select name="clientId" defaultValue={current.clientId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
+        <select name="companyId" defaultValue={current.companyId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
           <option value="">— Sin cliente —</option>
-          {clients.map((c) => (
+          {companies.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>

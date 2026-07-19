@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm";
 import { LifeBuoy, Plus } from "lucide-react";
 import { db } from "@/db";
-import { clients, slaDefinitions, tickets, timeEntries, users, workItems } from "@/db/schema";
+import { companies, slaDefinitions, tickets, timeEntries, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import {
   Badge,
@@ -158,9 +158,9 @@ export default async function HelpdeskPage({
       eq(workItems.priority, params.priority as (typeof workItems.priority.enumValues)[number]),
     );
   }
-  const clientId = Number(params.client);
-  if (Number.isInteger(clientId) && clientId > 0) {
-    conditions.push(eq(workItems.clientId, clientId));
+  const companyId = Number(params.client);
+  if (Number.isInteger(companyId) && companyId > 0) {
+    conditions.push(eq(workItems.companyId, companyId));
   }
   const assigneeId = Number(params.assignee);
   if (Number.isInteger(assigneeId) && assigneeId > 0) {
@@ -197,7 +197,7 @@ export default async function HelpdeskPage({
       .groupBy(timeEntries.workItemId),
   );
 
-  const [rows, clientRows, userRows, slaRows, categoryRows] = await Promise.all([
+  const [rows, companyRows, userRows, slaRows, categoryRows] = await Promise.all([
     db
       .with(timeByItem)
       .select({
@@ -210,7 +210,7 @@ export default async function HelpdeskPage({
         slaName: tickets.slaName,
         resolutionTargetAt: tickets.resolutionTargetAt,
         billingStatus: tickets.billingStatus,
-        clientName: clients.name,
+        companyName: companies.name,
         assigneeId: workItems.assigneeId,
         assigneeName: users.name,
         updatedAt: workItems.updatedAt,
@@ -218,17 +218,17 @@ export default async function HelpdeskPage({
       })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
-      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
       .leftJoin(users, eq(workItems.assigneeId, users.id))
       .leftJoin(timeByItem, eq(timeByItem.workItemId, workItems.id))
       .where(and(...conditions))
       .orderBy(desc(workItems.updatedAt))
       .limit(200),
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -297,7 +297,7 @@ export default async function HelpdeskPage({
         </select>
         <select name="client" defaultValue={params.client ?? ""} aria-label="Client" className={inputClass}>
           <option value="">Any client</option>
-          {clientRows.map((c) => (
+          {companyRows.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -370,7 +370,6 @@ export default async function HelpdeskPage({
         </EmptyState>
       ) : (
         <Card className="overflow-visible">
-          <div className="overflow-x-auto">
             <Table>
               <THead>
                 <tr>
@@ -406,7 +405,7 @@ export default async function HelpdeskPage({
                           {r.title}
                         </Link>
                       </Td>
-                      <Td className="text-muted">{r.clientName ?? "—"}</Td>
+                      <Td className="text-muted">{r.companyName ?? "—"}</Td>
                       <Td className="text-muted">{r.assigneeName ?? "Unassigned"}</Td>
                       <Td>
                         <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>
@@ -451,7 +450,6 @@ export default async function HelpdeskPage({
                 })}
               </tbody>
             </Table>
-          </div>
         </Card>
       )}
     </div>

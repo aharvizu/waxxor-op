@@ -228,7 +228,7 @@ export type ProjectDefaults = {
   id: number;
   name: string;
   description: string | null;
-  clientId: number | null;
+  companyId: number | null;
   projectManagerId: number | null;
   ownerId: number | null;
   priority: string;
@@ -241,16 +241,16 @@ export type ProjectDefaults = {
 
 export function ProjectForm({
   project,
-  clients,
+  companies,
   internalUsers,
-  defaultClientId,
+  defaultCompanyId,
   defaultPriority,
   templates = [],
 }: {
   project?: ProjectDefaults;
-  clients: Option[];
+  companies: Option[];
   internalUsers: Option[];
-  defaultClientId?: number;
+  defaultCompanyId?: number;
   /** Org default from Settings → Proyectos; preselected, always editable. */
   defaultPriority?: string;
   /** Active project templates from Settings → Proyectos. */
@@ -259,7 +259,7 @@ export function ProjectForm({
   const { state, formAction, errors, value } = useForm(
     project ? updateProject : createProject,
     project ?? {
-      ...(defaultClientId ? { clientId: defaultClientId } : {}),
+      ...(defaultCompanyId ? { companyId: defaultCompanyId } : {}),
       ...(defaultPriority ? { priority: defaultPriority } : {}),
     },
   );
@@ -272,11 +272,11 @@ export function ProjectForm({
         <Field label="Nombre del proyecto" name="name" errors={errors}>
           <TextInput name="name" value={value} errors={errors} required />
         </Field>
-        <Field label="Cliente (vacío = proyecto interno)" name="clientId" errors={errors}>
+        <Field label="Cliente (vacío = proyecto interno)" name="companyId" errors={errors}>
           <SelectInput
-            name="clientId"
+            name="companyId"
             value={value}
-            options={clients.map((c) => ({ value: String(c.id), label: c.name }))}
+            options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
             allowEmpty="— Interno, sin cliente —"
           />
         </Field>

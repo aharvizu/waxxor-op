@@ -22,7 +22,7 @@ async function main() {
   const { and, eq, sql } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const {
-    clients,
+    companies,
     organizations,
     recurrenceDefinitions,
     recurrenceExecutions,
@@ -54,9 +54,9 @@ async function main() {
 
   // ------------------------------------------------------------- fixtures
   const [client] = await db
-    .insert(clients)
+    .insert(companies)
     .values({ organizationId: orgId, name: "RPT-VERIFY Client" })
-    .returning({ id: clients.id });
+    .returning({ id: companies.id });
 
   const PERIOD = { start: "2026-06-01", end: "2026-06-30" };
   const inPeriod = new Date("2026-06-10T15:00:00Z");
@@ -69,7 +69,7 @@ async function main() {
       type: "ticket",
       title: "RPT-VERIFY ticket",
       status: "closed",
-      clientId: client.id,
+      companyId: client.id,
       createdAt: inPeriod,
     })
     .returning({ id: workItems.id });
@@ -106,7 +106,7 @@ async function main() {
       organizationId: orgId,
       title: "RPT-VERIFY Monthly",
       reportType: "monthly_service",
-      clientId: client.id,
+      companyId: client.id,
       periodStart: PERIOD.start,
       periodEnd: PERIOD.end,
       responsibleUserId: userId,
@@ -264,7 +264,7 @@ async function main() {
         templateId: null,
         dueOffsetDays: 5,
       },
-      clientId: client.id,
+      companyId: client.id,
       assigneeId: userId,
       createdById: userId,
     })
@@ -299,7 +299,7 @@ async function main() {
   await db.delete(timeEntries).where(eq(timeEntries.workItemId, wi.id));
   await db.delete(tickets).where(eq(tickets.id, ticket.id));
   await db.delete(workItems).where(eq(workItems.id, wi.id));
-  await db.delete(clients).where(eq(clients.id, client.id));
+  await db.delete(companies).where(eq(companies.id, client.id));
   await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
   await sqlHttp`delete from audit_logs where entity_type = 'report' and entity_id in ${sqlHttp.unsafe(`(${[report.id, emptyReport.id, otherReport.id, generatedReportId].filter(Boolean).join(",")})`)}`;
   await sqlHttp`delete from audit_logs where entity_type = 'recurrence_definition' and entity_id = ${recDef.id}`;

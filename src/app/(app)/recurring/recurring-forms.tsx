@@ -254,7 +254,7 @@ export type RecurrenceFormDefaults = {
   name?: string;
   description?: string | null;
   targetType?: TargetType;
-  clientId?: number | null;
+  companyId?: number | null;
   projectId?: number | null;
   projectListId?: number | null;
   assigneeId?: number | null;
@@ -284,14 +284,14 @@ const COMMON_TIMEZONES = [
 
 export function RecurrenceWizard({
   defaults,
-  clients,
+  companies,
   projects,
   projectListsByProject,
   internalUsers,
   initialTargetType,
 }: {
   defaults?: RecurrenceFormDefaults;
-  clients: Option[];
+  companies: Option[];
   projects: Option[];
   projectListsByProject: Record<number, Option[]>;
   internalUsers: Option[];
@@ -307,7 +307,7 @@ export function RecurrenceWizard({
     (defaults?.targetType ?? (initialTargetType as TargetType) ?? "activity") as TargetType,
   );
   const [name, setName] = useState(defaults?.name ?? "");
-  const [clientId, setClientId] = useState<string>(defaults?.clientId ? String(defaults.clientId) : "");
+  const [companyId, setClientId] = useState<string>(defaults?.companyId ? String(defaults.companyId) : "");
   const [projectId, setProjectId] = useState<string>(defaults?.projectId ? String(defaults.projectId) : "");
   const [projectListId, setProjectListId] = useState<string>(defaults?.projectListId ? String(defaults.projectListId) : "");
   const [assigneeId, setAssigneeId] = useState<string>(defaults?.assigneeId ? String(defaults.assigneeId) : "");
@@ -338,7 +338,7 @@ export function RecurrenceWizard({
   const [maxOccurrences, setMaxOccurrences] = useState(defaults?.maxOccurrences != null ? String(defaults.maxOccurrences) : "");
 
   const projectLists = projectId ? (projectListsByProject[Number(projectId)] ?? []) : [];
-  const clientName = clients.find((c) => String(c.id) === clientId)?.name;
+  const companyName = companies.find((c) => String(c.id) === companyId)?.name;
   const projectName = projects.find((p) => String(p.id) === projectId)?.name;
   const assigneeName = internalUsers.find((u) => String(u.id) === assigneeId)?.name;
 
@@ -368,7 +368,7 @@ export function RecurrenceWizard({
   const templatePreview = useMemo(() => {
     if (preview.locals.length === 0) return { title: null as string | null, error: null as string | null };
     const ctx: TemplateContext = {
-      client: clientName ? { name: clientName } : null,
+      client: companyName ? { name: companyName } : null,
       contact: null,
       project: projectName ? { name: projectName } : null,
       assignee: assigneeName ? { name: assigneeName } : null,
@@ -380,7 +380,7 @@ export function RecurrenceWizard({
     } catch (err) {
       return { title: null, error: err instanceof TemplateRenderError ? err.message : "Error de plantilla." };
     }
-  }, [preview.locals, title, clientName, projectName, assigneeName, name]);
+  }, [preview.locals, title, companyName, projectName, assigneeName, name]);
 
   const templateData = useMemo(() => {
     const base: Record<string, unknown> = { targetType, title, description, priority };
@@ -407,7 +407,7 @@ export function RecurrenceWizard({
   const missing: string[] = [];
   if (!name.trim()) missing.push("Nombre de la recurrencia");
   if (!title.trim()) missing.push("Título de la plantilla");
-  if (targetType === "ticket" && !clientId) missing.push("Cliente (los tickets requieren cliente)");
+  if (targetType === "ticket" && !companyId) missing.push("Cliente (los tickets requieren cliente)");
   if (targetType === "report" && !assigneeId) missing.push("Responsable del reporte (recomendado)" );
   if (targetType === "ticket" && !category.trim()) missing.push("Categoría del ticket");
   if (targetType === "project_activity" && (!projectId || !projectListId)) missing.push("Proyecto y Lista");
@@ -450,10 +450,10 @@ export function RecurrenceWizard({
           <Field label="Nombre de la recurrencia" name="name" errors={errors}>
             <input id="name" name="name" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
           </Field>
-          <Field label={`Cliente${targetType === "ticket" ? " (requerido)" : " (opcional)"}`} name="clientId" errors={errors}>
-            <select id="clientId" name="clientId" value={clientId} onChange={(e) => setClientId(e.target.value)} className={inputClass}>
+          <Field label={`Cliente${targetType === "ticket" ? " (requerido)" : " (opcional)"}`} name="companyId" errors={errors}>
+            <select id="companyId" name="companyId" value={companyId} onChange={(e) => setClientId(e.target.value)} className={inputClass}>
               <option value="">— Sin cliente / interno —</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
           {targetType === "project_activity" ? (

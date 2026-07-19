@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, desc, eq, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
 import { ClipboardCheck, Plus } from "lucide-react";
 import { db } from "@/db";
-import { activities, clients, users, workItems } from "@/db/schema";
+import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import {
   ACTIVITY_STATUSES,
@@ -97,15 +97,15 @@ export default async function ActivitiesPage({
   if (Number.isInteger(assigneeId) && assigneeId > 0) {
     conditions.push(eq(workItems.assigneeId, assigneeId));
   }
-  const clientId = Number(params.client);
-  if (Number.isInteger(clientId) && clientId > 0) {
-    conditions.push(eq(workItems.clientId, clientId));
+  const companyId = Number(params.client);
+  if (Number.isInteger(companyId) && companyId > 0) {
+    conditions.push(eq(workItems.companyId, companyId));
   }
   if ((ACTIVITY_TYPES as readonly string[]).includes(params.type ?? "")) {
     conditions.push(eq(activities.activityType, params.type as ActivityType));
   }
 
-  const [rows, clientRows, userRows] = await Promise.all([
+  const [rows, companyRows, userRows] = await Promise.all([
     db
       .select({
         id: activities.id,
@@ -114,20 +114,20 @@ export default async function ActivitiesPage({
         priority: workItems.priority,
         activityType: activities.activityType,
         dueDate: workItems.dueDate,
-        clientName: clients.name,
+        companyName: companies.name,
         assigneeName: users.name,
       })
       .from(activities)
       .innerJoin(workItems, eq(activities.workItemId, workItems.id))
-      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
       .leftJoin(users, eq(workItems.assigneeId, users.id))
       .where(and(...conditions))
       .orderBy(desc(workItems.updatedAt)),
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -209,7 +209,7 @@ export default async function ActivitiesPage({
         </select>
         <select name="client" defaultValue={params.client ?? ""} aria-label="Client" className={inputClass}>
           <option value="">Any client</option>
-          {clientRows.map((c) => (
+          {companyRows.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -269,7 +269,7 @@ export default async function ActivitiesPage({
                   <Td className="text-muted">
                     {activityTypeMeta[a.activityType]?.label ?? a.activityType}
                   </Td>
-                  <Td className="text-muted">{a.clientName ?? "—"}</Td>
+                  <Td className="text-muted">{a.companyName ?? "—"}</Td>
                   <Td className="text-muted">{a.assigneeName ?? "Unassigned"}</Td>
                   <Td>
                     <Badge tone={a.priority === "critical" ? "red" : a.priority === "high" ? "amber" : a.priority === "medium" ? "blue" : "slate"}>

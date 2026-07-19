@@ -3,7 +3,7 @@ import { db, type DbExecutor } from "@/db";
 import {
   organizationSettings,
   activities,
-  clients,
+  companies,
   contacts,
   projectLists,
   projects,
@@ -102,11 +102,11 @@ async function loadContext(
   contactId: number | null,
 ): Promise<Context> {
   const [client, contact, project, list, assignee] = await Promise.all([
-    def.clientId
+    def.companyId
       ? tx
-          .select({ id: clients.id, name: clients.name, status: clients.status })
-          .from(clients)
-          .where(and(eq(clients.id, def.clientId), eq(clients.organizationId, def.organizationId)))
+          .select({ id: companies.id, name: companies.name, status: companies.status })
+          .from(companies)
+          .where(and(eq(companies.id, def.companyId), eq(companies.organizationId, def.organizationId)))
           .then((r) => r[0] ?? null)
       : Promise.resolve(null),
     contactId
@@ -151,7 +151,7 @@ const NON_OPERATIONAL_PROJECT_STATUSES = ["completed", "cancelled", "archived"];
 
 /** Validates the context is safe to generate against — throws GenerationError otherwise. */
 function assertContextValid(def: Definition, ctx: Context, templateData: TemplateData) {
-  if (def.clientId) {
+  if (def.companyId) {
     if (!ctx.client) throw new GenerationError("client_missing", "El cliente ya no existe.");
     if (ctx.client.status === "archived" || ctx.client.status === "inactive") {
       throw new GenerationError("client_archived", `El cliente está ${ctx.client.status}.`);
@@ -225,7 +225,7 @@ async function generateEntity(
       description: description || null,
       status: "pending",
       priority: templateData.priority,
-      clientId: ctx.client?.id ?? null,
+      companyId: ctx.client?.id ?? null,
       assigneeId: ctx.assignee?.id ?? null,
       startDate,
       dueDate,
@@ -268,7 +268,7 @@ async function generateEntity(
       description: description || null,
       status: ctx.assignee ? "assigned" : "new",
       priority: templateData.priority,
-      clientId: ctx.client.id,
+      companyId: ctx.client.id,
       assigneeId: ctx.assignee?.id ?? null,
       dueDate,
     });
@@ -324,7 +324,7 @@ async function generateEntity(
     const { reportId } = await createReportForRecurrence(tx, {
       organizationId: def.organizationId,
       title,
-      clientId: ctx.client?.id ?? null,
+      companyId: ctx.client?.id ?? null,
       projectId: ctx.project?.id ?? null,
       templateId: templateData.templateId,
       responsibleUserId: ctx.assignee?.id ?? Number(actor.id),

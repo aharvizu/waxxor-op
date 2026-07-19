@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { clients, users } from "@/db/schema";
+import { companies, users } from "@/db/schema";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
 import { Card, PageHeader } from "@/components/ui";
@@ -12,18 +12,18 @@ export const metadata: Metadata = { title: "New project" };
 export default async function NewProjectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string }>;
+  searchParams: Promise<{ companyId?: string }>;
 }) {
   const user = await requireRole("superadmin", "administrator", "director", "project_manager");
-  const { clientId } = await searchParams;
-  const defaultClientId = clientId ? Number(clientId) : undefined;
+  const { companyId } = await searchParams;
+  const defaultCompanyId = companyId ? Number(companyId) : undefined;
 
-  const [clientRows, userRows, projectDefaults, templateRows] = await Promise.all([
+  const [companyRows, userRows, projectDefaults, templateRows] = await Promise.all([
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(and(eq(clients.organizationId, user.organizationId), ne(clients.status, "archived")))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(and(eq(companies.organizationId, user.organizationId), ne(companies.status, "archived")))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -41,13 +41,13 @@ export default async function NewProjectPage({
       />
       <Card className="p-6">
         <ProjectForm
-          clients={clientRows}
+          companies={companyRows}
           internalUsers={userRows}
           defaultPriority={projectDefaults.defaultPriority}
           templates={templateRows.map((t) => ({ id: t.id, name: t.name }))}
-          defaultClientId={
-            defaultClientId && clientRows.some((c) => c.id === defaultClientId)
-              ? defaultClientId
+          defaultCompanyId={
+            defaultCompanyId && companyRows.some((c) => c.id === defaultCompanyId)
+              ? defaultCompanyId
               : undefined
           }
         />

@@ -1,6 +1,6 @@
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clients, indicatorThresholds, reports, tickets, timeEntries, workItems } from "@/db/schema";
+import { companies, indicatorThresholds, reports, tickets, timeEntries, workItems } from "@/db/schema";
 import { mergeThresholds, type Thresholds } from "@/lib/indicators";
 import { periodBounds, type Period } from "@/lib/report-metrics";
 
@@ -69,30 +69,30 @@ export async function clientHealthBoard(orgId: number, period: Period, threshold
   const { from, to } = periodBounds(period);
   return db
     .select({
-      clientId: clients.id,
-      clientName: clients.name,
+      companyId: companies.id,
+      companyName: companies.name,
       openTickets: sql<number>`(select count(*)::int from ${workItems} w
-        where w.client_id = "clients"."id" and w.type = 'ticket'
+        where w.company_id = "companies"."id" and w.type = 'ticket'
         and w.status in ('new','assigned','in_progress','waiting_customer','waiting_third_party','scheduled','reopened'))`,
       overdueTickets: sql<number>`(select count(*)::int from ${tickets} t
         join ${workItems} w on w.id = t.work_item_id
-        where w.client_id = "clients"."id"
+        where w.company_id = "companies"."id"
         and w.status in ('new','assigned','in_progress','scheduled','reopened')
         and t.resolution_target_at < now() and t.sla_paused_at is null)`,
       pendingBilling: sql<number>`(select count(*)::int from ${tickets} t
         join ${workItems} w on w.id = t.work_item_id
-        where w.client_id = "clients"."id" and t.billing_status = 'pending_review')`,
+        where w.company_id = "companies"."id" and t.billing_status = 'pending_review')`,
       minutesInPeriod: sql<number>`coalesce((select sum(te.duration_minutes)::int from ${timeEntries} te
         join ${workItems} w on w.id = te.work_item_id
-        where w.client_id = "clients"."id" and te.voided_at is null
+        where w.company_id = "companies"."id" and te.voided_at is null
         and te.created_at between ${from} and ${to}), 0)`,
-      lastTouch: sql<Date | null>`(select max(w.updated_at) from ${workItems} w where w.client_id = "clients"."id")`,
+      lastTouch: sql<Date | null>`(select max(w.updated_at) from ${workItems} w where w.company_id = "companies"."id")`,
       pendingReports: sql<number>`(select count(*)::int from ${reports} r
-        where r.client_id = "clients"."id"
+        where r.company_id = "companies"."id"
         and r.status in ('draft','ready_for_review','changes_requested','failed'))`,
     })
-    .from(clients)
-    .where(and(eq(clients.organizationId, orgId), ne(clients.status, "archived")))
+    .from(companies)
+    .where(and(eq(companies.organizationId, orgId), ne(companies.status, "archived")))
     .orderBy(sql`5 desc`)
     .limit(15)
     .then((rows) =>

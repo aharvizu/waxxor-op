@@ -1,5 +1,7 @@
 # Cliente 360
 
+> **Superseded 2026-07-20**: "Cliente" was split into independent **Company** and **Contact** entities. Routes moved to **/companies** (Empresa 360) and the new **/contacts** (Contacto 360). See `docs/features/companies-contacts.md` for the current model, migration notes, and CRM-prep architecture. This document is kept for historical context on the business rules below, which carried over unchanged.
+>
 > Status: shipped 2026-07-17. Implements E-13 (backlog/epics.md) plus the reusable-view slices of E-03/E-04.
 > Route: **/clients** (redesigned directory) and **/clients/[id]** (Client 360 detail).
 > Out of scope (explicit): sales CRM/leads/pipeline, fiscal invoicing, inventory/CMDB, real WhatsApp/email sending, AI, a new Projects architecture. Nothing in Projects changed for this feature.
@@ -44,6 +46,10 @@ Pestaña **Recurrentes** (16ª pestaña): nombre, tipo, frecuencia legible, resp
 ## Integración con Inbox (2026-07-19)
 
 La pestaña Conversaciones ahora incluye también conversaciones **sin ticket** (asunto libre, vinculadas solo al cliente o a una actividad/proyecto) — antes solo mostraba el hilo 1:1 de cada ticket. Acciones "Abrir en Inbox" y "Nueva conversación" con el cliente preseleccionado. La misma lectura (`getClientConversations`) alimenta la pestaña; sin consulta duplicada. Ver `docs/features/inbox.md`.
+
+## Integración con Knowledge (2026-07-19)
+
+Pestaña "Conocimiento" (17ª): artículos de la Base de Conocimiento vinculados a este cliente vía `knowledge_article_relations` (relación polimórfica, no exclusiva del cliente). Ver `docs/features/knowledge.md`.
 
 ## Integración con Reportes (2026-07-18)
 

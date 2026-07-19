@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
 import {
-  clients,
+  companies,
   contacts,
   indicatorThresholds,
   projects,
@@ -77,13 +77,13 @@ async function loadReport(tx: DbExecutor, user: SessionUser, id: number) {
 async function validateScope(
   tx: DbExecutor,
   orgId: number,
-  data: { clientId: number | null; projectId: number | null; responsibleUserId: number | null; recipientContactId?: number | null },
+  data: { companyId: number | null; projectId: number | null; responsibleUserId: number | null; recipientContactId?: number | null },
 ) {
-  if (data.clientId) {
+  if (data.companyId) {
     const [c] = await tx
-      .select({ id: clients.id })
-      .from(clients)
-      .where(and(eq(clients.id, data.clientId), eq(clients.organizationId, orgId)));
+      .select({ id: companies.id })
+      .from(companies)
+      .where(and(eq(companies.id, data.companyId), eq(companies.organizationId, orgId)));
     if (!c) throw new RuleError("El cliente no existe en esta organización.");
   }
   if (data.projectId) {
@@ -114,7 +114,7 @@ async function validateScope(
 const createSchema = z.object({
   title: z.string("Nombre requerido.").trim().min(1, "Nombre requerido."),
   reportType: reportTypeSchema,
-  clientId: optionalId,
+  companyId: optionalId,
   projectId: optionalId,
   templateId: optionalId,
   responsibleUserId: optionalId,
@@ -142,7 +142,7 @@ export async function createReport(
   } else {
     period = resolvePeriod(data.periodRule, ORG_TIMEZONE, new Date());
   }
-  if (clientRequiredFor(data.reportType) && !data.clientId) {
+  if (clientRequiredFor(data.reportType) && !data.companyId) {
     return businessError("Este tipo de reporte requiere cliente.");
   }
   if (data.reportType === "project_report" && !data.projectId) {
@@ -166,7 +166,7 @@ export async function createReport(
           organizationId: user.organizationId,
           title: data.title,
           reportType: data.reportType,
-          clientId: data.clientId,
+          companyId: data.companyId,
           projectId: data.projectId,
           templateId: data.templateId,
           responsibleUserId: data.responsibleUserId ?? Number(user.id),
@@ -429,7 +429,7 @@ export async function markReportSent(
       }
       if (data.recipientContactId) {
         await validateScope(tx, user.organizationId, {
-          clientId: null,
+          companyId: null,
           projectId: null,
           responsibleUserId: null,
           recipientContactId: data.recipientContactId,
@@ -497,7 +497,7 @@ export async function duplicateReport(
           organizationId: user.organizationId,
           title: `${before.title} (copia)`,
           reportType: before.reportType,
-          clientId: before.clientId,
+          companyId: before.companyId,
           projectId: before.projectId,
           templateId: before.templateId,
           responsibleUserId: before.responsibleUserId,

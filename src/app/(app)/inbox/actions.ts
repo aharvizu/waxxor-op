@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
 import {
   attachments,
-  clients,
+  companies,
   contacts,
   conversationParticipants,
   conversations,
@@ -70,7 +70,7 @@ const optionalId = z.preprocess(
 /* ------------------------------------------------------------ create/link */
 
 const linksSchema = z.object({
-  clientId: optionalId,
+  companyId: optionalId,
   contactId: optionalId,
   ticketId: optionalId,
   workItemId: optionalId,
@@ -84,42 +84,42 @@ async function validateLinks(
   data: z.output<typeof linksSchema>,
 ) {
   const orgId = user.organizationId;
-  let clientId = data.clientId;
+  let companyId = data.companyId;
   if (data.ticketId) {
     const [t] = await tx
-      .select({ id: tickets.id, clientId: workItems.clientId })
+      .select({ id: tickets.id, companyId: workItems.companyId })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
       .where(and(eq(tickets.id, data.ticketId), eq(workItems.organizationId, orgId)));
     if (!t) throw new RuleError("El ticket no existe en esta organización.");
-    clientId = clientId ?? t.clientId;
+    companyId = companyId ?? t.companyId;
   }
   if (data.workItemId) {
     const [w] = await tx
-      .select({ id: workItems.id, type: workItems.type, clientId: workItems.clientId })
+      .select({ id: workItems.id, type: workItems.type, companyId: workItems.companyId })
       .from(workItems)
       .where(and(eq(workItems.id, data.workItemId), eq(workItems.organizationId, orgId)));
     if (!w) throw new RuleError("La actividad no existe en esta organización.");
     if (w.type !== "activity") throw new RuleError("Solo actividades pueden vincularse aquí (el ticket tiene su propio vínculo).");
-    clientId = clientId ?? w.clientId;
+    companyId = companyId ?? w.companyId;
   }
-  if (clientId) {
+  if (companyId) {
     const [c] = await tx
-      .select({ id: clients.id })
-      .from(clients)
-      .where(and(eq(clients.id, clientId), eq(clients.organizationId, orgId)));
+      .select({ id: companies.id })
+      .from(companies)
+      .where(and(eq(companies.id, companyId), eq(companies.organizationId, orgId)));
     if (!c) throw new RuleError("El cliente no existe en esta organización.");
   }
   if (data.contactId) {
     const [ct] = await tx
-      .select({ id: contacts.id, clientId: contacts.clientId })
+      .select({ id: contacts.id, companyId: contacts.companyId })
       .from(contacts)
       .where(and(eq(contacts.id, data.contactId), eq(contacts.organizationId, orgId)));
     if (!ct) throw new RuleError("El contacto no existe en esta organización.");
-    if (clientId && ct.clientId !== clientId) {
+    if (companyId && ct.companyId !== companyId) {
       throw new RuleError("El contacto no pertenece al cliente seleccionado.");
     }
-    clientId = clientId ?? ct.clientId;
+    companyId = companyId ?? ct.companyId;
   }
   if (data.projectId) {
     const [p] = await tx
@@ -128,7 +128,7 @@ async function validateLinks(
       .where(and(eq(projects.id, data.projectId), eq(projects.organizationId, orgId)));
     if (!p) throw new RuleError("El proyecto no existe en esta organización.");
   }
-  return { ...data, clientId };
+  return { ...data, companyId };
 }
 
 const createSchema = linksSchema.extend({
@@ -149,7 +149,7 @@ export async function createConversation(
   const user = await requireUser();
   const { data, error } = parseForm(createSchema, formData);
   if (error) return error;
-  if (!data.subject && !data.ticketId && !data.workItemId && !data.clientId && !data.projectId) {
+  if (!data.subject && !data.ticketId && !data.workItemId && !data.companyId && !data.projectId) {
     return businessError("Da un asunto o vincula la conversación a un cliente, ticket, actividad o proyecto.");
   }
 
@@ -172,7 +172,7 @@ export async function createConversation(
         .values({
           organizationId: user.organizationId,
           subject: data.subject,
-          clientId: links.clientId,
+          companyId: links.companyId,
           contactId: links.contactId,
           ticketId: links.ticketId,
           workItemId: links.workItemId,
@@ -191,7 +191,7 @@ export async function createConversation(
         metadata: {
           values: {
             subject: data.subject,
-            clientId: links.clientId,
+            companyId: links.companyId,
             contactId: links.contactId,
             ticketId: links.ticketId,
             workItemId: links.workItemId,
@@ -244,7 +244,7 @@ export async function linkConversation(
       await tx
         .update(conversations)
         .set({
-          clientId: links.clientId,
+          companyId: links.companyId,
           contactId: links.contactId,
           ticketId: links.ticketId,
           workItemId: links.workItemId,

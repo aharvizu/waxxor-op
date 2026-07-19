@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
@@ -8,23 +8,30 @@ import type { ActionState } from "@/lib/action-result";
 import { createTicket } from "../actions";
 
 type Option = { id: number; name: string };
+type ContactOption = { id: number; name: string; companyId: number };
 
 export function NewTicketForm({
-  clients,
+  companies,
+  contacts,
   users,
   slas,
-  defaultClientId,
+  defaultCompanyId,
   categoryOptions = [],
 }: {
-  clients: Option[];
+  companies: Option[];
+  contacts: ContactOption[];
   users: Option[];
   slas: Option[]; // empty for non-superadmins
-  defaultClientId?: number;
+  defaultCompanyId?: number;
   /** Active names from the org's ticket-category catalog (Settings). */
   categoryOptions?: string[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createTicket, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const [companyId, setCompanyId] = useState(defaultCompanyId ? String(defaultCompanyId) : "");
+  const suggestedContacts = companyId
+    ? contacts.filter((c) => c.companyId === Number(companyId))
+    : contacts;
   return (
     <form action={formAction} className="space-y-4">
       <FormAlert state={state} />
@@ -43,17 +50,18 @@ export function NewTicketForm({
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label htmlFor="clientId" className={labelClass}>
+          <label htmlFor="companyId" className={labelClass}>
             Client
           </label>
           <select
-            id="clientId"
-            name="clientId"
-            defaultValue={defaultClientId ? String(defaultClientId) : ""}
+            id="companyId"
+            name="companyId"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
             className={inputClass}
           >
             <option value="">— None —</option>
-            {clients.map((c) => (
+            {companies.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -113,8 +121,21 @@ export function NewTicketForm({
           </select>
         </div>
         <div>
-          <label htmlFor="contact" className={labelClass}>
+          <label htmlFor="contactId" className={labelClass}>
             Contact (optional)
+          </label>
+          <select id="contactId" name="contactId" defaultValue="" className={inputClass}>
+            <option value="">— None —</option>
+            {suggestedContacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="contact" className={labelClass}>
+            Contact note (optional)
           </label>
           <input id="contact" name="contact" className={inputClass} />
         </div>

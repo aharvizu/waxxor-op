@@ -96,17 +96,17 @@ export function Disclosure({ label, children, open }: { label: string; children:
 /* --------------------------------------------------------------- creation */
 
 export function CreateReportForm({
-  clients,
+  companies,
   projects,
   templates,
   internalUsers,
   defaults,
 }: {
-  clients: Option[];
+  companies: Option[];
   projects: Option[];
   templates: { id: number; name: string; reportType: string }[];
   internalUsers: Option[];
-  defaults?: { clientId?: number; projectId?: number; reportType?: string };
+  defaults?: { companyId?: number; projectId?: number; reportType?: string };
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createReport, null);
   const failed = state && !state.ok ? state : null;
@@ -133,10 +133,10 @@ export function CreateReportForm({
           <FieldError id="title-error" errors={errors.title} />
         </div>
         <div>
-          <label htmlFor="clientId" className={labelClass}>Cliente{clientRequired ? " (requerido)" : " (opcional)"}</label>
-          <select id="clientId" name="clientId" defaultValue={defaults?.clientId ? String(defaults.clientId) : ""} className={inputClass}>
+          <label htmlFor="companyId" className={labelClass}>Cliente{clientRequired ? " (requerido)" : " (opcional)"}</label>
+          <select id="companyId" name="companyId" defaultValue={defaults?.companyId ? String(defaults.companyId) : ""} className={inputClass}>
             <option value="">— Sin cliente —</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div>

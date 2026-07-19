@@ -145,7 +145,6 @@ export default async function AuditSettingsPage({
             </EmptyState>
           </div>
         ) : (
-          <div className="overflow-x-auto">
             <Table>
               <THead>
                 <tr>
@@ -190,7 +189,6 @@ export default async function AuditSettingsPage({
                 ))}
               </tbody>
             </Table>
-          </div>
         )}
       </Card>
     </div>

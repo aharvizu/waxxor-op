@@ -132,7 +132,7 @@ export const roleMeta: Record<string, Meta> = {
   client: { label: "Client", tone: "green" },
 };
 
-export const clientStatusMeta: Record<string, Meta> = {
+export const companyStatusMeta: Record<string, Meta> = {
   active: { label: "Active", tone: "green" },
   inactive: { label: "Inactive", tone: "slate" },
   prospect_legacy: { label: "Prospect / legacy", tone: "amber" },
@@ -299,4 +299,23 @@ export const recurrenceExecutionSourceMeta: Record<string, Meta> = {
   manual: { label: "Manual", tone: "blue" },
   retry: { label: "Retry", tone: "amber" },
   backfill: { label: "Backfill", tone: "violet" },
+};
+
+export const knowledgeStatusMeta: Record<string, Meta> = {
+  draft: { label: "Borrador", tone: "slate" },
+  in_review: { label: "En revisión", tone: "amber" },
+  published: { label: "Publicado", tone: "green" },
+  archived: { label: "Archivado", tone: "slate" },
+};
+
+export const knowledgeVisibilityMeta: Record<string, Meta> = {
+  internal: { label: "Interna", tone: "blue" },
+  client: { label: "Cliente (futuro)", tone: "violet" },
+};
+
+export const knowledgeRelationTypeMeta: Record<string, Meta> = {
+  ticket: { label: "Ticket", tone: "blue" },
+  company: { label: "Empresa", tone: "violet" },
+  project: { label: "Proyecto", tone: "amber" },
+  activity: { label: "Actividad", tone: "slate" },
 };

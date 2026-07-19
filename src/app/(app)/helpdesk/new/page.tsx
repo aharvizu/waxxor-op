@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { clients, slaDefinitions, users } from "@/db/schema";
+import { companies, contacts, slaDefinitions, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, PageHeader } from "@/components/ui";
 import { getCatalogNames } from "@/lib/settings-data";
@@ -12,17 +12,27 @@ export const metadata: Metadata = { title: "New ticket" };
 export default async function NewTicketPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string }>;
+  searchParams: Promise<{ companyId?: string }>;
 }) {
   const user = await requireUser();
-  const { clientId } = await searchParams;
-  const defaultClientId = clientId ? Number(clientId) : undefined;
-  const [clientRows, userRows, slaRows] = await Promise.all([
+  const { companyId } = await searchParams;
+  const defaultCompanyId = companyId ? Number(companyId) : undefined;
+  const [companyRows, contactRows, userRows, slaRows] = await Promise.all([
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
+    db
+      .select({
+        id: contacts.id,
+        name: contacts.firstName,
+        lastName: contacts.lastName,
+        companyId: contacts.companyId,
+      })
+      .from(contacts)
+      .where(and(eq(contacts.organizationId, user.organizationId), eq(contacts.isActive, true)))
+      .orderBy(asc(contacts.lastName)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -36,6 +46,11 @@ export default async function NewTicketPage({
           .orderBy(asc(slaDefinitions.name))
       : Promise.resolve([] as { id: number; name: string }[]),
   ]);
+  const contactOptions = contactRows.map((c) => ({
+    id: c.id,
+    name: `${c.name} ${c.lastName}`,
+    companyId: c.companyId,
+  }));
   const categoryOptions = await getCatalogNames(user.organizationId, "ticket_category");
 
   return (
@@ -46,13 +61,14 @@ export default async function NewTicketPage({
       />
       <Card className="p-6">
         <NewTicketForm
-          clients={clientRows}
+          companies={companyRows}
+          contacts={contactOptions}
           users={userRows}
           slas={slaRows}
           categoryOptions={categoryOptions}
-          defaultClientId={
-            defaultClientId && clientRows.some((c) => c.id === defaultClientId)
-              ? defaultClientId
+          defaultCompanyId={
+            defaultCompanyId && companyRows.some((c) => c.id === defaultCompanyId)
+              ? defaultCompanyId
               : undefined
           }
         />

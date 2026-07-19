@@ -206,7 +206,7 @@ export const messageDirection = pgEnum("message_direction", [
   // Append-only: system events (status changes, links) — Inbox 2026-07-18.
   "system",
 ]);
-export const clientStatus = pgEnum("client_status", [
+export const companyStatus = pgEnum("company_status", [
   "active",
   "inactive",
   "prospect_legacy",
@@ -317,13 +317,20 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const clients = pgTable("clients", {
+/**
+ * Company (formerly "Client"). Base entity for the future CRM's account
+ * hierarchy — see docs/features/companies-contacts.md for the naming
+ * convention (Company/Contact in code + APIs, "Empresa"/"Contacto" in UI)
+ * and the Lead/Opportunity/Account preparation notes (2026-07-20).
+ */
+export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
     .notNull()
     .references(() => organizations.id),
   name: text("name").notNull(),
   legalName: text("legal_name"),
+  taxId: text("tax_id"),
   ownerName: text("owner_name"),
   industry: text("industry"),
   website: text("website"),
@@ -334,8 +341,9 @@ export const clients = pgTable("clients", {
   city: text("city"),
   state: text("state"),
   country: text("country"),
-  status: clientStatus("status").notNull().default("active"),
-  // no FK: contacts is defined after clients (circular) — validated in actions
+  status: companyStatus("status").notNull().default("active"),
+  tags: jsonb("tags").notNull().default([]),
+  // no FK: contacts is defined after companies (circular) — validated in actions
   primaryContactId: integer("primary_contact_id"),
   accountOwnerId: integer("account_owner_id").references(() => users.id),
   defaultTechnicianId: integer("default_technician_id").references(() => users.id),
@@ -344,6 +352,7 @@ export const clients = pgTable("clients", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+/** Contact — belongs to one primary Company today (1:N); see companyContacts below for N:M prep. */
 export const contacts = pgTable(
   "contacts",
   {
@@ -351,12 +360,13 @@ export const contacts = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id),
-    clientId: integer("client_id")
+    companyId: integer("company_id")
       .notNull()
-      .references(() => clients.id, { onDelete: "cascade" }),
+      .references(() => companies.id, { onDelete: "cascade" }),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
     jobTitle: text("job_title"),
+    department: text("department"),
     email: text("email"),
     phone: text("phone"),
     mobile: text("mobile"),
@@ -368,7 +378,34 @@ export const contacts = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [index("contacts_client_idx").on(table.organizationId, table.clientId)],
+  (table) => [index("contacts_company_idx").on(table.organizationId, table.companyId)],
+);
+
+/**
+ * N:M preparation (spec 2026-07-20): a contact belongs to one primary
+ * company via contacts.companyId today, but a contact may need to relate to
+ * several companies in the future without breaking that column. This table
+ * is populated in lockstep with contacts.companyId (one row, isPrimary=true)
+ * — no UI reads from it yet; it exists so the future many-to-many surface
+ * has real historical data instead of a cold start.
+ */
+export const companyContacts = pgTable(
+  "company_contacts",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("company_contacts_unique_idx").on(table.companyId, table.contactId),
+    index("company_contacts_contact_idx").on(table.contactId),
+  ],
 );
 
 /** Global per-org service catalog (Microsoft 365, backup, soporte, …). */
@@ -406,9 +443,9 @@ export const clientServices = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id),
-    clientId: integer("client_id")
+    companyId: integer("company_id")
       .notNull()
-      .references(() => clients.id, { onDelete: "cascade" }),
+      .references(() => companies.id, { onDelete: "cascade" }),
     serviceId: integer("service_id")
       .notNull()
       .references(() => services.id),
@@ -433,7 +470,7 @@ export const clientServices = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
-    index("client_services_client_idx").on(table.organizationId, table.clientId),
+    index("client_services_client_idx").on(table.organizationId, table.companyId),
     index("client_services_renewal_idx").on(table.renewalDate),
   ],
 );
@@ -445,9 +482,9 @@ export const contracts = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id),
-    clientId: integer("client_id")
+    companyId: integer("company_id")
       .notNull()
-      .references(() => clients.id, { onDelete: "cascade" }),
+      .references(() => companies.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     contractType: contractType("contract_type").notNull().default("support"),
     status: contractStatus("status").notNull().default("draft"),
@@ -461,7 +498,7 @@ export const contracts = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
-    index("contracts_client_idx").on(table.organizationId, table.clientId),
+    index("contracts_client_idx").on(table.organizationId, table.companyId),
     index("contracts_end_idx").on(table.endDate),
   ],
 );
@@ -474,9 +511,9 @@ export const clientNotes = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id),
-    clientId: integer("client_id")
+    companyId: integer("company_id")
       .notNull()
-      .references(() => clients.id, { onDelete: "cascade" }),
+      .references(() => companies.id, { onDelete: "cascade" }),
     authorId: integer("author_id")
       .notNull()
       .references(() => users.id),
@@ -484,7 +521,7 @@ export const clientNotes = pgTable(
     editedAt: timestamp("edited_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (table) => [index("client_notes_client_idx").on(table.organizationId, table.clientId)],
+  (table) => [index("client_notes_client_idx").on(table.organizationId, table.companyId)],
 );
 
 export const workItems = pgTable(
@@ -499,7 +536,11 @@ export const workItems = pgTable(
     description: text("description"),
     status: workItemStatus("status").notNull().default("open"),
     priority: workItemPriority("priority").notNull().default("medium"),
-    clientId: integer("client_id").references(() => clients.id),
+    companyId: integer("company_id").references(() => companies.id),
+    // New (2026-07-20): a specific contact on the company, distinct from the
+    // legacy free-text tickets.contact — see docs/features/companies-contacts.md.
+    // Nullable, additive; the old text field is never dropped.
+    contactId: integer("contact_id").references(() => contacts.id),
     assigneeId: integer("assignee_id").references(() => users.id),
     // nullable so deleting a user is still blocked/allowed exactly as before
     createdById: integer("created_by_id").references(() => users.id),
@@ -515,7 +556,8 @@ export const workItems = pgTable(
     index("work_items_type_idx").on(table.type),
     index("work_items_status_idx").on(table.status),
     index("work_items_priority_idx").on(table.priority),
-    index("work_items_client_idx").on(table.clientId),
+    index("work_items_client_idx").on(table.companyId),
+    index("work_items_contact_idx").on(table.contactId),
     index("work_items_assignee_idx").on(table.assigneeId),
     index("work_items_due_date_idx").on(table.dueDate),
   ],
@@ -748,11 +790,12 @@ export const conversations = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id),
-    clientId: integer("client_id").references(() => clients.id),
-    contactId: integer("contact_id"),
+    companyId: integer("company_id").references(() => companies.id),
+    // Real FK since 2026-07-20 (was prepared-but-unconstrained before Contact existed).
+    contactId: integer("contact_id").references(() => contacts.id),
     /**
      * Optional since Inbox (2026-07-18): a conversation may relate to a
-     * ticket, an activity (workItemId), a client and/or a project. A ticket
+     * ticket, an activity (workItemId), a company and/or a project. A ticket
      * still has at most ONE conversation (unique holds on non-null values).
      */
     ticketId: integer("ticket_id")
@@ -772,7 +815,7 @@ export const conversations = pgTable(
   (table) => [
     index("conversations_org_idx").on(table.organizationId),
     index("conversations_org_status_idx").on(table.organizationId, table.status),
-    index("conversations_client_idx").on(table.clientId),
+    index("conversations_client_idx").on(table.companyId),
     index("conversations_project_idx").on(table.projectId),
     index("conversations_work_item_idx").on(table.workItemId),
   ],
@@ -840,7 +883,8 @@ export const messages = pgTable(
       .references(() => conversations.id, { onDelete: "cascade" }),
     direction: messageDirection("direction").notNull(),
     authorUserId: integer("author_user_id").references(() => users.id),
-    contactId: integer("contact_id"),
+    // Real FK since 2026-07-20 (was prepared-but-unconstrained before Contact existed).
+    contactId: integer("contact_id").references(() => contacts.id),
     body: text("body").notNull(),
     channel: conversationChannel("channel").notNull().default("manual"),
     occurredAt: timestamp("occurred_at").notNull().defaultNow(),
@@ -885,7 +929,7 @@ export const attachments = pgTable(
 
 /**
  * Operational projects: Project → Lists → Activities → Subactivities.
- * Tickets NEVER belong to projects (PRD R3). clientId optional — internal
+ * Tickets NEVER belong to projects (PRD R3). companyId optional — internal
  * projects exist without a client. targetDate/budgetAmount map onto the
  * pre-existing due_date/budget columns (no destructive rename).
  */
@@ -899,7 +943,7 @@ export const projects = pgTable(
     folio: text("folio").notNull(),
     name: text("name").notNull(),
     description: text("description"),
-    clientId: integer("client_id").references(() => clients.id),
+    companyId: integer("company_id").references(() => companies.id),
     status: projectStatus("status").notNull().default("planning"),
     priority: projectPriority("priority").notNull().default("normal"),
     healthStatus: projectHealth("health_status").notNull().default("not_set"),
@@ -921,7 +965,7 @@ export const projects = pgTable(
   (table) => [
     uniqueIndex("projects_org_folio_idx").on(table.organizationId, table.folio),
     index("projects_org_idx").on(table.organizationId),
-    index("projects_client_idx").on(table.clientId),
+    index("projects_client_idx").on(table.companyId),
     index("projects_status_idx").on(table.status),
     index("projects_pm_idx").on(table.projectManagerId),
     index("projects_target_idx").on(table.targetDate),
@@ -1126,9 +1170,9 @@ export const quotes = pgTable("quotes", {
     .notNull()
     .references(() => organizations.id),
   title: text("title").notNull(),
-  clientId: integer("client_id")
+  companyId: integer("company_id")
     .notNull()
-    .references(() => clients.id),
+    .references(() => companies.id),
   status: quoteStatus("status").notNull().default("draft"),
   currency: varchar("currency", { length: 3 }).notNull().default("USD"),
   taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
@@ -1198,7 +1242,7 @@ export const reports = pgTable(
     templateId: integer("template_id").references(() => reportTemplates.id, {
       onDelete: "set null",
     }),
-    clientId: integer("client_id").references(() => clients.id),
+    companyId: integer("company_id").references(() => companies.id),
     projectId: integer("project_id").references(() => projects.id),
     reportType: reportType("report_type").notNull().default("custom_internal"),
     description: text("description"),
@@ -1232,7 +1276,7 @@ export const reports = pgTable(
   },
   (table) => [
     index("reports_org_status_idx").on(table.organizationId, table.status),
-    index("reports_client_idx").on(table.clientId),
+    index("reports_client_idx").on(table.companyId),
     index("reports_project_idx").on(table.projectId),
     index("reports_responsible_idx").on(table.responsibleUserId),
     index("reports_period_idx").on(table.periodEnd),
@@ -1564,7 +1608,7 @@ export const recurrenceDefinitions = pgTable(
     skippedCount: integer("skipped_count").notNull().default(0),
     /** resets on success; at RECURRENCE_MAX_CONSECUTIVE_FAILURES → status error */
     consecutiveFailedCount: integer("consecutive_failed_count").notNull().default(0),
-    clientId: integer("client_id").references(() => clients.id),
+    companyId: integer("company_id").references(() => companies.id),
     projectId: integer("project_id").references(() => projects.id),
     projectListId: integer("project_list_id").references(() => projectLists.id),
     assigneeId: integer("assignee_id").references(() => users.id),
@@ -1581,7 +1625,7 @@ export const recurrenceDefinitions = pgTable(
   },
   (table) => [
     index("recurrence_defs_due_idx").on(table.organizationId, table.status, table.nextRunAt),
-    index("recurrence_defs_client_idx").on(table.clientId),
+    index("recurrence_defs_client_idx").on(table.companyId),
     index("recurrence_defs_project_idx").on(table.projectId),
     index("recurrence_defs_assignee_idx").on(table.assigneeId),
   ],
@@ -1626,5 +1670,243 @@ export const recurrenceExecutions = pgTable(
     ),
     index("recurrence_exec_schedule_idx").on(table.recurrenceDefinitionId, table.scheduledFor),
     index("recurrence_exec_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+/* ==================================================================== */
+/* Knowledge Base & Help Center (E-Knowledge, 2026-07-19)                 */
+/* ==================================================================== */
+
+export const knowledgeArticleStatus = pgEnum("knowledge_article_status", [
+  "draft",
+  "in_review",
+  "published",
+  "archived",
+]);
+
+// "client" is modeled now (spec: "futura para cliente, sin portal todavía") but
+// no client-facing surface reads it yet — every query in this feature filters
+// to internal roles regardless of this column.
+export const knowledgeVisibility = pgEnum("knowledge_visibility", ["internal", "client"]);
+
+export const knowledgeRelationType = pgEnum("knowledge_relation_type", [
+  "ticket",
+  "company",
+  "project",
+  "activity",
+]);
+
+export const knowledgeCategories = pgTable(
+  "knowledge_categories",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    color: text("color"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("knowledge_categories_org_slug_idx").on(table.organizationId, table.slug),
+  ],
+);
+
+/**
+ * KB Operativa article. Content columns hold the CURRENT version denormalized
+ * for fast reads; every save also inserts an immutable row into
+ * knowledgeArticleVersions (same pattern as reports/report_versions — see
+ * docs/architecture/report-snapshots.md for the rationale this mirrors).
+ */
+export const knowledgeArticles = pgTable(
+  "knowledge_articles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    categoryId: integer("category_id").references(() => knowledgeCategories.id),
+    title: text("title").notNull(),
+    slug: text("slug").notNull(),
+    status: knowledgeArticleStatus("status").notNull().default("draft"),
+    visibility: knowledgeVisibility("visibility").notNull().default("internal"),
+    tags: jsonb("tags").notNull().default([]),
+    // Current content (denormalized from the latest version for fast reads).
+    problem: text("problem"),
+    cause: text("cause"),
+    solution: text("solution"),
+    steps: jsonb("steps").notNull().default([]),
+    notes: text("notes"),
+    anonymized: boolean("anonymized").notNull().default(false),
+    currentVersion: integer("current_version").notNull().default(1),
+    authorId: integer("author_id").references(() => users.id),
+    reviewerId: integer("reviewer_id").references(() => users.id),
+    reviewNotes: text("review_notes"),
+    publishedAt: timestamp("published_at"),
+    archivedAt: timestamp("archived_at"),
+    // Where this article came from, when generated from a resolved ticket.
+    sourceTicketId: integer("source_ticket_id").references(() => tickets.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("knowledge_articles_org_slug_idx").on(table.organizationId, table.slug),
+    index("knowledge_articles_status_idx").on(table.organizationId, table.status),
+    index("knowledge_articles_category_idx").on(table.categoryId),
+  ],
+);
+
+export const knowledgeArticleVersions = pgTable(
+  "knowledge_article_versions",
+  {
+    id: serial("id").primaryKey(),
+    articleId: integer("article_id")
+      .notNull()
+      .references(() => knowledgeArticles.id, { onDelete: "cascade" }),
+    versionNumber: integer("version_number").notNull(),
+    title: text("title").notNull(),
+    problem: text("problem"),
+    cause: text("cause"),
+    solution: text("solution"),
+    steps: jsonb("steps").notNull().default([]),
+    notes: text("notes"),
+    editedById: integer("edited_by_id").references(() => users.id),
+    changeSummary: text("change_summary"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("knowledge_article_versions_unique_idx").on(table.articleId, table.versionNumber),
+  ],
+);
+
+/**
+ * Generic polymorphic relation (mirrors the recurrence targetType pattern):
+ * one article can relate to many tickets/companies/projects/activities, and the
+ * link created by the Ticket->KB flow is flagged isOrigin for that display.
+ */
+export const knowledgeArticleRelations = pgTable(
+  "knowledge_article_relations",
+  {
+    id: serial("id").primaryKey(),
+    articleId: integer("article_id")
+      .notNull()
+      .references(() => knowledgeArticles.id, { onDelete: "cascade" }),
+    relatedType: knowledgeRelationType("related_type").notNull(),
+    relatedId: integer("related_id").notNull(),
+    isOrigin: boolean("is_origin").notNull().default(false),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("knowledge_article_relations_unique_idx").on(
+      table.articleId,
+      table.relatedType,
+      table.relatedId,
+    ),
+    index("knowledge_article_relations_lookup_idx").on(table.relatedType, table.relatedId),
+  ],
+);
+
+export const knowledgeArticleFavorites = pgTable(
+  "knowledge_article_favorites",
+  {
+    id: serial("id").primaryKey(),
+    articleId: integer("article_id")
+      .notNull()
+      .references(() => knowledgeArticles.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("knowledge_article_favorites_unique_idx").on(table.articleId, table.userId),
+  ],
+);
+
+/**
+ * Help Center content (how to use Watson itself). Deliberately NOT
+ * organization-scoped: it documents the product's UI, identical for every
+ * organization — same reasoning as system enums/labels, not tenant data.
+ * User progress (below) is still per-user, which is where personalization lives.
+ */
+export const helpModule = pgEnum("help_module", [
+  "today",
+  "activities",
+  "tickets",
+  "projects",
+  "companies",
+  "recurring",
+  "reports",
+  "indicators",
+  "settings",
+  "inbox",
+  "knowledge",
+  // Appended 2026-07-20 (Company/Contact split) — separate module for the new Contacts area.
+  "contacts",
+]);
+
+export const helpTutorials = pgTable(
+  "help_tutorials",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    module: helpModule("module").notNull(),
+    title: text("title").notNull(),
+    objective: text("objective").notNull(),
+    tips: jsonb("tips").notNull().default([]),
+    commonMistakes: jsonb("common_mistakes").notNull().default([]),
+    moduleHref: text("module_href").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+);
+
+export const helpTutorialSteps = pgTable(
+  "help_tutorial_steps",
+  {
+    id: serial("id").primaryKey(),
+    tutorialId: integer("tutorial_id")
+      .notNull()
+      .references(() => helpTutorials.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    // Real screenshots are out of scope; this is a short placeholder label
+    // rendered as a captioned box (e.g. "Captura: tablero de Hoy").
+    screenshotPlaceholder: text("screenshot_placeholder"),
+  },
+  (table) => [
+    uniqueIndex("help_tutorial_steps_unique_idx").on(table.tutorialId, table.position),
+  ],
+);
+
+export const userTutorialProgress = pgTable(
+  "user_tutorial_progress",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tutorialId: integer("tutorial_id")
+      .notNull()
+      .references(() => helpTutorials.id, { onDelete: "cascade" }),
+    completedStepIds: jsonb("completed_step_ids").notNull().default([]),
+    currentStepIndex: integer("current_step_index").notNull().default(0),
+    completedAt: timestamp("completed_at"),
+    dismissedAt: timestamp("dismissed_at"),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_tutorial_progress_unique_idx").on(table.userId, table.tutorialId),
   ],
 );

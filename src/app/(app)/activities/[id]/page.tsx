@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowRightLeft } from "lucide-react";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { activities, clients, users, workItems } from "@/db/schema";
+import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
@@ -26,10 +26,10 @@ export default async function ActivityPage({
   if (!Number.isInteger(activityId)) notFound();
 
   const [row] = await db
-    .select({ activity: activities, item: workItems, clientName: clients.name })
+    .select({ activity: activities, item: workItems, companyName: companies.name })
     .from(activities)
     .innerJoin(workItems, eq(activities.workItemId, workItems.id))
-    .leftJoin(clients, eq(workItems.clientId, clients.id))
+    .leftJoin(companies, eq(workItems.companyId, companies.id))
     .where(
       and(
         eq(activities.id, activityId),
@@ -42,12 +42,12 @@ export default async function ActivityPage({
     redirect(`/helpdesk/${row.activity.convertedTicketId}`);
   }
 
-  const [clientRows, userRows] = await Promise.all([
+  const [companyRows, userRows] = await Promise.all([
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -64,7 +64,7 @@ export default async function ActivityPage({
       <PageHeader
         title={w.title}
         subtitle={`${activityTypeMeta[a.activityType]?.label ?? a.activityType}${
-          row.clientName ? ` · ${row.clientName}` : ""
+          row.companyName ? ` · ${row.companyName}` : ""
         } · Created ${fmtDateTime(w.createdAt)}${
           w.completedAt ? ` · Completed ${fmtDateTime(w.completedAt)}` : ""
         }${archived ? ` · Archived ${fmtDateTime(a.archivedAt!)}` : ""}`}
@@ -129,12 +129,12 @@ export default async function ActivityPage({
                   description: w.description,
                   activityType: a.activityType,
                   priority: w.priority,
-                  clientId: w.clientId,
+                  companyId: w.companyId,
                   startDate: w.startDate,
                   dueDate: w.dueDate,
                   estimatedMinutes: w.estimatedMinutes,
                 }}
-                clients={clientRows}
+                companies={companyRows}
                 submitLabel="Save changes"
               />
             )}

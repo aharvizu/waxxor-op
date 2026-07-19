@@ -2,7 +2,7 @@ import { and, desc, eq, exists, ilike, inArray, isNull, ne, or, sql, type SQL } 
 import { db } from "@/db";
 import {
   attachments,
-  clients,
+  companies,
   contacts,
   conversationParticipants,
   conversations,
@@ -32,7 +32,7 @@ export type InboxFilters = {
   view?: InboxView;
   status?: string;
   channel?: string;
-  clientId?: number;
+  companyId?: number;
   projectId?: number;
   workItemId?: number;
   ticketId?: number;
@@ -64,7 +64,7 @@ export async function listConversations(orgId: number, userId: number, f: InboxF
   else conditions.push(ne(conversations.status, "archived"));
   if (f.status && view !== "archived") conditions.push(eq(conversations.status, f.status));
   if (f.channel) conditions.push(eq(conversations.channel, f.channel as typeof conversations.$inferSelect.channel));
-  if (f.clientId) conditions.push(eq(conversations.clientId, f.clientId));
+  if (f.companyId) conditions.push(eq(conversations.companyId, f.companyId));
   if (f.projectId) conditions.push(eq(conversations.projectId, f.projectId));
   if (f.workItemId) conditions.push(eq(conversations.workItemId, f.workItemId));
   if (f.ticketId) conditions.push(eq(conversations.ticketId, f.ticketId));
@@ -84,7 +84,7 @@ export async function listConversations(orgId: number, userId: number, f: InboxF
     );
     const cond = or(
       ilike(conversations.subject, term),
-      ilike(clients.name, term),
+      ilike(companies.name, term),
       ilike(tickets.folio, term),
       bodyMatch,
     );
@@ -115,8 +115,8 @@ export async function listConversations(orgId: number, userId: number, f: InboxF
       status: conversations.status,
       channel: conversations.channel,
       updatedAt: conversations.updatedAt,
-      clientId: conversations.clientId,
-      clientName: clients.name,
+      companyId: conversations.companyId,
+      companyName: companies.name,
       ticketId: conversations.ticketId,
       ticketFolio: tickets.folio,
       ticketTitle: workItems.title,
@@ -135,7 +135,7 @@ export async function listConversations(orgId: number, userId: number, f: InboxF
     })
     .from(conversations)
     .leftJoin(lastMessage, eq(lastMessage.conversationId, conversations.id))
-    .leftJoin(clients, eq(conversations.clientId, clients.id))
+    .leftJoin(companies, eq(conversations.companyId, companies.id))
     .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
     .leftJoin(workItems, eq(tickets.workItemId, workItems.id))
     .leftJoin(projects, eq(conversations.projectId, projects.id))
@@ -173,7 +173,7 @@ export async function getConversationDetail(orgId: number, userId: number, id: n
   const [conv] = await db
     .select({
       conversation: conversations,
-      clientName: clients.name,
+      companyName: companies.name,
       contactName: sql<string | null>`${contacts.firstName} || ' ' || coalesce(${contacts.lastName}, '')`,
       ticketFolio: tickets.folio,
       ticketWorkItemId: tickets.workItemId,
@@ -181,7 +181,7 @@ export async function getConversationDetail(orgId: number, userId: number, id: n
       projectFolio: projects.folio,
     })
     .from(conversations)
-    .leftJoin(clients, eq(conversations.clientId, clients.id))
+    .leftJoin(companies, eq(conversations.companyId, companies.id))
     .leftJoin(contacts, eq(conversations.contactId, contacts.id))
     .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
     .leftJoin(projects, eq(conversations.projectId, projects.id))
@@ -295,14 +295,14 @@ export async function getUserUnreadMentions(orgId: number, userId: number, limit
       occurredAt: messages.occurredAt,
       authorName: users.name,
       subject: conversations.subject,
-      clientName: clients.name,
+      companyName: companies.name,
       ticketFolio: tickets.folio,
     })
     .from(messageMentions)
     .innerJoin(messages, eq(messageMentions.messageId, messages.id))
     .innerJoin(conversations, eq(messages.conversationId, conversations.id))
     .leftJoin(users, eq(messages.authorUserId, users.id))
-    .leftJoin(clients, eq(conversations.clientId, clients.id))
+    .leftJoin(companies, eq(conversations.companyId, companies.id))
     .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
     .where(
       and(
@@ -322,10 +322,10 @@ export async function getUserUnreadMentions(orgId: number, userId: number, limit
  */
 export async function getConversationSummary(
   orgId: number,
-  scope: { clientId?: number; projectId?: number; workItemId?: number },
+  scope: { companyId?: number; projectId?: number; workItemId?: number },
 ) {
   const conditions: SQL[] = [eq(conversations.organizationId, orgId), ne(conversations.status, "archived")];
-  if (scope.clientId) conditions.push(eq(conversations.clientId, scope.clientId));
+  if (scope.companyId) conditions.push(eq(conversations.companyId, scope.companyId));
   if (scope.projectId) conditions.push(eq(conversations.projectId, scope.projectId));
   if (scope.workItemId) conditions.push(eq(conversations.workItemId, scope.workItemId));
 

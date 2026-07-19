@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { ClipboardList, Plus } from "lucide-react";
 import { db } from "@/db";
-import { clients, projects, reports, users } from "@/db/schema";
+import { companies, projects, reports, users } from "@/db/schema";
 import { fmtDate } from "@/lib/format";
 import { reportStatusMeta, reportTypeMeta } from "@/lib/labels";
 import { REPORT_STATUSES, REPORT_TYPES } from "@/lib/reports";
@@ -47,7 +47,7 @@ export default async function ReportsPage({
     view?: string;
     status?: string;
     reportType?: string;
-    clientId?: string;
+    companyId?: string;
     projectId?: string;
     responsibleId?: string;
   }>;
@@ -101,26 +101,26 @@ export default async function ReportsPage({
   if (params.reportType && (REPORT_TYPES as readonly string[]).includes(params.reportType)) {
     conditions.push(eq(reports.reportType, params.reportType as (typeof reports.$inferSelect)["reportType"]));
   }
-  if (params.clientId) conditions.push(eq(reports.clientId, Number(params.clientId)));
+  if (params.companyId) conditions.push(eq(reports.companyId, Number(params.companyId)));
   if (params.projectId) conditions.push(eq(reports.projectId, Number(params.projectId)));
   if (params.responsibleId) conditions.push(eq(reports.responsibleUserId, Number(params.responsibleId)));
 
-  const [rows, clientRows, projectRows, userRows] = await Promise.all([
+  const [rows, companyRows, projectRows, userRows] = await Promise.all([
     db
       .select({
         report: reports,
-        clientName: clients.name,
+        companyName: companies.name,
         projectName: projects.name,
         responsibleName: users.name,
       })
       .from(reports)
-      .leftJoin(clients, eq(reports.clientId, clients.id))
+      .leftJoin(companies, eq(reports.companyId, companies.id))
       .leftJoin(projects, eq(reports.projectId, projects.id))
       .leftJoin(users, eq(reports.responsibleUserId, users.id))
       .where(and(...conditions))
       .orderBy(desc(reports.updatedAt))
       .limit(200),
-    db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.organizationId, user.organizationId)).orderBy(asc(clients.name)),
+    db.select({ id: companies.id, name: companies.name }).from(companies).where(eq(companies.organizationId, user.organizationId)).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, user.organizationId)).orderBy(asc(projects.name)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client"))).orderBy(asc(users.name)),
   ]);
@@ -171,9 +171,9 @@ export default async function ReportsPage({
           <option value="">Tipo</option>
           {REPORT_TYPES.map((t) => <option key={t} value={t}>{reportTypeMeta[t]?.label ?? t}</option>)}
         </select>
-        <select name="clientId" defaultValue={params.clientId ?? ""} className={cx(inputClass, "w-auto")}>
+        <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
           <option value="">Cliente</option>
-          {clientRows.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {companyRows.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select name="projectId" defaultValue={params.projectId ?? ""} className={cx(inputClass, "w-auto")}>
           <option value="">Proyecto</option>
@@ -218,14 +218,14 @@ export default async function ReportsPage({
               </tr>
             </THead>
             <tbody className="divide-y divide-edge">
-              {rows.map(({ report, clientName, projectName, responsibleName }) => (
+              {rows.map(({ report, companyName, projectName, responsibleName }) => (
                 <tr key={report.id} className="group transition-colors hover:bg-subtle">
                   <Td>
                     <Link href={`/reports/${report.id}`} className="font-medium text-fg transition-colors group-hover:text-primary">
                       {report.title}
                     </Link>
                   </Td>
-                  <Td className="text-muted">{clientName ?? "Interno"}</Td>
+                  <Td className="text-muted">{companyName ?? "Interno"}</Td>
                   <Td className="text-muted">{projectName ?? "—"}</Td>
                   <Td>
                     <Badge tone={reportTypeMeta[report.reportType]?.tone ?? "slate"}>

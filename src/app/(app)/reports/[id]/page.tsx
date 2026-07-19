@@ -6,7 +6,7 @@ import { ClipboardList, Download, FileText, History } from "lucide-react";
 import { db } from "@/db";
 import {
   auditLogs,
-  clients,
+  companies,
   contacts,
   projects,
   reportTemplates,
@@ -71,13 +71,13 @@ export default async function ReportDetailPage({
   const [row] = await db
     .select({
       report: reports,
-      clientName: clients.name,
+      companyName: companies.name,
       projectName: projects.name,
       responsibleName: users.name,
       templateName: reportTemplates.name,
     })
     .from(reports)
-    .leftJoin(clients, eq(reports.clientId, clients.id))
+    .leftJoin(companies, eq(reports.companyId, companies.id))
     .leftJoin(projects, eq(reports.projectId, projects.id))
     .leftJoin(users, eq(reports.responsibleUserId, users.id))
     .leftJoin(reportTemplates, eq(reports.templateId, reportTemplates.id))
@@ -89,11 +89,11 @@ export default async function ReportDetailPage({
   const isMgmt = MGMT_ROLES.includes(user.role);
   const metrics = (report.metricsSnapshot ?? null) as PeriodMetrics | null;
 
-  const clientContacts = report.clientId
+  const clientContacts = report.companyId
     ? await db
         .select({ id: contacts.id, name: contacts.firstName, lastName: contacts.lastName })
         .from(contacts)
-        .where(and(eq(contacts.clientId, report.clientId), eq(contacts.isActive, true)))
+        .where(and(eq(contacts.companyId, report.companyId), eq(contacts.isActive, true)))
     : [];
 
   return (
@@ -125,7 +125,7 @@ export default async function ReportDetailPage({
         }
         subtitle={
           <>
-            {row.clientName ?? "Interno"}
+            {row.companyName ?? "Interno"}
             {row.projectName ? ` · ${row.projectName}` : ""}
             {report.periodStart ? ` · ${report.periodStart} – ${report.periodEnd}` : ""}
             {` · Responsable: ${row.responsibleName ?? "—"}`}
@@ -165,7 +165,7 @@ export default async function ReportDetailPage({
         ))}
       </div>
 
-      {tab === "preview" ? <PreviewTab report={report} metrics={metrics} clientName={row.clientName} /> : null}
+      {tab === "preview" ? <PreviewTab report={report} metrics={metrics} companyName={row.companyName} /> : null}
       {tab === "content" ? (
         ["sent", "archived"].includes(report.status) ? (
           <p className="text-sm text-muted">
@@ -208,11 +208,11 @@ function MetricLine({ label, value }: { label: string; value: string | number })
 function PreviewTab({
   report,
   metrics,
-  clientName,
+  companyName,
 }: {
   report: typeof reports.$inferSelect;
   metrics: PeriodMetrics | null;
-  clientName: string | null;
+  companyName: string | null;
 }) {
   if (!metrics) {
     return (
@@ -232,7 +232,7 @@ function PreviewTab({
           <p className="text-xs tracking-widest text-faint uppercase">Reporte {reportTypeMeta[report.reportType]?.label}</p>
           <h2 className="mt-2 text-2xl font-semibold text-fg">{report.title}</h2>
           <p className="mt-2 text-sm text-muted">
-            {clientName ?? "Interno"} · {report.periodStart} – {report.periodEnd} · v{report.version}
+            {companyName ?? "Interno"} · {report.periodStart} – {report.periodEnd} · v{report.version}
           </p>
         </Card>
       ) : null}

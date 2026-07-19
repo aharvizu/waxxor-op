@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { Plus, Repeat } from "lucide-react";
 import { db } from "@/db";
-import { clients, projects, users } from "@/db/schema";
+import { companies, projects, users } from "@/db/schema";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   recurrenceExecutionStatusMeta,
@@ -54,7 +54,7 @@ export default async function RecurringPage({
     status?: string;
     targetType?: string;
     frequency?: string;
-    clientId?: string;
+    companyId?: string;
     projectId?: string;
     assigneeId?: string;
   }>;
@@ -62,18 +62,18 @@ export default async function RecurringPage({
   const user = await requireUser();
   const params = await searchParams;
 
-  const [rows, clientRows, projectRows, userRows] = await Promise.all([
+  const [rows, companyRows, projectRows, userRows] = await Promise.all([
     getRecurrencesDirectory(user.organizationId, Number(user.id), {
       q: params.q,
       view: params.view,
       status: params.status,
       targetType: params.targetType,
       frequency: params.frequency,
-      clientId: params.clientId ? Number(params.clientId) : undefined,
+      companyId: params.companyId ? Number(params.companyId) : undefined,
       projectId: params.projectId ? Number(params.projectId) : undefined,
       assigneeId: params.assigneeId ? Number(params.assigneeId) : undefined,
     }),
-    db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.organizationId, user.organizationId)).orderBy(asc(clients.name)),
+    db.select({ id: companies.id, name: companies.name }).from(companies).where(eq(companies.organizationId, user.organizationId)).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, user.organizationId)).orderBy(asc(projects.name)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client"))).orderBy(asc(users.name)),
   ]);
@@ -142,9 +142,9 @@ export default async function RecurringPage({
             <option key={f} value={f}>{recurrenceFrequencyMeta[f]?.label ?? f}</option>
           ))}
         </select>
-        <select name="clientId" defaultValue={params.clientId ?? ""} className={cx(inputClass, "w-auto")}>
+        <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
           <option value="">Cliente</option>
-          {clientRows.map((c) => (
+          {companyRows.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
@@ -210,7 +210,7 @@ export default async function RecurringPage({
                         {recurrenceTargetTypeMeta[r.def.targetType]?.label ?? r.def.targetType}
                       </Badge>
                     </Td>
-                    <Td className="text-muted">{r.clientName ?? "—"}</Td>
+                    <Td className="text-muted">{r.companyName ?? "—"}</Td>
                     <Td className="text-muted">{r.projectName ?? "—"}</Td>
                     <Td className="text-muted">{r.assigneeName ?? "—"}</Td>
                     <Td className="text-muted">{recurrenceFrequencyMeta[r.def.frequency]?.label ?? r.def.frequency}</Td>

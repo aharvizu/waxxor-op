@@ -36,13 +36,13 @@ Watson
 ├── Clients
 ├── Reports
 ├── Indicators
-├── Knowledge              [open — listed as module, absent from MVP scope]
+├── Knowledge              (shipped 2026-07-19 — /knowledge KB Operativa + /help Centro de Ayuda; resolves I-02)
 └── Configuration
 ```
 
 ## 4. Experiences (PRD §8)
 
-Today, Ticket, Activity, Project, Client 360, Reports, Indicators, Configuration, Inbox.
+Today, Ticket, Activity, Project, Client 360, Reports, Indicators, Configuration, Inbox, Knowledge, Help.
 
 Experiences are user-facing surfaces; several of them (Today, Client 360) aggregate data owned by multiple modules. This implies read models / queries that cut across module boundaries.
 
@@ -55,6 +55,8 @@ Both cross-module experiences are shipped: **Today** (2026-07-16, `docs/features
 **Inbox** shipped 2026-07-19 — the operational (non-channel-integrated) base of Manual Messaging: a unified `/inbox` over the existing `Conversation`/`Message` model, now relatable to Client, Contact, Ticket, Activity and/or Project simultaneously (a ticket still gets at most one conversation). Participants, mentions, pin/favorite, unread cursors and logical delete are new; channel adapters (`src/lib/channels.ts`) exist for `internal`/`whatsapp`/`email`/`teams`/`api` — only `internal` is connected, the rest log manually pending real integration. The ticket Composer (`helpdesk/actions.ts`) was refactored onto the same write service (`postConversationMessage`) — one message-writing path for both surfaces. See `docs/features/inbox.md`.
 
 **Reports & Indicators** shipped 2026-07-18 (E-14/E-16): operational Reports per client/project/period with a review workflow (draft → generating → ready_for_review → approved → sent), immutable metric snapshots + versioning (`docs/architecture/report-snapshots.md`), deterministic non-AI narrative, print-PDF/CSV export; and `/indicators` executive panels (Executive/Operations/Billing) with a central metric-definitions dictionary and configurable audited thresholds. Both consume one shared metrics layer (`src/lib/report-metrics.ts`, `docs/architecture/analytics-queries.md`) — formulas live once. See `docs/features/reports.md`, `docs/features/indicators.md`.
+
+**Knowledge** shipped 2026-07-19 (resolves I-02) — two separated spaces sharing infrastructure but not content: **KB Operativa** (`/knowledge`) with a draft→in_review→published→archived workflow, immutable per-save versioning (same pattern as `report_versions`), polymorphic relations to Ticket/Client/Project/Activity, and a Ticket→KB flow that always creates a draft (never auto-published) with optional client/contact anonymization; **Centro de Ayuda** (`/help`) with module-grouped tutorials, a per-user progress/checklist model, a lightweight guided-tour overlay and a contextual help button recommending tutorials by current route. Help content (`help_tutorials`/`help_tutorial_steps`) is deliberately not organization-scoped — it documents the product itself, identical across tenants. See `docs/features/knowledge.md`.
 
 ## 5. Roles (PRD §7)
 

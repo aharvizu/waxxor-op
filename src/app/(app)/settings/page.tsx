@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { businessCalendars, organizations } from "@/db/schema";
@@ -6,7 +7,6 @@ import { CURRENCIES, LANGUAGES } from "@/lib/settings";
 import { getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
 import { Card, CardHeader, PageHeader, inputClass, labelClass } from "@/components/ui";
-import { CalendarForm } from "../sla/sla-forms";
 import { SettingSectionForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Configuración · Organización" };
@@ -129,24 +129,17 @@ export default async function OrganizationSettingsPage() {
       <Card className="p-5">
         <CardHeader
           title="Zona horaria y horario laboral"
-          description="Es el calendario laboral oficial (el mismo que usa SLA). Solo SuperAdmin puede modificarlo (regla R7)."
+          description="Es el calendario laboral oficial, compartido con las definiciones de SLA (regla R7: solo SuperAdmin lo modifica)."
         />
-        {user.role === "superadmin" ? (
-          <CalendarForm
-            calendar={{
-              timezone: calendar?.timezone ?? "America/Mexico_City",
-              workDays: (calendar?.workDays as number[] | null) ?? [1, 2, 3, 4, 5],
-              workStartMinute: calendar?.workStartMinute ?? 9 * 60,
-              workEndMinute: calendar?.workEndMinute ?? 18 * 60,
-            }}
-          />
-        ) : (
-          <p className="text-sm text-muted">
-            Zona horaria:{" "}
-            <span className="font-medium text-fg">{calendar?.timezone ?? "America/Mexico_City"}</span>.
-            Solicita cambios a un SuperAdmin.
-          </p>
-        )}
+        <p className="text-sm text-muted">
+          Zona horaria:{" "}
+          <span className="font-medium text-fg">{calendar?.timezone ?? "America/Mexico_City"}</span>
+          {" · "}
+          Horario laboral configurado en{" "}
+          <Link href="/settings/sla" className="text-primary hover:underline">
+            Configuración → SLA →
+          </Link>
+        </p>
       </Card>
     </div>
   );

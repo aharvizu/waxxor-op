@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { AtSign, Inbox as InboxIcon, MessageSquare } from "lucide-react";
 import { db } from "@/db";
-import { clients, projects, users } from "@/db/schema";
+import { companies, projects, users } from "@/db/schema";
 import { conversationStatusMeta } from "@/lib/conversations";
 import { fmtDateTime } from "@/lib/format";
 import {
@@ -50,7 +50,7 @@ type Search = {
   view?: string;
   status?: string;
   channel?: string;
-  clientId?: string;
+  companyId?: string;
   projectId?: string;
   workItemId?: string;
   ticketId?: string;
@@ -72,20 +72,20 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     view,
     status: params.status || undefined,
     channel: params.channel || undefined,
-    clientId: num(params.clientId),
+    companyId: num(params.companyId),
     projectId: num(params.projectId),
     workItemId: num(params.workItemId),
     ticketId: num(params.ticketId),
     q: params.q?.trim() || undefined,
   };
 
-  const [rows, clientRows, projectRows, internalUsers, detail] = await Promise.all([
+  const [rows, companyRows, projectRows, internalUsers, detail] = await Promise.all([
     listConversations(user.organizationId, Number(user.id), filters),
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(and(eq(clients.organizationId, user.organizationId), ne(clients.status, "archived")))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(and(eq(companies.organizationId, user.organizationId), ne(companies.status, "archived")))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: projects.id, name: projects.name })
       .from(projects)
@@ -169,9 +169,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
               <option value="pending">Pendientes</option>
               <option value="closed">Cerradas</option>
             </select>
-            <select name="clientId" defaultValue={params.clientId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
+            <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
               <option value="">Cliente: todos</option>
-              {clientRows.map((c) => (
+              {companyRows.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -192,7 +192,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                 const title =
                   r.subject ??
                   (r.ticketFolio ? `${r.ticketFolio} · ${r.ticketTitle ?? ""}` : null) ??
-                  r.clientName ??
+                  r.companyName ??
                   r.projectName ??
                   `Conversación #${r.id}`;
                 const unread = Number(r.unreadCount) > 0;
@@ -234,7 +234,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                         : (r.lastBody ?? "Sin mensajes todavía")}
                     </span>
                     <span className="mt-0.5 block text-[11px] text-faint">
-                      {r.clientName ? `${r.clientName} · ` : ""}
+                      {r.companyName ? `${r.companyName} · ` : ""}
                       {r.lastAt ? fmtDateTime(r.lastAt) : fmtDateTime(r.updatedAt)}
                     </span>
                   </Link>
@@ -250,10 +250,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             <Card className="max-w-2xl p-5">
               <h2 className="mb-4 text-sm font-semibold text-fg">Nueva conversación</h2>
               <NewConversationForm
-                clients={clientRows}
+                companies={companyRows}
                 projects={projectRows}
                 prefill={{
-                  clientId: filters.clientId,
+                  companyId: filters.companyId,
                   projectId: filters.projectId,
                   workItemId: filters.workItemId,
                   ticketId: filters.ticketId,
@@ -270,7 +270,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             <ConversationPane
               detail={detail}
               userId={Number(user.id)}
-              clients={clientRows}
+              companies={companyRows}
               projects={projectRows}
               internalUsers={internalUsers}
             />
@@ -286,13 +286,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 function ConversationPane({
   detail,
   userId,
-  clients: clientRows,
+  companies: companyRows,
   projects: projectRows,
   internalUsers,
 }: {
   detail: NonNullable<Awaited<ReturnType<typeof getConversationDetail>>>;
   userId: number;
-  clients: { id: number; name: string }[];
+  companies: { id: number; name: string }[];
   projects: { id: number; name: string }[];
   internalUsers: { id: number; name: string }[];
 }) {
@@ -300,7 +300,7 @@ function ConversationPane({
   const title =
     conv.subject ??
     (detail.ticketFolio ? `${detail.ticketFolio} · ${detail.ticketTitle ?? ""}` : null) ??
-    detail.clientName ??
+    detail.companyName ??
     `Conversación #${conv.id}`;
   const hasUnread =
     detail.myState?.lastReadAt == null ||
@@ -321,7 +321,7 @@ function ConversationPane({
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-fg">{title}</h2>
             <p className="text-xs text-muted">
-              {detail.clientName ?? "Sin cliente"}
+              {detail.companyName ?? "Sin cliente"}
               {detail.contactName ? ` · ${detail.contactName}` : ""}
               {" · "}
               {conv.channel}
@@ -434,10 +434,10 @@ function ConversationPane({
                 </Link>
               </li>
             ) : null}
-            {conv.clientId ? (
+            {conv.companyId ? (
               <li>
-                <Link href={`/clients/${conv.clientId}`} className="text-primary hover:underline">
-                  Cliente: {detail.clientName}
+                <Link href={`/companies/${conv.companyId}`} className="text-primary hover:underline">
+                  Cliente: {detail.companyName}
                 </Link>
               </li>
             ) : null}
@@ -455,17 +455,17 @@ function ConversationPane({
                 </Link>
               </li>
             ) : null}
-            {!conv.ticketId && !conv.clientId && !detail.activity && !conv.projectId ? (
+            {!conv.ticketId && !conv.companyId && !detail.activity && !conv.projectId ? (
               <li className="text-muted">Sin vínculos.</li>
             ) : null}
           </ul>
           <div className="mt-3 border-t border-edge pt-3">
             <LinkConversationForm
               conversationId={conv.id}
-              clients={clientRows}
+              companies={companyRows}
               projects={projectRows}
               current={{
-                clientId: conv.clientId,
+                companyId: conv.companyId,
                 contactId: conv.contactId,
                 ticketId: conv.ticketId,
                 workItemId: conv.workItemId,

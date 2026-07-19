@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
-import { activities, clients, users, workItems } from "@/db/schema";
+import { activities, companies, users, workItems } from "@/db/schema";
 import {
   type ActionState,
   businessError,
@@ -59,7 +59,7 @@ const detailsSchema = z.object({
   description: optionalText,
   activityType: activityTypeSchema,
   priority: workItemPrioritySchema.default("medium"),
-  clientId: optionalId,
+  companyId: optionalId,
   assigneeId: optionalId,
   startDate: optionalDate,
   dueDate: optionalDate,
@@ -74,12 +74,12 @@ const workflowSchema = z.object({
 
 const idSchema = z.object({ id: z.coerce.number().int().positive() });
 
-async function orgClientId(orgId: number, id: number | null) {
+async function orgCompanyId(orgId: number, id: number | null) {
   if (id === null) return null;
   const [row] = await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(and(eq(clients.id, id), eq(clients.organizationId, orgId)));
+    .select({ id: companies.id })
+    .from(companies)
+    .where(and(eq(companies.id, id), eq(companies.organizationId, orgId)));
   return row?.id ?? null;
 }
 
@@ -123,7 +123,7 @@ const CONVERSION_MESSAGES: Record<string, string> = {
 
 const convertSchema = z.object({
   id: z.coerce.number().int().positive(),
-  clientId: optionalId,
+  companyId: optionalId,
   contact: optionalText,
   category: z.string("Category is required.").trim().min(1, "Category is required."),
   subcategory: optionalText,
@@ -147,14 +147,14 @@ export async function convertActivity(
   const { data, error } = parseForm(convertSchema, formData);
   if (error) return error;
 
-  const clientId = await orgClientId(user.organizationId, data.clientId);
+  const companyId = await orgCompanyId(user.organizationId, data.companyId);
   const assigneeId = await orgUserId(user.organizationId, data.assigneeId);
 
   let ticketId: number;
   try {
     const result = await convertActivityToTicket(user, {
       activityId: data.id,
-      clientId,
+      companyId,
       contact: data.contact,
       category: data.category,
       subcategory: data.subcategory,
@@ -186,7 +186,7 @@ export async function createActivity(
   const { data, error } = parseForm(detailsSchema, formData);
   if (error) return error;
 
-  const clientId = await orgClientId(user.organizationId, data.clientId);
+  const companyId = await orgCompanyId(user.organizationId, data.companyId);
   const assigneeId = await orgUserId(user.organizationId, data.assigneeId);
 
   let activityId: number;
@@ -198,7 +198,7 @@ export async function createActivity(
         description: data.description,
         status: "pending",
         priority: data.priority,
-        clientId,
+        companyId,
         assigneeId,
         startDate: data.startDate,
         dueDate: data.dueDate,
@@ -238,7 +238,7 @@ export async function updateActivityDetails(
   const { data, error } = parseForm(detailsSchema.extend(idSchema.shape), formData);
   if (error) return error;
 
-  const clientId = await orgClientId(user.organizationId, data.clientId);
+  const companyId = await orgCompanyId(user.organizationId, data.companyId);
 
   try {
     await db.transaction(async (tx) => {
@@ -248,7 +248,7 @@ export async function updateActivityDetails(
         title: data.title,
         description: data.description,
         priority: data.priority,
-        clientId,
+        companyId,
         startDate: data.startDate,
         dueDate: data.dueDate,
         estimatedMinutes: data.estimatedMinutes,

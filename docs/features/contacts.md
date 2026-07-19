@@ -1,10 +1,11 @@
 # Contactos
 
 > Status: shipped 2026-07-17, parte de Cliente 360 (E-13). Tabla: `contacts` (migración `drizzle/0014_cloudy_true_believers.sql`).
+> **Actualizado 2026-07-20**: Contact es ahora una entidad independiente con su propia pantalla (`/contacts`, Contacto 360) — ver `docs/features/companies-contacts.md`. La FK se renombró `clientId`→`companyId` y se agregó `department`; el resto del modelo y las reglas de esta página siguen vigentes sin cambios.
 
 ## Modelo
 
-`contacts`: `clientId` (FK cascade), `firstName`/`lastName`, `jobTitle`, `email`/`phone`/`mobile`/`whatsappNumber`, `contactType` (`owner|primary|technical|administrative|billing|management|requester|other`), `isPrimary`, `isActive`, `notes`.
+`contacts`: `companyId` (FK cascade a `companies`), `firstName`/`lastName`, `jobTitle`, `department`, `email`/`phone`/`mobile`/`whatsappNumber`, `contactType` (`owner|primary|technical|administrative|billing|management|requester|other`), `isPrimary`, `isActive`, `notes`.
 
 `whatsappNumber` existe como campo de datos (no de mensajería activa) — mantiene el modelo listo para el canal WhatsApp futuro sin acoplar Manual Messaging a Contactos todavía.
 

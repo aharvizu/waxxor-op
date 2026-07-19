@@ -38,10 +38,12 @@ export async function requireUser(): Promise<SessionUser> {
 
 /**
  * Like requireUser, but the role must be one of `roles`.
- * SuperAdmin always passes (total access). Others are sent to the dashboard.
+ * SuperAdmin always passes (total access). Others land on /no-access with a
+ * clear "insufficient permission" message — previously a silent redirect
+ * to "/" with zero explanation (UX audit, 2026-07-20).
  */
 export async function requireRole(...roles: Role[]): Promise<SessionUser> {
   const user = await requireUser();
-  if (!hasRole(user.role, roles)) redirect("/");
+  if (!hasRole(user.role, roles)) redirect("/no-access?reason=role");
   return user;
 }

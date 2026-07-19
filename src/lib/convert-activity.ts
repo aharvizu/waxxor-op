@@ -40,7 +40,7 @@ export class ConversionError extends Error {
 export type ConvertInput = {
   activityId: number;
   /** Final client (already validated against the org). Falls back to the activity's. */
-  clientId: number | null;
+  companyId: number | null;
   contact?: string | null;
   category: string;
   subcategory?: string | null;
@@ -104,7 +104,7 @@ export async function convertActivityToTicket(
       );
     if (!row) throw new ConversionError("not_found");
 
-    const finalClientId = input.clientId ?? row.item.clientId;
+    const finalClientId = input.companyId ?? row.item.companyId;
     const [subactivities] = await tx
       .select({ n: sql<number>`count(*)::int` })
       .from(activities)
@@ -136,7 +136,7 @@ export async function convertActivityToTicket(
         type: "ticket",
         status: "new",
         priority: input.priority,
-        clientId: finalClientId,
+        companyId: finalClientId,
         assigneeId:
           input.assigneeId !== undefined ? input.assigneeId : row.item.assigneeId,
         completedAt: null,

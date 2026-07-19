@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { FolderKanban, Plus } from "lucide-react";
 import { db } from "@/db";
-import { clients, users } from "@/db/schema";
+import { companies, users } from "@/db/schema";
 import { fmtDate } from "@/lib/format";
 import { projectHealthMeta, projectPriorityMeta, projectStatusMeta } from "@/lib/labels";
 import { getProjectsDirectory } from "@/lib/project-data";
@@ -51,28 +51,28 @@ export default async function ProjectsPage({
     status?: string;
     health?: string;
     priority?: string;
-    clientId?: string;
+    companyId?: string;
     managerId?: string;
   }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
 
-  const [rows, clientRows, managerRows] = await Promise.all([
+  const [rows, companyRows, managerRows] = await Promise.all([
     getProjectsDirectory(user.organizationId, Number(user.id), {
       q: params.q,
       view: params.view,
       status: params.status,
       health: params.health,
       priority: params.priority,
-      clientId: params.clientId ? Number(params.clientId) : undefined,
+      companyId: params.companyId ? Number(params.companyId) : undefined,
       managerId: params.managerId ? Number(params.managerId) : undefined,
     }),
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -161,12 +161,12 @@ export default async function ProjectsPage({
           ))}
         </select>
         <select
-          name="clientId"
-          defaultValue={params.clientId ?? ""}
+          name="companyId"
+          defaultValue={params.companyId ?? ""}
           className={cx(inputClass, "w-auto")}
         >
           <option value="">Cliente</option>
-          {clientRows.map((c) => (
+          {companyRows.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -227,7 +227,7 @@ export default async function ProjectsPage({
                         {r.project.name}
                       </Link>
                     </Td>
-                    <Td className="text-muted">{r.clientName ?? "Interno"}</Td>
+                    <Td className="text-muted">{r.companyName ?? "Interno"}</Td>
                     <Td className="text-muted">{r.managerName ?? "—"}</Td>
                     <Td>
                       <Badge tone={projectStatusMeta[r.project.status]?.tone ?? "slate"}>

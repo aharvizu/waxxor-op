@@ -70,6 +70,10 @@ El Resumen del proyecto incluye la tarjeta "Reportes": generar un reporte de est
 
 El Resumen del proyecto incluye la tarjeta "Conversaciones": ver los hilos vinculados al proyecto (`/inbox?projectId=`) o crear uno nuevo con el proyecto preseleccionado. Una conversación puede vincularse a proyecto **junto con** cliente/ticket/actividad — no es exclusivo. Ver `docs/features/inbox.md`.
 
+## Integración con Knowledge (2026-07-19)
+
+Tarjeta "Base de conocimiento" en Resumen con artículos vinculados al proyecto vía `knowledge_article_relations`. Ver `docs/features/knowledge.md`.
+
 ## Fuera de alcance / futuro
 
 Kanban, Gantt, ruta crítica, calendarios laborales, dependencias entre proyectos, portafolios, OKRs, sprints, estados personalizados de actividad, drag & drop. (Las plantillas de proyecto, antes futuras, shippearon 2026-07-18 vía Configuración — ver arriba.)

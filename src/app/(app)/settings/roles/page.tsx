@@ -57,7 +57,6 @@ export default async function RolesSettingsPage() {
           title="Matriz de capacidades"
           description="SuperAdmin pasa todas las verificaciones por regla de producto. Client no tiene acceso al portal interno."
         />
-        <div className="overflow-x-auto">
           <Table>
             <THead>
               <tr>
@@ -86,7 +85,6 @@ export default async function RolesSettingsPage() {
               ))}
             </tbody>
           </Table>
-        </div>
         <p className="border-t border-edge px-5 py-3 text-xs text-muted">
           Esta matriz refleja el código de autorización real (src/lib/roles.ts y las verificaciones
           requireRole de cada módulo) — no existe un motor de permisos aparte ni permisos

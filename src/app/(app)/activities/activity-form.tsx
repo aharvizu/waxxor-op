@@ -17,7 +17,7 @@ export type ActivityFormDefaults = {
   description: string | null;
   activityType: string;
   priority: string;
-  clientId: number | null;
+  companyId: number | null;
   startDate: string | null;
   dueDate: string | null;
   estimatedMinutes: number | null;
@@ -33,18 +33,18 @@ const priorities = [
 /** Create form when `activity` is omitted; edit form when provided. */
 export function ActivityForm({
   activity,
-  clients,
+  companies,
   submitLabel,
   defaultType,
-  defaultClientId,
+  defaultCompanyId,
 }: {
   activity?: ActivityFormDefaults;
-  clients: Option[];
+  companies: Option[];
   submitLabel: string;
   /** Optional preselected type for the create form (e.g. from Today's + Crear). */
   defaultType?: string;
   /** Optional preselected client for the create form (e.g. from Client 360's + Actividad). */
-  defaultClientId?: number;
+  defaultCompanyId?: number;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     activity ? updateActivityDetails : createActivity,
@@ -126,24 +126,24 @@ export function ActivityForm({
           </select>
         </div>
         <div>
-          <label htmlFor="clientId" className={labelClass}>
+          <label htmlFor="companyId" className={labelClass}>
             Client
           </label>
           <select
-            id="clientId"
-            name="clientId"
+            id="companyId"
+            name="companyId"
             defaultValue={value(
-              "clientId",
-              activity?.clientId
-                ? String(activity.clientId)
-                : defaultClientId
-                  ? String(defaultClientId)
+              "companyId",
+              activity?.companyId
+                ? String(activity.companyId)
+                : defaultCompanyId
+                  ? String(defaultCompanyId)
                   : "",
             )}
             className={inputClass}
           >
             <option value="">— None —</option>
-            {clients.map((c) => (
+            {companies.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>

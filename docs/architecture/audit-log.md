@@ -11,7 +11,7 @@
 | `id` | serial PK | |
 | `organization_id` | integer, **NOT NULL**, FK → organizations | Required on every event since the organization migration (`drizzle/0004`); comes from the session user. |
 | `user_id` | integer, nullable, FK → users **on delete set null** | The actor. `set null` so audit rows never block user deletion and outlive the account. |
-| `entity_type` | text | Lower-case entity name: `client`, `user`, `work_item`, `ticket`, `activity`, `time_entry`, `sla_definition`, `business_calendar`, `message`, `attachment`, `operational_reminder`, `conversation`, `contact`, `service`, `client_service`, `contract`, `client_note`, `project`, `project_member`, `project_list`, `project_milestone`, `project_risk`, `project_comment`, `work_item_dependency`, `recurrence_definition`, `recurrence_execution`, `report`, `report_template`, `indicator_threshold`, `organization_setting`, `catalog_item`, `api_key`, `conversation`, `ticket_comment` (legacy) |
+| `entity_type` | text | Lower-case entity name: `client`, `user`, `work_item`, `ticket`, `activity`, `time_entry`, `sla_definition`, `business_calendar`, `message`, `attachment`, `operational_reminder`, `conversation`, `contact`, `service`, `client_service`, `contract`, `client_note`, `project`, `project_member`, `project_list`, `project_milestone`, `project_risk`, `project_comment`, `work_item_dependency`, `recurrence_definition`, `recurrence_execution`, `report`, `report_template`, `indicator_threshold`, `organization_setting`, `catalog_item`, `api_key`, `knowledge_article`, `knowledge_category`, `help_tutorial`, `ticket_comment` (legacy) |
 | `entity_id` | integer | PK of the affected row |
 | `action` | text | `"create"`, `"update"`, `"delete"` (free text so future actions like `"convert"` need no migration) |
 | `field` | text, nullable | Set on `update` events: the changed column (camelCase, as in the Drizzle schema) |
@@ -101,5 +101,8 @@ Rules:
 | Organization settings | ✅ (`setting_saved`, logos redacted) | ✅ (old/new JSON per section) | — |
 | Catalog items | ✅ | ✅ (rename · archive/restore) | ✅ (SuperAdmin, snapshot, blocked with children) |
 | API keys | ✅ (name/prefix only — never token or hash) | ✅ (`api_key_revoked`) | — (revoke instead) |
+| Knowledge articles | ✅ (incl. `created_from_ticket`) | ✅ (`version_saved`, `submitted_for_review`, `changes_requested`, `published`, `archived`, `restored`) | ✅ (SuperAdmin, snapshot) |
+| Knowledge categories | ✅ | ✅ (archive/restore) | — (archive instead) |
+| Help tutorials | — (seeded, not audited as create) | ✅ (`activated`/`deactivated` from Settings) | — |
 
 Verified end-to-end on 2026-07-15 against the dev database: create produced one `create` event with full snapshot; an edit changing two fields produced exactly two `update` events with correct old/new values (test rows cleaned up afterwards).

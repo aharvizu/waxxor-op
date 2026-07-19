@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { clients, quoteItems, quotes } from "@/db/schema";
+import { companies, quoteItems, quotes } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 
 type QuoteStatus = (typeof quotes.status.enumValues)[number];
@@ -27,13 +27,13 @@ async function orgQuote(orgId: number, id: number | null) {
 export async function createQuote(formData: FormData) {
   const user = await requireUser();
   const title = String(formData.get("title") ?? "").trim();
-  const clientId = toId(formData.get("clientId"));
-  if (!title || !clientId) return;
+  const companyId = toId(formData.get("companyId"));
+  if (!title || !companyId) return;
 
   const [client] = await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(and(eq(clients.id, clientId), eq(clients.organizationId, user.organizationId)));
+    .select({ id: companies.id })
+    .from(companies)
+    .where(and(eq(companies.id, companyId), eq(companies.organizationId, user.organizationId)));
   if (!client) return;
 
   const taxRateRaw = String(formData.get("taxRate") ?? "").trim();
@@ -44,7 +44,7 @@ export async function createQuote(formData: FormData) {
     .values({
       organizationId: user.organizationId,
       title,
-      clientId,
+      companyId,
       currency: String(formData.get("currency") ?? "USD").toUpperCase(),
       taxRate: taxRateRaw && !Number.isNaN(Number(taxRateRaw)) ? taxRateRaw : "0",
       validUntil: validUntil || null,

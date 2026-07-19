@@ -2,12 +2,12 @@ import { config } from "dotenv";
 config({ path: [".env.local", ".env"] });
 
 /**
- * DB-level invariants for Cliente 360 (server actions themselves are exercised
- * over HTTP in the smoke run — see docs/features/client-360.md):
+ * DB-level invariants for Empresa 360 (server actions themselves are exercised
+ * over HTTP in the smoke run — see docs/features/companies-contacts.md):
  *   1. single-primary-contact transactional swap (setPrimaryContact-equivalent);
- *   2. archiving the primary contact clears clients.primaryContactId;
+ *   2. archiving the primary contact clears companies.primaryContactId;
  *   3. contact hard-delete blocked while referenced by a ticket;
- *   4. client hard-delete blocked while it has work items;
+ *   4. company hard-delete blocked while it has work items;
  *   5. renewal derivation (client_services + contracts) feeds getOrgRenewals
  *      exactly like it feeds Today's reminders;
  *   6. organization isolation for contacts/services/contracts/notes;
@@ -23,7 +23,7 @@ async function main() {
   const {
     clientNotes,
     clientServices,
-    clients,
+    companies,
     contacts,
     contracts,
     organizations,
@@ -33,7 +33,7 @@ async function main() {
   } = await import("../src/db/schema");
   const { recordAudit } = await import("../src/lib/audit");
   const { createWorkItem } = await import("../src/lib/work-items");
-  const { getOrgRenewals } = await import("../src/lib/client360-data");
+  const { getOrgRenewals } = await import("../src/lib/company360-data");
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -56,16 +56,16 @@ async function main() {
 
   // -- fixtures ---------------------------------------------------------
   const [client] = await db
-    .insert(clients)
+    .insert(companies)
     .values({ organizationId: orgId, name: "C360-VERIFY Client" })
-    .returning({ id: clients.id });
-  cleanup.push(() => db.delete(clients).where(eq(clients.id, client.id)));
+    .returning({ id: companies.id });
+  cleanup.push(() => db.delete(companies).where(eq(companies.id, client.id)));
 
   const [otherClient] = await db
-    .insert(clients)
+    .insert(companies)
     .values({ organizationId: otherOrg.id, name: "C360-VERIFY Other-org client" })
-    .returning({ id: clients.id });
-  cleanup.push(() => db.delete(clients).where(eq(clients.id, otherClient.id)));
+    .returning({ id: companies.id });
+  cleanup.push(() => db.delete(companies).where(eq(companies.id, otherClient.id)));
 
   const [service] = await db
     .insert(services)
@@ -78,27 +78,27 @@ async function main() {
     .insert(contacts)
     .values({
       organizationId: orgId,
-      clientId: client.id,
+      companyId: client.id,
       firstName: "A",
       lastName: "Primary",
       isPrimary: true,
     })
     .returning({ id: contacts.id });
-  await db.update(clients).set({ primaryContactId: contactA.id }).where(eq(clients.id, client.id));
+  await db.update(companies).set({ primaryContactId: contactA.id }).where(eq(companies.id, client.id));
 
   const [contactB] = await db
     .insert(contacts)
-    .values({ organizationId: orgId, clientId: client.id, firstName: "B", lastName: "Secondary" })
+    .values({ organizationId: orgId, companyId: client.id, firstName: "B", lastName: "Secondary" })
     .returning({ id: contacts.id });
-  cleanup.push(() => db.delete(contacts).where(eq(contacts.clientId, client.id)));
+  cleanup.push(() => db.delete(contacts).where(eq(contacts.companyId, client.id)));
 
   await db.transaction(async (tx) => {
     await tx
       .update(contacts)
       .set({ isPrimary: false })
-      .where(and(eq(contacts.clientId, client.id), eq(contacts.isPrimary, true), sql`id != ${contactB.id}`));
+      .where(and(eq(contacts.companyId, client.id), eq(contacts.isPrimary, true), sql`id != ${contactB.id}`));
     await tx.update(contacts).set({ isPrimary: true }).where(eq(contacts.id, contactB.id));
-    await tx.update(clients).set({ primaryContactId: contactB.id }).where(eq(clients.id, client.id));
+    await tx.update(companies).set({ primaryContactId: contactB.id }).where(eq(companies.id, client.id));
     await recordAudit(tx, {
       organizationId: orgId,
       userId: Number(user.id),
@@ -108,25 +108,25 @@ async function main() {
       field: "isPrimary",
       oldValue: "false",
       newValue: "true",
-      metadata: { event: "primary_contact_changed", clientId: client.id },
+      metadata: { event: "primary_contact_changed", companyId: client.id },
     });
   });
 
   const primaries = await db
     .select({ id: contacts.id, isPrimary: contacts.isPrimary })
     .from(contacts)
-    .where(and(eq(contacts.clientId, client.id), eq(contacts.isPrimary, true)));
+    .where(and(eq(contacts.companyId, client.id), eq(contacts.isPrimary, true)));
   check(
     "exactly one primary contact after swap",
     primaries.length === 1 && primaries[0].id === contactB.id,
     JSON.stringify(primaries),
   );
   const [clientAfterSwap] = await db
-    .select({ primaryContactId: clients.primaryContactId })
-    .from(clients)
-    .where(eq(clients.id, client.id));
+    .select({ primaryContactId: companies.primaryContactId })
+    .from(companies)
+    .where(eq(companies.id, client.id));
   check(
-    "clients.primaryContactId points at the new primary",
+    "companies.primaryContactId points at the new primary",
     clientAfterSwap.primaryContactId === contactB.id,
   );
   const [auditRow] = await sqlHttp`
@@ -134,18 +134,18 @@ async function main() {
     where entity_type = 'contact' and entity_id = ${contactB.id} order by created_at desc limit 1`;
   check("primary contact swap is audited", auditRow?.event === "primary_contact_changed");
 
-  // 2. archiving the primary contact clears clients.primaryContactId ----
+  // 2. archiving the primary contact clears companies.primaryContactId ----
   await db.transaction(async (tx) => {
     await tx
       .update(contacts)
       .set({ isActive: false, isPrimary: false })
       .where(eq(contacts.id, contactB.id));
-    await tx.update(clients).set({ primaryContactId: null }).where(eq(clients.id, client.id));
+    await tx.update(companies).set({ primaryContactId: null }).where(eq(companies.id, client.id));
   });
   const [clientAfterArchive] = await db
-    .select({ primaryContactId: clients.primaryContactId })
-    .from(clients)
-    .where(eq(clients.id, client.id));
+    .select({ primaryContactId: companies.primaryContactId })
+    .from(companies)
+    .where(eq(companies.id, client.id));
   check("archiving the primary contact clears primaryContactId", clientAfterArchive.primaryContactId === null);
 
   // 3. contact hard-delete blocked while referenced ----------------------
@@ -174,20 +174,20 @@ async function main() {
 
   // 4. client hard-delete blocked while it has work items -----------------
   const [workClient] = await db
-    .insert(clients)
+    .insert(companies)
     .values({ organizationId: orgId, name: "C360-VERIFY Client-with-work" })
-    .returning({ id: clients.id });
+    .returning({ id: companies.id });
   const workItem = await db.transaction((tx) =>
-    createWorkItem(tx, user, { type: "activity", title: "C360-VERIFY activity", clientId: workClient.id }),
+    createWorkItem(tx, user, { type: "activity", title: "C360-VERIFY activity", companyId: workClient.id }),
   );
   cleanup.push(async () => {
     await db.delete(workItems).where(eq(workItems.id, workItem.id));
-    await db.delete(clients).where(eq(clients.id, workClient.id));
+    await db.delete(companies).where(eq(companies.id, workClient.id));
   });
   const [workCount] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(workItems)
-    .where(eq(workItems.clientId, workClient.id));
+    .where(eq(workItems.companyId, workClient.id));
   check("client with work items is detected before delete", workCount.n === 1);
 
   // 5. renewal derivation feeds getOrgRenewals -----------------------------
@@ -197,7 +197,7 @@ async function main() {
     .insert(clientServices)
     .values({
       organizationId: orgId,
-      clientId: client.id,
+      companyId: client.id,
       serviceId: service.id,
       startDate: "2026-01-01",
       renewalDate: soon,
@@ -207,7 +207,7 @@ async function main() {
     .insert(clientServices)
     .values({
       organizationId: orgId,
-      clientId: client.id,
+      companyId: client.id,
       serviceId: service.id,
       startDate: "2026-01-01",
       renewalDate: far,
@@ -217,15 +217,15 @@ async function main() {
     .insert(contracts)
     .values({
       organizationId: orgId,
-      clientId: client.id,
+      companyId: client.id,
       name: "C360-VERIFY Contract",
       status: "active",
       startDate: "2026-01-01",
       endDate: soon,
     })
     .returning({ id: contracts.id });
-  cleanup.push(() => db.delete(clientServices).where(eq(clientServices.clientId, client.id)));
-  cleanup.push(() => db.delete(contracts).where(eq(contracts.clientId, client.id)));
+  cleanup.push(() => db.delete(clientServices).where(eq(clientServices.companyId, client.id)));
+  cleanup.push(() => db.delete(contracts).where(eq(contracts.companyId, client.id)));
 
   const renewals = await getOrgRenewals(orgId, 30);
   const renewalIds = renewals.map((r) => `${r.source}:${r.sourceId}`);
@@ -246,7 +246,7 @@ async function main() {
   // 6. organization isolation ----------------------------------------------
   const [otherContact] = await db
     .insert(contacts)
-    .values({ organizationId: otherOrg.id, clientId: otherClient.id, firstName: "X", lastName: "Y" })
+    .values({ organizationId: otherOrg.id, companyId: otherClient.id, firstName: "X", lastName: "Y" })
     .returning({ id: contacts.id });
   cleanup.push(() => db.delete(contacts).where(eq(contacts.id, otherContact.id)));
 
@@ -259,22 +259,22 @@ async function main() {
   const otherOrgRenewals = await getOrgRenewals(otherOrg.id, 30);
   check(
     "renewals are scoped per-org (other org sees none of ours)",
-    !otherOrgRenewals.some((r) => r.clientId === client.id),
+    !otherOrgRenewals.some((r) => r.companyId === client.id),
   );
 
   // 7. rollback on multi-write failure --------------------------------------
   const [noteClient] = await db
-    .insert(clients)
+    .insert(companies)
     .values({ organizationId: orgId, name: "C360-VERIFY Rollback client" })
-    .returning({ id: clients.id });
-  cleanup.push(() => db.delete(clients).where(eq(clients.id, noteClient.id)));
+    .returning({ id: companies.id });
+  cleanup.push(() => db.delete(companies).where(eq(companies.id, noteClient.id)));
 
   let txFailed = false;
   try {
     await db.transaction(async (tx) => {
       await tx.insert(clientNotes).values({
         organizationId: orgId,
-        clientId: noteClient.id,
+        companyId: noteClient.id,
         authorId: Number(u.id),
         body: "C360-VERIFY note that should roll back",
       });
@@ -291,7 +291,7 @@ async function main() {
   const [noteCount] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(clientNotes)
-    .where(eq(clientNotes.clientId, noteClient.id));
+    .where(eq(clientNotes.companyId, noteClient.id));
   check("rollback: no partial note when audit fails", txFailed && noteCount.n === 0, `count=${noteCount.n}`);
 
   // -- cleanup ---------------------------------------------------------

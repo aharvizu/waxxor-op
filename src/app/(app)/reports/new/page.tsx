@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { clients, projects, reportTemplates, users } from "@/db/schema";
+import { companies, projects, reportTemplates, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, PageHeader } from "@/components/ui";
 import { CreateReportForm } from "../report-forms";
@@ -11,13 +11,13 @@ export const metadata: Metadata = { title: "New report" };
 export default async function NewReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; projectId?: string; type?: string }>;
+  searchParams: Promise<{ companyId?: string; projectId?: string; type?: string }>;
 }) {
   const user = await requireUser();
-  const { clientId, projectId, type } = await searchParams;
+  const { companyId, projectId, type } = await searchParams;
 
-  const [clientRows, projectRows, templateRows, userRows] = await Promise.all([
-    db.select({ id: clients.id, name: clients.name }).from(clients).where(and(eq(clients.organizationId, user.organizationId), ne(clients.status, "archived"))).orderBy(asc(clients.name)),
+  const [companyRows, projectRows, templateRows, userRows] = await Promise.all([
+    db.select({ id: companies.id, name: companies.name }).from(companies).where(and(eq(companies.organizationId, user.organizationId), ne(companies.status, "archived"))).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, user.organizationId)).orderBy(asc(projects.name)),
     db
       .select({ id: reportTemplates.id, name: reportTemplates.name, reportType: reportTemplates.reportType })
@@ -35,12 +35,12 @@ export default async function NewReportPage({
       />
       <Card className="p-6">
         <CreateReportForm
-          clients={clientRows}
+          companies={companyRows}
           projects={projectRows}
           templates={templateRows}
           internalUsers={userRows}
           defaults={{
-            clientId: clientId ? Number(clientId) : undefined,
+            companyId: companyId ? Number(companyId) : undefined,
             projectId: projectId ? Number(projectId) : undefined,
             reportType: type,
           }}

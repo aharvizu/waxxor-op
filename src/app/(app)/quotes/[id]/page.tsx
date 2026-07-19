@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { clients, quoteItems, quotes } from "@/db/schema";
+import { companies, quoteItems, quotes } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Trash2 } from "lucide-react";
 import {
@@ -35,9 +35,9 @@ export default async function QuotePage({
   if (!Number.isInteger(quoteId)) notFound();
 
   const [row] = await db
-    .select({ quote: quotes, client: clients })
+    .select({ quote: quotes, client: companies })
     .from(quotes)
-    .innerJoin(clients, eq(quotes.clientId, clients.id))
+    .innerJoin(companies, eq(quotes.companyId, companies.id))
     .where(and(eq(quotes.id, quoteId), eq(quotes.organizationId, user.organizationId)));
   if (!row) notFound();
 

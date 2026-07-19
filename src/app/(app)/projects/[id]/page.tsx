@@ -15,10 +15,11 @@ import {
   Users,
 } from "lucide-react";
 import { db } from "@/db";
-import { clients, users } from "@/db/schema";
+import { companies, users } from "@/db/schema";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   activityStatusMeta,
+  knowledgeStatusMeta,
   milestoneStatusMeta,
   projectHealthMeta,
   projectListStatusMeta,
@@ -52,6 +53,7 @@ import {
   suggestedHealth,
 } from "@/lib/projects";
 import { getProjectRecurrences } from "@/lib/recurrence-data";
+import { getRelatedArticles } from "@/lib/knowledge-data";
 import { requireUser } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
 import {
@@ -186,9 +188,9 @@ export default async function ProjectDetailPage({
         }
         subtitle={
           <>
-            {detail.clientName ? (
-              <Link href={`/clients/${project.clientId}`} className="hover:text-primary">
-                {detail.clientName}
+            {detail.companyName ? (
+              <Link href={`/companies/${project.companyId}`} className="hover:text-primary">
+                {detail.companyName}
               </Link>
             ) : (
               "Proyecto interno"
@@ -340,13 +342,14 @@ async function ResumenTab({
   suggested: string;
   now: Date;
 }) {
-  const [milestones, risks, tree, members, audit, recurrences] = await Promise.all([
+  const [milestones, risks, tree, members, audit, recurrences, kbArticles] = await Promise.all([
     getProjectMilestones(orgId, projectId),
     getProjectRisks(orgId, projectId),
     getProjectWorkTree(orgId, projectId),
     getProjectMembers(orgId, projectId),
     getProjectAuditTrail(orgId, projectId, 10),
     getProjectRecurrences(orgId, projectId),
+    getRelatedArticles(orgId, "project", projectId),
   ]);
   const upcomingMilestones = milestones
     .filter((m) => !["completed", "cancelled"].includes(m.milestone.status))
@@ -569,6 +572,20 @@ async function ResumenTab({
             </Link>
           </div>
         </Card>
+
+        {kbArticles.length > 0 ? (
+          <Card className="overflow-hidden">
+            <CardHeader title="Base de conocimiento" description="Artículos relacionados con este proyecto." />
+            <ul className="divide-y divide-edge">
+              {kbArticles.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+                  <Link href={`/knowledge/${a.id}`} className="font-medium text-fg hover:text-primary">{a.title}</Link>
+                  <Badge tone={knowledgeStatusMeta[a.status]?.tone ?? "slate"}>{knowledgeStatusMeta[a.status]?.label ?? a.status}</Badge>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
 
         {recurrences.length > 0 ? (
           <Card className="overflow-hidden">
@@ -1456,13 +1473,13 @@ async function ConfiguracionTab({
   isSuperAdmin: boolean;
   archived: boolean;
 }) {
-  const [members, clientRows] = await Promise.all([
+  const [members, companyRows] = await Promise.all([
     getProjectMembers(project.organizationId, project.id),
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, project.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, project.organizationId))
+      .orderBy(asc(companies.name)),
   ]);
   const pendingActivities = detail.total - detail.completed;
 
@@ -1487,7 +1504,7 @@ async function ConfiguracionTab({
                 id: project.id,
                 name: project.name,
                 description: project.description,
-                clientId: project.clientId,
+                companyId: project.companyId,
                 projectManagerId: project.projectManagerId,
                 ownerId: project.ownerId,
                 priority: project.priority,
@@ -1497,7 +1514,7 @@ async function ConfiguracionTab({
                 budgetAmount: project.budgetAmount,
                 billingType: project.billingType,
               }}
-              clients={clientRows}
+              companies={companyRows}
               internalUsers={internalUsers}
             />
           </Card>

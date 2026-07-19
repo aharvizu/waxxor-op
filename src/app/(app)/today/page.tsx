@@ -27,7 +27,7 @@ import {
   summaryText,
   type TodayItem,
 } from "@/lib/today-rules";
-import { getOrgRenewals } from "@/lib/client360-data";
+import { getOrgRenewals } from "@/lib/company360-data";
 import { getUserProjectSignals } from "@/lib/project-data";
 import { getRecurrenceSummary, getUserRecurrenceSignals } from "@/lib/recurrence-data";
 import { getUserReportSignals } from "@/lib/indicator-data";
@@ -43,6 +43,7 @@ import {
   type TodayScope,
 } from "@/lib/today-data";
 import { getUserUnreadMentions } from "@/lib/inbox-data";
+import { getContinueLearning } from "@/lib/help-data";
 import { TicketRowActions } from "@/app/(app)/helpdesk/ticket-row-actions";
 import { db } from "@/db";
 import { and, asc, eq, ne } from "drizzle-orm";
@@ -178,6 +179,10 @@ export default async function TodayPage({
             now={now}
             qs={qs}
           />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <ContinueLearningCard user={user} />
         </Suspense>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -416,7 +421,7 @@ async function CoreSections({
                 <div className="flex min-w-0 items-center gap-2.5">
                   <Badge tone="red">{reason.label}</Badge>
                   <ItemLink item={item} qs={qs} />
-                  <span className="hidden text-xs text-faint sm:inline">{item.clientName ?? ""}</span>
+                  <span className="hidden text-xs text-faint sm:inline">{item.companyName ?? ""}</span>
                 </div>
                 <InlineActions item={item} users={userRows} qs={qs} />
               </li>
@@ -526,7 +531,7 @@ async function CoreSections({
                       </Badge>
                     </div>
                     <div className="text-xs text-muted">
-                      {i.clientName ? `${i.clientName} · ` : ""}
+                      {i.companyName ? `${i.companyName} · ` : ""}
                       {i.assigneeName ?? "Sin responsable"} · esperando desde{" "}
                       {fmtDateTime(i.updatedAt)}
                       {i.dueDate ? ` · seguimiento ${fmtDate(i.dueDate)}` : " · sin seguimiento programado"}
@@ -664,7 +669,7 @@ function RowMeta({ item, now }: { item: TodayItem; now: Date }) {
   const overdue = isOverdue(item, now);
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted">
-      {item.clientName ? <span className="hidden lg:inline">{item.clientName}</span> : null}
+      {item.companyName ? <span className="hidden lg:inline">{item.companyName}</span> : null}
       <span>{item.assigneeName ?? "Sin responsable"}</span>
       <Badge tone={statusMetaFor(item)?.tone ?? "slate"}>{statusMetaFor(item)?.label ?? item.status}</Badge>
       <Badge tone={ticketPriorityMeta[item.priority]?.tone ?? "slate"}>
@@ -706,7 +711,7 @@ function GroupedList({
       case "assignee":
         return i.assigneeName ?? "Sin responsable";
       case "client":
-        return i.clientName ?? "Sin cliente";
+        return i.companyName ?? "Sin cliente";
       case "status":
         return statusMetaFor(i)?.label ?? i.status;
       case "date":
@@ -822,7 +827,7 @@ function CompactTable({
                   {i.folio ? `${i.folio} · ` : ""}{i.title}
                 </Link>
               </td>
-              <td className="px-4 py-2 text-muted">{i.clientName ?? "—"}</td>
+              <td className="px-4 py-2 text-muted">{i.companyName ?? "—"}</td>
               <td className="px-4 py-2 text-muted">{i.assigneeName ?? "—"}</td>
               <td className="px-4 py-2">
                 <Badge tone={statusMetaFor(i)?.tone ?? "slate"}>{statusMetaFor(i)?.label ?? i.status}</Badge>
@@ -839,6 +844,32 @@ function CompactTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* ======================================================== CONTINUE LEARNING */
+
+/** Unobtrusive: renders nothing when there is no in-progress tutorial. */
+async function ContinueLearningCard({ user }: { user: SessionUser }) {
+  let continueItem: Awaited<ReturnType<typeof getContinueLearning>>;
+  try {
+    continueItem = await getContinueLearning(Number(user.id));
+  } catch {
+    return null;
+  }
+  if (!continueItem) return null;
+
+  return (
+    <Link
+      href={`/help/${continueItem.slug}`}
+      className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-surface px-5 py-3.5 shadow-card transition-shadow hover:shadow-card-hover"
+    >
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold tracking-wide text-faint uppercase">Continuar aprendiendo</span>
+        <span className="block truncate text-sm font-medium text-fg">{continueItem.title}</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-primary" aria-hidden />
+    </Link>
   );
 }
 
@@ -976,7 +1007,7 @@ async function MessagesSection({
                 <li key={m.mentionId} className="truncate text-xs text-muted">
                   <Link href={`/inbox?c=${m.conversationId}`} className="hover:text-primary">
                     <span className="font-medium text-fg">{m.authorName ?? "Alguien"}</span>
-                    {m.clientName ? ` · ${m.clientName}` : ""}: {m.body.slice(0, 90)}
+                    {m.companyName ? ` · ${m.companyName}` : ""}: {m.body.slice(0, 90)}
                   </Link>
                 </li>
               ))}
@@ -995,7 +1026,7 @@ async function MessagesSection({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Link href={`/helpdesk/${m.ticketId}?tab=conversation`} className="min-w-0 truncate text-sm font-medium text-fg hover:text-primary">
                     <span className="mr-1 font-mono text-xs text-faint">{m.folio}</span>
-                    {m.clientName ?? "Sin cliente"}
+                    {m.companyName ?? "Sin cliente"}
                     {m.contact ? ` · ${m.contact}` : ""}
                   </Link>
                   <span className="flex items-center gap-2 text-xs text-faint">
@@ -1077,7 +1108,7 @@ async function QuickView({
             </Link>
           </div>
           <dl className="space-y-2 text-sm">
-            <QVRow label="Cliente" value={item.clientName ?? "—"} />
+            <QVRow label="Cliente" value={item.companyName ?? "—"} />
             <QVRow label="Responsable" value={item.assigneeName ?? "Sin responsable"} />
             <QVRow label="Estado" value={statusMetaFor(item)?.label ?? item.status} />
             <QVRow label="Prioridad" value={ticketPriorityMeta[item.priority]?.label ?? item.priority} />

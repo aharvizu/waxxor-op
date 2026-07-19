@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { db } from "@/db";
 import {
-  clients,
+  companies,
   kpiEntries,
   kpis,
   projects,
@@ -98,12 +98,12 @@ export default async function DashboardPage() {
         subject: workItems.title,
         status: workItems.status,
         priority: workItems.priority,
-        clientName: clients.name,
+        companyName: companies.name,
         createdAt: workItems.createdAt,
       })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
-      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
       .where(eq(tickets.organizationId, orgId))
       .orderBy(desc(workItems.createdAt))
       .limit(6),
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
             icon={<Send />}
             label="Quotes awaiting reply"
             value={String(pendingQuotes.value)}
-            hint="Quotes sent to clients and awaiting a decision"
+            hint="Quotes sent to companies and awaiting a decision"
             footer="sent, no decision yet"
           />
         </Link>
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
                         {t.subject}
                       </Link>
                     </Td>
-                    <Td className="text-muted">{t.clientName ?? "—"}</Td>
+                    <Td className="text-muted">{t.companyName ?? "—"}</Td>
                     <Td>
                       <Badge tone={ticketPriorityMeta[t.priority].tone}>
                         {ticketPriorityMeta[t.priority].label}

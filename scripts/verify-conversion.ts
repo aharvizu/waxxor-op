@@ -37,11 +37,11 @@ async function main() {
   const [u] = await sqlHttp`select id from users where organization_id = ${org.id} limit 1`;
   const user = { id: String(u.id), role: "superadmin" as const, organizationId: org.id as number };
 
-  const [client] = await sqlHttp`insert into clients (organization_id, name) values (${org.id}, 'CONV-VERIFY Client') returning id`;
+  const [client] = await sqlHttp`insert into companies (organization_id, name) values (${org.id}, 'CONV-VERIFY Client') returning id`;
 
   async function makeActivity(opts: {
     title: string;
-    clientId?: number | null;
+    companyId?: number | null;
     status?: string;
     archived?: boolean;
     completed?: boolean;
@@ -53,7 +53,7 @@ async function main() {
         type: "activity",
         title: opts.title,
         status: (opts.status ?? "pending") as never,
-        clientId: opts.clientId ?? null,
+        companyId: opts.companyId ?? null,
       });
       if (opts.completed) {
         await tx
@@ -75,9 +75,9 @@ async function main() {
     return { activityId, workItemId };
   }
 
-  const convertInput = (activityId: number, clientId: number | null) => ({
+  const convertInput = (activityId: number, companyId: number | null) => ({
     activityId,
-    clientId,
+    companyId,
     category: "Networking",
     subcategory: null,
     channel: "email" as const,
@@ -88,7 +88,7 @@ async function main() {
   // 1–3: successful conversion of a COMPLETED activity
   const done = await makeActivity({
     title: "CONV-VERIFY completed",
-    clientId: client.id,
+    companyId: client.id,
     completed: true,
   });
   const result = await convertActivityToTicket(user, convertInput(done.activityId, null));
@@ -148,7 +148,7 @@ async function main() {
   // 5. archived → rejected
   const arch = await makeActivity({
     title: "CONV-VERIFY archived",
-    clientId: client.id,
+    companyId: client.id,
     archived: true,
   });
   reason = "";
@@ -160,7 +160,7 @@ async function main() {
   check("archived activity rejected", reason === "archived");
 
   // 6. rollback when ticket insert fails: pre-occupy the unique work_item_id slot
-  const roll = await makeActivity({ title: "CONV-VERIFY tk-fail", clientId: client.id });
+  const roll = await makeActivity({ title: "CONV-VERIFY tk-fail", companyId: client.id });
   const conflictFolio = `TK-CONFLICT-${roll.workItemId}`;
   await sqlHttp`
     insert into tickets (organization_id, work_item_id, folio)
@@ -181,7 +181,7 @@ async function main() {
   await sqlHttp`delete from tickets where work_item_id = ${roll.workItemId}`;
 
   // 7. rollback when audit fails (same statements, forced NOT NULL violation)
-  const roll2 = await makeActivity({ title: "CONV-VERIFY audit-fail", clientId: client.id });
+  const roll2 = await makeActivity({ title: "CONV-VERIFY audit-fail", companyId: client.id });
   failed = false;
   try {
     await db.transaction(async (tx) => {
@@ -239,7 +239,7 @@ async function main() {
   await sqlHttp`delete from activities where work_item_id in (select id from work_items where title like 'CONV-VERIFY%')`;
   await sqlHttp`delete from tickets where work_item_id in (select id from work_items where title like 'CONV-VERIFY%')`;
   await sqlHttp`delete from work_items where title like 'CONV-VERIFY%'`;
-  await sqlHttp`delete from clients where name = 'CONV-VERIFY Client'`;
+  await sqlHttp`delete from companies where name = 'CONV-VERIFY Client'`;
   await sqlHttp`delete from organizations where slug = 'conv-verify'`;
 
   if (failures > 0) process.exit(1);

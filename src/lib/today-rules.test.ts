@@ -22,8 +22,8 @@ function item(over: Partial<TodayItem>): TodayItem {
     workItemId: 1,
     folio: null,
     title: "x",
-    clientId: null,
-    clientName: null,
+    companyId: null,
+    companyName: null,
     assigneeId: 1,
     assigneeName: "Ana",
     status: "pending",
@@ -177,12 +177,12 @@ describe("No olvides rules", () => {
     expect(keys).not.toContain("missing_time:14");
   });
 
-  it("detects inactive clients from real last-touch data", () => {
+  it("detects inactive companies from real last-touch data", () => {
     const reminders = evaluateReminders(
       [],
       [
-        { clientId: 1, clientName: "Viejo", lastTouchAt: new Date("2026-05-01T00:00:00Z") },
-        { clientId: 2, clientName: "Activo", lastTouchAt: new Date("2026-07-15T00:00:00Z") },
+        { companyId: 1, companyName: "Viejo", lastTouchAt: new Date("2026-05-01T00:00:00Z") },
+        { companyId: 2, companyName: "Activo", lastTouchAt: new Date("2026-07-15T00:00:00Z") },
       ],
       NOW,
     );
@@ -194,24 +194,24 @@ describe("No olvides rules", () => {
       {
         source: "client_service",
         sourceId: 1,
-        clientId: 5,
-        clientName: "Acme",
+        companyId: 5,
+        companyName: "Acme",
         concept: "M365",
         date: "2026-07-20", // 4 days out — due soon
       },
       {
         source: "contract",
         sourceId: 2,
-        clientId: 6,
-        clientName: "Globex",
+        companyId: 6,
+        companyName: "Globex",
         concept: "Managed services",
         date: "2026-07-01", // overdue
       },
       {
         source: "client_service",
         sourceId: 3,
-        clientId: 7,
-        clientName: "Initech",
+        companyId: 7,
+        companyName: "Initech",
         concept: "Backup",
         date: "2026-10-01", // far out — no alert
       },
@@ -225,7 +225,7 @@ describe("No olvides rules", () => {
     expect(overdue.severity).toBe("high");
     expect(overdue.entityType).toBe("client");
     expect(overdue.entityId).toBe(6);
-    expect(overdue.href).toBe("/clients/6?tab=renewals");
+    expect(overdue.href).toBe("/companies/6?tab=renewals");
   });
 
   it("surfaces project signals: overdue milestone, high risk and at-risk project", () => {

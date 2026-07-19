@@ -59,7 +59,7 @@ async function main() {
           type: "activity",
           title: task.title,
           status,
-          clientId: project.clientId,
+          companyId: project.companyId,
           assigneeId: task.assigneeId,
           dueDate: task.dueDate,
           completedAt: task.status === "done" ? new Date() : null,

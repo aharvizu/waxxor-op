@@ -17,7 +17,7 @@ const MARKER = "TX-VERIFY-DO-NOT-KEEP";
 async function main() {
   const { eq, sql } = await import("drizzle-orm");
   const { db } = await import("../src/db");
-  const { auditLogs, clients, organizations } = await import("../src/db/schema");
+  const { auditLogs, companies, organizations } = await import("../src/db/schema");
   const { recordAudit } = await import("../src/lib/audit");
 
   const [org] = await db
@@ -27,7 +27,7 @@ async function main() {
   if (!org) throw new Error("Default organization (slug: watson) not found");
 
   async function countWhere(
-    table: typeof clients | typeof auditLogs,
+    table: typeof companies | typeof auditLogs,
     where: ReturnType<typeof eq>,
   ) {
     const [row] = await db
@@ -43,9 +43,9 @@ async function main() {
   try {
     await db.transaction(async (tx) => {
       await tx
-        .insert(clients)
+        .insert(companies)
         .values({ name: MARKER, organizationId: org.id })
-        .returning({ id: clients.id });
+        .returning({ id: companies.id });
       await recordAudit(tx, {
         organizationId: org.id,
         entityType: null as unknown as string, // forces NOT NULL violation
@@ -56,7 +56,7 @@ async function main() {
     console.error("A: transaction unexpectedly committed");
     failures++;
   } catch {
-    const leaked = await countWhere(clients, eq(clients.name, MARKER));
+    const leaked = await countWhere(companies, eq(companies.name, MARKER));
     if (leaked === 0) {
       console.log("A PASS — audit insert failed and the client write was rolled back");
     } else {
@@ -78,9 +78,9 @@ async function main() {
         oldValue: "before",
         newValue: "after",
       });
-      // forces NOT NULL violation on clients.name
+      // forces NOT NULL violation on companies.name
       await tx
-        .insert(clients)
+        .insert(companies)
         .values({ name: null as unknown as string, organizationId: org.id });
     });
     console.error("B: transaction unexpectedly committed");

@@ -582,14 +582,16 @@ export function BillingForm({
 export function SidePanelForm({
   ticketId,
   defaults,
-  clients,
+  companies,
+  contacts,
   users,
 }: {
   ticketId: number;
   defaults: {
     title: string;
     description: string | null;
-    clientId: number | null;
+    companyId: number | null;
+    contactId: number | null;
     assigneeId: number | null;
     priority: string;
     category: string | null;
@@ -598,12 +600,17 @@ export function SidePanelForm({
     modality: string | null;
     contact: string | null;
   };
-  clients: Option[];
+  companies: Option[];
+  contacts: { id: number; name: string; companyId: number }[];
   users: Option[];
 }) {
   const [detailsState, detailsAction] = useForm(updateTicketDetails);
   const [assignState, assignAction] = useForm(assignTicket);
   const [priorityState, priorityAction] = useForm(setTicketPriority);
+  const [companyId, setCompanyId] = useState(defaults.companyId ? String(defaults.companyId) : "");
+  const suggestedContacts = companyId
+    ? contacts.filter((c) => c.companyId === Number(companyId))
+    : contacts;
 
   return (
     <div className="space-y-4">
@@ -647,9 +654,14 @@ export function SidePanelForm({
         <FormAlert state={detailsState} />
         <div>
           <label className={labelClass}>Client</label>
-          <select name="clientId" defaultValue={defaults.clientId ?? ""} className={inputClass}>
+          <select
+            name="companyId"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            className={inputClass}
+          >
             <option value="">— None —</option>
-            {clients.map((c) => (
+            {companies.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -658,6 +670,17 @@ export function SidePanelForm({
         </div>
         <div>
           <label className={labelClass}>Contact</label>
+          <select name="contactId" defaultValue={defaults.contactId ?? ""} className={inputClass}>
+            <option value="">— None —</option>
+            {suggestedContacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Contact note</label>
           <input name="contact" defaultValue={defaults.contact ?? ""} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">

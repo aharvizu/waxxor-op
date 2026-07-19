@@ -82,6 +82,11 @@ Documents updated: `docs/features/indicator-definitions.md`, `indicators.md`, `i
 Decision: the legacy document-style report templates were absorbed into the new operational `report_templates` (legacy `content` column kept, unused — no destructive change); manually-keyed KPIs remain at `/kpis` as a complement, never a substitute for computed indicators at `/indicators`.
 Documents updated: `docs/backlog/current-status.md`, `docs/features/report-templates.md`, `indicators.md`.
 
+### I-02 — RESOLVED (2026-07-19)
+Decision (from the Knowledge feature spec, user-directed): `Knowledge` ships as two separated spaces — **KB Operativa** (`/knowledge`, internal technical articles with a draft/review/publish/archive workflow, versioning, and optional relations to Ticket/Client/Project/Activity) and **Centro de Ayuda** (`/help`, product-usage tutorials with per-user progress). Both are internal-only in this phase; `knowledge_articles.visibility` models a future `client` value with no surface reading it yet (no customer portal exists — out of scope).
+Decided by: Knowledge & Help Center implementation (user-directed feature spec).
+Documents updated: `docs/features/knowledge.md`, `docs/architecture/system-overview.md`, `docs/backlog/current-status.md`.
+
 _Record further decisions as:_
 
 ```

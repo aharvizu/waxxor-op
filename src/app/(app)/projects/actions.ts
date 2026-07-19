@@ -9,7 +9,7 @@ import {
   catalogItems,
   activities,
   attachments,
-  clients,
+  companies,
   milestoneActivities,
   projectComments,
   projectLists,
@@ -166,7 +166,7 @@ async function ensureManagerMember(
 const projectCoreSchema = z.object({
   name: z.string("Nombre requerido.").trim().min(1, "Nombre requerido."),
   description: optionalText,
-  clientId: optionalId,
+  companyId: optionalId,
   projectManagerId: z.coerce
     .number("Project Manager requerido.")
     .int()
@@ -203,11 +203,11 @@ export async function createProject(
       if (!managerId) {
         throw new RuleError("El Project Manager debe ser un usuario interno de la organización.");
       }
-      if (data.clientId !== null) {
+      if (data.companyId !== null) {
         const [client] = await tx
-          .select({ id: clients.id })
-          .from(clients)
-          .where(and(eq(clients.id, data.clientId), eq(clients.organizationId, user.organizationId)));
+          .select({ id: companies.id })
+          .from(companies)
+          .where(and(eq(companies.id, data.companyId), eq(companies.organizationId, user.organizationId)));
         if (!client) throw new RuleError("El cliente no existe en esta organización.");
       }
 
@@ -218,7 +218,7 @@ export async function createProject(
           folio: sql`'PRJ-' || lpad(nextval('project_folio_seq')::text, 6, '0')`,
           name: data.name,
           description: data.description,
-          clientId: data.clientId,
+          companyId: data.companyId,
           status: "planning",
           healthStatus: orgDefaults.defaultHealth,
           priority: data.priority,
@@ -317,7 +317,7 @@ export async function createProject(
 }
 
 const PROJECT_AUDITED = [
-  "name", "description", "clientId", "priority", "projectManagerId", "ownerId",
+  "name", "description", "companyId", "priority", "projectManagerId", "ownerId",
   "startDate", "targetDate", "estimatedMinutes", "budgetAmount", "billingType",
 ] as const;
 
@@ -340,11 +340,11 @@ export async function updateProject(
       if (!managerId) {
         throw new RuleError("El Project Manager debe ser un usuario interno de la organización.");
       }
-      if (data.clientId !== null) {
+      if (data.companyId !== null) {
         const [client] = await tx
-          .select({ id: clients.id })
-          .from(clients)
-          .where(and(eq(clients.id, data.clientId), eq(clients.organizationId, user.organizationId)));
+          .select({ id: companies.id })
+          .from(companies)
+          .where(and(eq(companies.id, data.companyId), eq(companies.organizationId, user.organizationId)));
         if (!client) throw new RuleError("El cliente no existe en esta organización.");
       }
       const patch = {
@@ -1005,7 +1005,7 @@ export async function createProjectActivity(
         description: data.description,
         status: "pending",
         priority: data.priority,
-        clientId: project.clientId,
+        companyId: project.companyId,
         assigneeId,
         startDate: data.startDate,
         dueDate: data.dueDate,

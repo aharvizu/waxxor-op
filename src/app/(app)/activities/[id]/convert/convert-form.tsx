@@ -21,21 +21,21 @@ const channelLabels: Record<string, string> = {
 
 export function ConvertForm({
   activityId,
-  clientId,
+  companyId,
   assigneeId,
   priority,
   cancelled,
   inProject,
-  clients,
+  companies,
   users,
 }: {
   activityId: number;
-  clientId: number | null;
+  companyId: number | null;
   assigneeId: number | null;
   priority: string;
   cancelled: boolean;
   inProject: boolean;
-  clients: Option[];
+  companies: Option[];
   users: Option[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
@@ -53,18 +53,18 @@ export function ConvertForm({
       <FormAlert state={state} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="clientId" className={labelClass}>
-            Client {clientId ? "" : "(required — the activity has none)"}
+          <label htmlFor="companyId" className={labelClass}>
+            Client {companyId ? "" : "(required — the activity has none)"}
           </label>
           <select
-            id="clientId"
-            name="clientId"
+            id="companyId"
+            name="companyId"
             required
-            defaultValue={value("clientId", clientId ? String(clientId) : "")}
+            defaultValue={value("companyId", companyId ? String(companyId) : "")}
             className={inputClass}
           >
             <option value="">Select a client…</option>
-            {clients.map((c) => (
+            {companies.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>

@@ -2,7 +2,7 @@ import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activities,
-  clients,
+  companies,
   conversations,
   messages,
   operationalReminders,
@@ -85,8 +85,8 @@ export async function getTodayItems(
         workItemId: workItems.id,
         folio: tickets.folio,
         title: workItems.title,
-        clientId: workItems.clientId,
-        clientName: clients.name,
+        companyId: workItems.companyId,
+        companyName: companies.name,
         assigneeId: workItems.assigneeId,
         assigneeName: users.name,
         status: workItems.status,
@@ -109,7 +109,7 @@ export async function getTodayItems(
       })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
-      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
       .leftJoin(users, eq(workItems.assigneeId, users.id))
       .leftJoin(timeByItem, eq(timeByItem.workItemId, workItems.id))
       .leftJoin(conversations, eq(conversations.ticketId, tickets.id))
@@ -123,8 +123,8 @@ export async function getTodayItems(
         id: activities.id,
         workItemId: workItems.id,
         title: workItems.title,
-        clientId: workItems.clientId,
-        clientName: clients.name,
+        companyId: workItems.companyId,
+        companyName: companies.name,
         assigneeId: workItems.assigneeId,
         assigneeName: users.name,
         status: workItems.status,
@@ -140,7 +140,7 @@ export async function getTodayItems(
       })
       .from(activities)
       .innerJoin(workItems, eq(activities.workItemId, workItems.id))
-      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
       .leftJoin(users, eq(workItems.assigneeId, users.id))
       .leftJoin(timeByItem, eq(timeByItem.workItemId, workItems.id))
       .where(and(...activityConditions))
@@ -156,8 +156,8 @@ export async function getTodayItems(
       workItemId: t.workItemId,
       folio: t.folio,
       title: t.title,
-      clientId: t.clientId,
-      clientName: t.clientName,
+      companyId: t.companyId,
+      companyName: t.companyName,
       assigneeId: t.assigneeId,
       assigneeName: t.assigneeName,
       status: t.status,
@@ -189,8 +189,8 @@ export async function getTodayItems(
       workItemId: a.workItemId,
       folio: null,
       title: a.title,
-      clientId: a.clientId,
-      clientName: a.clientName,
+      companyId: a.companyId,
+      companyName: a.companyName,
       assigneeId: a.assigneeId,
       assigneeName: a.assigneeName,
       status: a.status,
@@ -222,14 +222,14 @@ export async function getTodayItems(
 export async function getClientsLastTouch(orgId: number) {
   const rows = await db
     .select({
-      clientId: clients.id,
-      clientName: clients.name,
-      lastTouchAt: sql<Date | null>`greatest(max(${workItems.updatedAt}), ${clients.createdAt})`,
+      companyId: companies.id,
+      companyName: companies.name,
+      lastTouchAt: sql<Date | null>`greatest(max(${workItems.updatedAt}), ${companies.createdAt})`,
     })
-    .from(clients)
-    .leftJoin(workItems, eq(workItems.clientId, clients.id))
-    .where(eq(clients.organizationId, orgId))
-    .groupBy(clients.id, clients.name, clients.createdAt);
+    .from(companies)
+    .leftJoin(workItems, eq(workItems.companyId, companies.id))
+    .where(eq(companies.organizationId, orgId))
+    .groupBy(companies.id, companies.name, companies.createdAt);
   return rows.map((r) => ({
     ...r,
     lastTouchAt: r.lastTouchAt ? new Date(r.lastTouchAt) : null,
@@ -277,7 +277,7 @@ export type RecentMessage = {
   ticketId: number;
   folio: string;
   ticketTitle: string;
-  clientName: string | null;
+  companyName: string | null;
   contact: string | null;
   assigneeName: string | null;
   channel: string;
@@ -310,7 +310,7 @@ export async function getRecentMessages(
       ticketId: tickets.id,
       folio: tickets.folio,
       ticketTitle: workItems.title,
-      clientName: clients.name,
+      companyName: companies.name,
       contact: tickets.contact,
       assigneeName: users.name,
       channel: lastMessage.channel,
@@ -323,7 +323,7 @@ export async function getRecentMessages(
     .innerJoin(lastMessage, eq(lastMessage.conversationId, conversations.id))
     .innerJoin(tickets, eq(conversations.ticketId, tickets.id))
     .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
-    .leftJoin(clients, eq(workItems.clientId, clients.id))
+    .leftJoin(companies, eq(workItems.companyId, companies.id))
     .leftJoin(users, eq(workItems.assigneeId, users.id))
     .where(
       and(

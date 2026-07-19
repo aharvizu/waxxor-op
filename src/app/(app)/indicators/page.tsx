@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { AlertTriangle } from "lucide-react";
 import { db } from "@/db";
-import { clients, users } from "@/db/schema";
+import { companies, users } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
 import {
   INDICATOR_THRESHOLD_DEFAULTS,
@@ -69,7 +69,7 @@ function previousOf(rule: Exclude<PeriodRule, "custom">): Exclude<PeriodRule, "c
 export default async function IndicatorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; period?: string; clientId?: string; userId?: string }>;
+  searchParams: Promise<{ view?: string; period?: string; companyId?: string; userId?: string }>;
 }) {
   // Technician has no executive panel (spec §20); redirected by requireRole.
   const user = await requireRole("superadmin", "administrator", "director", "project_manager");
@@ -84,13 +84,13 @@ export default async function IndicatorsPage({
   const now = new Date();
   const period = resolvePeriod(periodRule, ORG_TIMEZONE, now);
   const scope = {
-    clientId: params.clientId ? Number(params.clientId) : null,
+    companyId: params.companyId ? Number(params.companyId) : null,
     userId: params.userId ? Number(params.userId) : null,
   };
 
-  const [thresholds, clientRows, userRows] = await Promise.all([
+  const [thresholds, companyRows, userRows] = await Promise.all([
     getThresholds(user.organizationId),
-    db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.organizationId, user.organizationId)).orderBy(asc(clients.name)),
+    db.select({ id: companies.id, name: companies.name }).from(companies).where(eq(companies.organizationId, user.organizationId)).orderBy(asc(companies.name)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client"))).orderBy(asc(users.name)),
   ]);
 
@@ -134,9 +134,9 @@ export default async function IndicatorsPage({
               <option key={r} value={r}>{PERIOD_LABELS[r] ?? r}</option>
             ))}
           </select>
-          <select name="clientId" defaultValue={params.clientId ?? ""} className={cx(inputClass, "w-auto")}>
+          <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
             <option value="">Toda la organización</option>
-            {clientRows.map((c) => <option key={c.id} value={c.id}>Cliente: {c.name}</option>)}
+            {companyRows.map((c) => <option key={c.id} value={c.id}>Cliente: {c.name}</option>)}
           </select>
           <select name="userId" defaultValue={params.userId ?? ""} className={cx(inputClass, "w-auto")}>
             <option value="">Todos los usuarios</option>
@@ -215,7 +215,7 @@ async function ExecutivePanel({
   orgId: number;
   period: { start: string; end: string };
   periodRule: Exclude<PeriodRule, "custom">;
-  scope: { clientId: number | null; userId: number | null };
+  scope: { companyId: number | null; userId: number | null };
   thresholds: Record<string, number>;
 }) {
   const prevRule = previousOf(periodRule);
@@ -328,9 +328,9 @@ async function ExecutivePanel({
           </THead>
           <tbody className="divide-y divide-edge">
             {clientBoard.map((c) => (
-              <tr key={c.clientId} className="transition-colors hover:bg-subtle">
+              <tr key={c.companyId} className="transition-colors hover:bg-subtle">
                 <Td>
-                  <Link href={`/clients/${c.clientId}`} className="font-medium text-fg hover:text-primary">{c.clientName}</Link>
+                  <Link href={`/companies/${c.companyId}`} className="font-medium text-fg hover:text-primary">{c.companyName}</Link>
                 </Td>
                 <Td className="tabular-nums text-muted">{c.openTickets}</Td>
                 <Td className={cx("tabular-nums", c.overdueTickets > 0 ? "text-danger" : "text-muted")}>{c.overdueTickets}</Td>
@@ -356,7 +356,7 @@ async function OperationsPanel({
 }: {
   orgId: number;
   period: { start: string; end: string };
-  scope: { clientId: number | null; userId: number | null };
+  scope: { companyId: number | null; userId: number | null };
 }) {
   const [metrics, workload, noTime] = await Promise.all([
     computePeriodMetrics(orgId, period, scope),
@@ -444,7 +444,7 @@ async function BillingPanel({
 }: {
   orgId: number;
   period: { start: string; end: string };
-  scope: { clientId: number | null; userId: number | null };
+  scope: { companyId: number | null; userId: number | null };
 }) {
   const metrics = await computePeriodMetrics(orgId, period, scope);
   const b = metrics.billing;

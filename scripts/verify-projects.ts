@@ -156,10 +156,10 @@ async function main() {
 
   // 5. conversion unlinks project atomically -------------------------------
   const [client] = await sqlHttp`
-    insert into clients (organization_id, name) values (${orgId}, 'PRJ-VERIFY Client') returning id`;
+    insert into companies (organization_id, name) values (${orgId}, 'PRJ-VERIFY Client') returning id`;
   const conv = await convertActivityToTicket(user, {
     activityId: loose.activity.id,
-    clientId: client.id as number,
+    companyId: client.id as number,
     category: "Verify",
     channel: "internal",
     modality: "remote",
@@ -287,7 +287,7 @@ async function main() {
     await db.delete(workItems).where(eq(workItems.id, wi));
   }
   await db.delete(projects).where(eq(projects.id, created.project.id));
-  await sqlHttp`delete from clients where id = ${client.id}`;
+  await sqlHttp`delete from companies where id = ${client.id}`;
   await db.delete(projectMilestones).where(eq(projectMilestones.organizationId, otherOrg.id));
   await db.delete(projectRisks).where(eq(projectRisks.organizationId, otherOrg.id));
   await db.delete(projects).where(eq(projects.id, otherProject.id));

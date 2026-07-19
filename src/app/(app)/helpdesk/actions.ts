@@ -8,7 +8,8 @@ import { db, type DbExecutor } from "@/db";
 import {
   activities,
   attachments,
-  clients,
+  companies,
+  contacts,
   conversations,
   messages,
   tickets,
@@ -100,12 +101,12 @@ const optionalConfirmationType = z.preprocess(
   confirmationTypeSchema.optional(),
 );
 
-async function orgClientId(orgId: number, id: number | null) {
+async function orgCompanyId(orgId: number, id: number | null) {
   if (id === null) return null;
   const [row] = await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(and(eq(clients.id, id), eq(clients.organizationId, orgId)));
+    .select({ id: companies.id })
+    .from(companies)
+    .where(and(eq(companies.id, id), eq(companies.organizationId, orgId)));
   return row?.id ?? null;
 }
 
@@ -117,6 +118,15 @@ async function orgUserId(orgId: number, id: number | null) {
     .where(
       and(eq(users.id, id), eq(users.organizationId, orgId), ne(users.role, "client")),
     );
+  return row?.id ?? null;
+}
+
+/** Org-scoped contact; if companyId is set, the contact must belong to it. */
+async function orgContactId(orgId: number, id: number | null, companyId: number | null) {
+  if (id === null) return null;
+  const conditions = [eq(contacts.id, id), eq(contacts.organizationId, orgId)];
+  if (companyId !== null) conditions.push(eq(contacts.companyId, companyId));
+  const [row] = await db.select({ id: contacts.id }).from(contacts).where(and(...conditions));
   return row?.id ?? null;
 }
 
@@ -250,7 +260,8 @@ const createTicketSchema = z.object({
   subject: z.string("Subject is required.").trim().min(1, "Subject is required."),
   description: optionalText,
   priority: workItemPrioritySchema.default("medium"),
-  clientId: optionalId,
+  companyId: optionalId,
+  contactId: optionalId,
   assigneeId: optionalId,
   category: optionalText,
   subcategory: optionalText,
@@ -268,7 +279,8 @@ export async function createTicket(
   const { data, error } = parseForm(createTicketSchema, formData);
   if (error) return error;
 
-  const clientId = await orgClientId(user.organizationId, data.clientId);
+  const companyId = await orgCompanyId(user.organizationId, data.companyId);
+  const contactId = await orgContactId(user.organizationId, data.contactId, companyId);
   const assigneeId = await orgUserId(user.organizationId, data.assigneeId);
 
   let ticketId: number;
@@ -280,7 +292,8 @@ export async function createTicket(
         description: data.description,
         status: assigneeId ? "assigned" : "new",
         priority: data.priority,
-        clientId,
+        companyId,
+        contactId,
         assigneeId,
       });
       const explicitSlaId = user.role === "superadmin" ? data.slaDefinitionId : null;
@@ -344,7 +357,8 @@ const detailsSchema = z.object({
   channel: optionalText,
   modality: optionalText,
   contact: optionalText,
-  clientId: optionalId,
+  companyId: optionalId,
+  contactId: optionalId,
 });
 
 export async function updateTicketDetails(
@@ -355,7 +369,8 @@ export async function updateTicketDetails(
   const { data, error } = parseForm(detailsSchema, formData);
   if (error) return error;
 
-  const clientId = await orgClientId(user.organizationId, data.clientId);
+  const companyId = await orgCompanyId(user.organizationId, data.companyId);
+  const contactId = await orgContactId(user.organizationId, data.contactId, companyId);
 
   try {
     await db.transaction(async (tx) => {
@@ -363,7 +378,8 @@ export async function updateTicketDetails(
       await updateWorkItemFields(tx, user, row.item.id, {
         title: data.title,
         description: data.description,
-        clientId,
+        companyId,
+        contactId,
       });
       const patch = {
         category: data.category,
@@ -931,7 +947,7 @@ async function getOrCreateConversation(
     .insert(conversations)
     .values({
       organizationId: user.organizationId,
-      clientId: row.item.clientId,
+      companyId: row.item.companyId,
       ticketId: row.ticket.id,
       channel: "manual",
     })
@@ -1151,7 +1167,7 @@ export async function createRelatedActivity(
         title: data.title,
         status: "pending",
         priority: data.priority,
-        clientId: row.item.clientId,
+        companyId: row.item.companyId,
         assigneeId,
         dueDate: data.dueDate,
       });

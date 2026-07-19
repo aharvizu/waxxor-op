@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  clients,
+  companies,
   projects,
   recurrenceDefinitions,
   recurrenceExecutions,
@@ -51,7 +51,7 @@ export type RecurrenceDirectoryFilters = {
   status?: string;
   targetType?: string;
   frequency?: string;
-  clientId?: number;
+  companyId?: number;
   projectId?: number;
   assigneeId?: number;
   createdById?: number;
@@ -123,7 +123,7 @@ export async function getRecurrencesDirectory(
   if (filters.status) conditions.push(eq(recurrenceDefinitions.status, filters.status as never));
   if (filters.targetType) conditions.push(eq(recurrenceDefinitions.targetType, filters.targetType as never));
   if (filters.frequency) conditions.push(eq(recurrenceDefinitions.frequency, filters.frequency as never));
-  if (filters.clientId) conditions.push(eq(recurrenceDefinitions.clientId, filters.clientId));
+  if (filters.companyId) conditions.push(eq(recurrenceDefinitions.companyId, filters.companyId));
   if (filters.projectId) conditions.push(eq(recurrenceDefinitions.projectId, filters.projectId));
   if (filters.assigneeId) conditions.push(eq(recurrenceDefinitions.assigneeId, filters.assigneeId));
   if (filters.createdById) conditions.push(eq(recurrenceDefinitions.createdById, filters.createdById));
@@ -132,7 +132,7 @@ export async function getRecurrencesDirectory(
   return db
     .select({
       def: recurrenceDefinitions,
-      clientName: clients.name,
+      companyName: companies.name,
       projectName: projects.name,
       assigneeName: users.name,
       lastResultStatus: sql<string | null>`(select e.status::text from recurrence_executions e
@@ -140,7 +140,7 @@ export async function getRecurrencesDirectory(
         order by e.created_at desc limit 1)`,
     })
     .from(recurrenceDefinitions)
-    .leftJoin(clients, eq(recurrenceDefinitions.clientId, clients.id))
+    .leftJoin(companies, eq(recurrenceDefinitions.companyId, companies.id))
     .leftJoin(projects, eq(recurrenceDefinitions.projectId, projects.id))
     .leftJoin(users, eq(recurrenceDefinitions.assigneeId, users.id))
     .where(and(...conditions))
@@ -152,15 +152,15 @@ export async function getRecurrenceDetail(orgId: number, id: number) {
   const [row] = await db
     .select({
       def: recurrenceDefinitions,
-      clientName: clients.name,
-      clientStatus: clients.status,
+      companyName: companies.name,
+      clientStatus: companies.status,
       projectName: projects.name,
       projectStatus: projects.status,
       assigneeName: users.name,
       creatorName: sql<string | null>`(select u.name from users u where u.id = ${recurrenceDefinitions.createdById})`,
     })
     .from(recurrenceDefinitions)
-    .leftJoin(clients, eq(recurrenceDefinitions.clientId, clients.id))
+    .leftJoin(companies, eq(recurrenceDefinitions.companyId, companies.id))
     .leftJoin(projects, eq(recurrenceDefinitions.projectId, projects.id))
     .leftJoin(users, eq(recurrenceDefinitions.assigneeId, users.id))
     .where(and(eq(recurrenceDefinitions.id, id), eq(recurrenceDefinitions.organizationId, orgId)));
@@ -201,7 +201,7 @@ export type RecurrenceSignal = {
   status: string;
   reason: "failed" | "overdue" | "no_assignee" | "invalid_context" | "expiring_soon";
   detail: string;
-  clientId: number | null;
+  companyId: number | null;
 };
 
 /**
@@ -235,7 +235,7 @@ export async function getUserRecurrenceSignals(orgId: number, userId: number): P
         status: def.status,
         reason: "failed",
         detail: `${def.consecutiveFailedCount} fallo(s) consecutivo(s) — pausada automáticamente.`,
-        clientId: def.clientId,
+        companyId: def.companyId,
       });
       continue;
     }
@@ -246,7 +246,7 @@ export async function getUserRecurrenceSignals(orgId: number, userId: number): P
         status: def.status,
         reason: "overdue",
         detail: "Vencida sin procesar por el programador.",
-        clientId: def.clientId,
+        companyId: def.companyId,
       });
     }
     if (def.targetType !== "activity" && !def.assigneeId) {
@@ -256,7 +256,7 @@ export async function getUserRecurrenceSignals(orgId: number, userId: number): P
         status: def.status,
         reason: "no_assignee",
         detail: "Sin responsable configurado.",
-        clientId: def.clientId,
+        companyId: def.companyId,
       });
     }
     if (def.endAt) {
@@ -270,7 +270,7 @@ export async function getUserRecurrenceSignals(orgId: number, userId: number): P
           status: def.status,
           reason: "expiring_soon",
           detail: `Termina el ${def.endAt}.`,
-          clientId: def.clientId,
+          companyId: def.companyId,
         });
       }
     }
@@ -306,7 +306,7 @@ export async function getRecurrenceSummary(orgId: number) {
 
 /* ----------------------------------------------------- Client 360 integration */
 
-export async function getClientRecurrences(orgId: number, clientId: number) {
+export async function getClientRecurrences(orgId: number, companyId: number) {
   return db
     .select({ def: recurrenceDefinitions, assigneeName: users.name })
     .from(recurrenceDefinitions)
@@ -314,7 +314,7 @@ export async function getClientRecurrences(orgId: number, clientId: number) {
     .where(
       and(
         eq(recurrenceDefinitions.organizationId, orgId),
-        eq(recurrenceDefinitions.clientId, clientId),
+        eq(recurrenceDefinitions.companyId, companyId),
         isNull(recurrenceDefinitions.archivedAt),
       ),
     )

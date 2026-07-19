@@ -12,8 +12,8 @@ export type TodayItem = {
   workItemId: number;
   folio: string | null;
   title: string;
-  clientId: number | null;
-  clientName: string | null;
+  companyId: number | null;
+  companyName: string | null;
   assigneeId: number | null;
   assigneeName: string | null;
   status: string;
@@ -205,8 +205,8 @@ const DAY = 86_400_000;
 export type RenewalInput = {
   source: string;
   sourceId: number;
-  clientId: number;
-  clientName: string;
+  companyId: number;
+  companyName: string;
   concept: string;
   date: string; // YYYY-MM-DD
 };
@@ -236,7 +236,7 @@ export type ReportSignalInput = {
 
 export function evaluateReminders(
   items: TodayItem[],
-  clientsLastTouch: { clientId: number; clientName: string; lastTouchAt: Date | null }[],
+  clientsLastTouch: { companyId: number; companyName: string; lastTouchAt: Date | null }[],
   now: Date,
   renewals: RenewalInput[] = [],
   projectSignals: ProjectSignalsInput = { milestones: [], risks: [], riskyProjects: [] },
@@ -382,12 +382,12 @@ export function evaluateReminders(
       out.push({
         ruleKey: "client_inactive",
         entityType: "client",
-        entityId: c.clientId,
-        title: `Cliente sin interacción: ${c.clientName}`,
+        entityId: c.companyId,
+        title: `Cliente sin interacción: ${c.companyName}`,
         detail: `Sin trabajo ni mensajes desde hace ${age(c.lastTouchAt)} días.`,
         severity: "low",
         conditionSince: c.lastTouchAt,
-        href: `/clients/${c.clientId}`,
+        href: `/companies/${c.companyId}`,
         recommendedAction: "Programa un seguimiento comercial",
         canDismiss: true,
         canResolve: true,
@@ -404,14 +404,14 @@ export function evaluateReminders(
     out.push({
       ruleKey: `renewal_${r.source}_${r.sourceId}`.slice(0, 64),
       entityType: "client",
-      entityId: r.clientId,
+      entityId: r.companyId,
       title: overdue
         ? `Renovación vencida: ${r.concept}`
         : `Renovación próxima: ${r.concept}`,
-      detail: `${r.clientName} · ${r.date} (${overdue ? `${-daysLeft} días vencida` : `${daysLeft} días restantes`}).`,
+      detail: `${r.companyName} · ${r.date} (${overdue ? `${-daysLeft} días vencida` : `${daysLeft} días restantes`}).`,
       severity: overdue || daysLeft <= 7 ? "high" : "medium",
       conditionSince: new Date(dueMs - 30 * DAY),
-      href: `/clients/${r.clientId}?tab=renewals`,
+      href: `/companies/${r.companyId}?tab=renewals`,
       recommendedAction: overdue ? "Renueva o cancela el servicio" : "Gestiona la renovación con el cliente",
       canDismiss: true,
       canResolve: true,

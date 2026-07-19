@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { Archive, CheckCircle2, Clock, History, ListChecks, Repeat } from "lucide-react";
 import { db } from "@/db";
-import { auditLogs, clients, projectLists, projects, users } from "@/db/schema";
+import { auditLogs, companies, projectLists, projects, users } from "@/db/schema";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   recurrenceExecutionSourceMeta,
@@ -239,7 +239,7 @@ async function ResumenTab({
         <Card className="p-5">
           <CardHeader title="Contexto" className="mb-3 px-0 pt-0" />
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between"><dt className="text-muted">Cliente</dt><dd className="text-fg">{detail.clientName ?? "Interno"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Cliente</dt><dd className="text-fg">{detail.companyName ?? "Interno"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Proyecto</dt><dd className="text-fg">{detail.projectName ?? "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Responsable</dt><dd className="text-fg">{detail.assigneeName ?? "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Creado por</dt><dd className="text-fg">{detail.creatorName ?? "—"}</dd></div>
@@ -302,8 +302,8 @@ async function ConfiguracionTab({
   def: NonNullable<Awaited<ReturnType<typeof getRecurrenceDetail>>>["def"];
   isSuperAdmin: boolean;
 }) {
-  const [clientRows, projectRows, listRows, userRows] = await Promise.all([
-    db.select({ id: clients.id, name: clients.name }).from(clients).where(eq(clients.organizationId, orgId)).orderBy(asc(clients.name)),
+  const [companyRows, projectRows, listRows, userRows] = await Promise.all([
+    db.select({ id: companies.id, name: companies.name }).from(companies).where(eq(companies.organizationId, orgId)).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, orgId)).orderBy(asc(projects.name)),
     db.select({ id: projectLists.id, name: projectLists.name, projectId: projectLists.projectId }).from(projectLists).where(eq(projectLists.organizationId, orgId)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, orgId), ne(users.role, "client"))).orderBy(asc(users.name)),
@@ -324,7 +324,7 @@ async function ConfiguracionTab({
     <div className="max-w-3xl space-y-6">
       <Card className="p-6">
         <RecurrenceWizard
-          clients={clientRows}
+          companies={companyRows}
           projects={projectRows}
           projectListsByProject={projectListsByProject}
           internalUsers={userRows}
@@ -333,7 +333,7 @@ async function ConfiguracionTab({
             name: def.name,
             description: def.description,
             targetType: def.targetType,
-            clientId: def.clientId,
+            companyId: def.companyId,
             projectId: def.projectId,
             projectListId: def.projectListId,
             assigneeId: def.assigneeId,

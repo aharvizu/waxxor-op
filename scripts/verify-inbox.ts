@@ -28,7 +28,7 @@ async function main() {
   const {
     activities,
     auditLogs,
-    clients,
+    companies,
     conversationParticipants,
     conversations,
     messageMentions,
@@ -65,7 +65,7 @@ async function main() {
 
   const ids = {
     users: [] as number[],
-    clients: [] as number[],
+    companies: [] as number[],
     projects: [] as number[],
     workItems: [] as number[],
     conversations: [] as number[],
@@ -85,10 +85,10 @@ async function main() {
     ids.users.push(colleague.id);
 
     const [client] = await db
-      .insert(clients)
+      .insert(companies)
       .values({ organizationId: org.id, name: "INB Verify Client" })
       .returning();
-    ids.clients.push(client.id);
+    ids.companies.push(client.id);
 
     const [project] = await db
       .insert(projects)
@@ -111,7 +111,7 @@ async function main() {
         title: "INB verify activity",
         status: "pending",
         priority: "medium",
-        clientId: client.id,
+        companyId: client.id,
         createdById: actor.id,
       })
       .returning();
@@ -123,7 +123,7 @@ async function main() {
       .values({
         organizationId: org.id,
         subject: "INB conversación de actividad",
-        clientId: client.id,
+        companyId: client.id,
         workItemId: activityItem.id,
         projectId: project.id,
         channel: "internal",
@@ -210,7 +210,7 @@ async function main() {
         title: "INB verify ticket",
         status: "new",
         priority: "medium",
-        clientId: client.id,
+        companyId: client.id,
         createdById: actor.id,
       })
       .returning();
@@ -223,7 +223,7 @@ async function main() {
       .insert(conversations)
       .values({
         organizationId: org.id,
-        clientId: client.id,
+        companyId: client.id,
         ticketId: ticket.id,
         channel: "internal",
         status: "open",
@@ -283,7 +283,7 @@ async function main() {
     );
 
     /* summary for integrations */
-    const summary = await getConversationSummary(org.id, { clientId: client.id });
+    const summary = await getConversationSummary(org.id, { companyId: client.id });
     check("integration summary counts conversations for the client", summary.total === 2);
 
     /* 8. one conversation per ticket */
@@ -354,7 +354,7 @@ async function main() {
       await db.delete(workItems).where(eq(workItems.id, id));
     }
     for (const id of ids.projects) await db.delete(projects).where(eq(projects.id, id));
-    for (const id of ids.clients) await db.delete(clients).where(eq(clients.id, id));
+    for (const id of ids.companies) await db.delete(companies).where(eq(companies.id, id));
     await db
       .delete(auditLogs)
       .where(sql`${auditLogs.organizationId} = ${org.id} and ${auditLogs.createdAt} > now() - interval '10 minutes' and ${auditLogs.entityType} in ('ticket') and ${auditLogs.metadata}->>'via' = 'message'`);

@@ -8,7 +8,7 @@ import { db, type DbExecutor } from "@/db";
 import {
   apiKeys,
   catalogItems,
-  clients,
+  companies,
   organizationSettings,
   organizations,
   projects,
@@ -99,7 +99,7 @@ export async function saveOrganizationSetting(
     if (error) return error;
 
     // Foreign ids inside settings payloads are re-validated within the org.
-    if (key === "clients.defaults") {
+    if (key === "companies.defaults") {
       const d = data as { defaultAccountOwnerId?: number | null; defaultTechnicianId?: number | null };
       for (const id of [d.defaultAccountOwnerId, d.defaultTechnicianId]) {
         if (id != null) {
@@ -706,16 +706,16 @@ async function reassignOpenWork(
     .returning({ id: reports.id });
 
   const ownerClients = await tx
-    .update(clients)
+    .update(companies)
     .set({ accountOwnerId: toId, updatedAt: new Date() })
-    .where(and(eq(clients.organizationId, orgId), eq(clients.accountOwnerId, fromId)))
-    .returning({ id: clients.id });
+    .where(and(eq(companies.organizationId, orgId), eq(companies.accountOwnerId, fromId)))
+    .returning({ id: companies.id });
 
   const techClients = await tx
-    .update(clients)
+    .update(companies)
     .set({ defaultTechnicianId: toId, updatedAt: new Date() })
-    .where(and(eq(clients.organizationId, orgId), eq(clients.defaultTechnicianId, fromId)))
-    .returning({ id: clients.id });
+    .where(and(eq(companies.organizationId, orgId), eq(companies.defaultTechnicianId, fromId)))
+    .returning({ id: companies.id });
 
   return {
     workItems: openItems.length,

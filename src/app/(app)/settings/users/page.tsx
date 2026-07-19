@@ -72,7 +72,7 @@ export default async function UsersSettingsPage() {
                     <span className="flex items-center gap-2.5">
                       <Avatar name={u.name} />
                       <span>
-                        <Link href={`/users/${u.id}`} className="font-medium text-fg hover:underline">
+                        <Link href={`/settings/users/${u.id}`} className="font-medium text-fg hover:underline">
                           {u.name}
                         </Link>
                         <span className="block text-xs text-muted">{u.email}</span>

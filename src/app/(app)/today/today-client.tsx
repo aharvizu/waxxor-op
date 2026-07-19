@@ -147,7 +147,7 @@ function CreateMenu() {
       <Link href="/helpdesk/new" className={menuItemClass}>
         Ticket
       </Link>
-      <Link href="/clients" className={menuItemClass}>
+      <Link href="/companies" className={menuItemClass}>
         Cliente
       </Link>
       <Link href="/today?filter=today" className={menuItemClass}>

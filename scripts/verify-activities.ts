@@ -62,13 +62,13 @@ async function main() {
     workItemId = item.id;
   });
   const [created] = await sqlHttp`
-    select w.title, w.status::text, w.client_id, w.assignee_id, w.due_date, a.activity_type::text
+    select w.title, w.status::text, w.company_id, w.assignee_id, w.due_date, a.activity_type::text
     from activities a join work_items w on w.id = a.work_item_id where a.id = ${activityId}`;
   check(
     "create with title only (no client/assignee/date)",
     created.title === "ACT-VERIFY title only" &&
       created.status === "pending" &&
-      created.client_id === null &&
+      created.company_id === null &&
       created.assignee_id === null &&
       created.due_date === null &&
       created.activity_type === "general",

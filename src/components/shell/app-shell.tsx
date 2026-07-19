@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   MessageSquare,
   Settings,
   Bell,
+  BookOpen,
   Building2,
   Check,
   ChevronDown,
@@ -16,23 +18,26 @@ import {
   FileText,
   FolderKanban,
   Gauge,
+  HelpCircle,
   Home,
   Inbox,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
+  Menu as MenuIcon,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Repeat,
   Search,
   ShieldCheck,
-  Timer,
   Users,
+  X,
 } from "lucide-react";
 import { Avatar, Badge, cx, iconButtonClass } from "@/components/ui";
 import { Breadcrumbs } from "./breadcrumbs";
 import { CommandMenu, OPEN_COMMAND_EVENT } from "./command-menu";
+import { HelpMenuButton, type TutorialSummary } from "./help-menu";
 import { Dropdown, MenuLabel, MenuSeparator, menuItemClass } from "./dropdown";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -65,11 +70,13 @@ function readStoredCollapsed() {
 export function AppShell({
   user,
   openTickets,
+  tutorials,
   signOut,
   children,
 }: {
   user: ShellUser;
   openTickets: number;
+  tutorials: TutorialSummary[];
   signOut: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -90,9 +97,13 @@ export function AppShell({
     setCollapsedOverride(next);
   }
 
+  // Six mandated groups (UX consolidation, 2026-07-20): every module lives in
+  // exactly one of these — no per-feature ad-hoc sections. Configuration
+  // (Users, SLA, Roles, catalogs) lives ONLY inside Settings; see
+  // docs/features/settings.md and docs/architecture/navigation.md.
   const sections: NavSection[] = [
     {
-      name: null,
+      name: "Today",
       items: [
         { href: "/today", label: "Hoy", icon: Home },
         { href: "/inbox", label: "Inbox", icon: MessageSquare },
@@ -103,30 +114,41 @@ export function AppShell({
       name: "Operations",
       items: [
         { href: "/activities", label: "Activities", icon: ClipboardCheck },
-        { href: "/helpdesk", label: "Helpdesk", icon: LifeBuoy, badge: openTickets },
+        { href: "/helpdesk", label: "Tickets", icon: LifeBuoy, badge: openTickets },
         { href: "/projects", label: "Projects", icon: FolderKanban },
         { href: "/recurring", label: "Recurring", icon: Repeat },
       ],
     },
     {
-      name: "Revenue",
+      name: "Companies",
       items: [
-        { href: "/quotes", label: "Quotes", icon: FileText },
-        { href: "/reports", label: "Reports", icon: ClipboardList },
-        { href: "/indicators", label: "Indicators", icon: Gauge },
-        { href: "/kpis", label: "KPIs", icon: Inbox },
+        { href: "/companies", label: "Empresas", icon: Building2 },
+        { href: "/contacts", label: "Contactos", icon: Users },
       ],
     },
     {
-      name: "Organization",
+      name: "Knowledge",
       items: [
-        { href: "/clients", label: "Clients", icon: Building2 },
-        { href: "/sla", label: "SLA", icon: Timer },
-        { href: "/users", label: "Users", icon: Users },
-        { href: "/settings", label: "Settings", icon: Settings },
+        { href: "/knowledge", label: "Knowledge Base", icon: BookOpen },
+        { href: "/help", label: "Help Center", icon: HelpCircle },
       ],
     },
+    {
+      name: "Analytics",
+      items: [
+        { href: "/reports", label: "Reports", icon: ClipboardList },
+        { href: "/indicators", label: "Indicators", icon: Gauge },
+        { href: "/kpis", label: "KPIs", icon: Inbox },
+        { href: "/quotes", label: "Quotes", icon: FileText },
+      ],
+    },
+    {
+      name: "Administration",
+      items: [{ href: "/settings", label: "Settings", icon: Settings }],
+    },
   ];
+
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
     <div className="min-h-screen">
@@ -136,6 +158,7 @@ export function AppShell({
         mounted={mounted}
         onToggle={toggleSidebar}
       />
+      <MobileNav sections={sections} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
       <div
         className={cx(
@@ -145,7 +168,12 @@ export function AppShell({
           "print:pl-0",
         )}
       >
-        <Topbar user={user} signOut={signOut} />
+        <Topbar
+          user={user}
+          signOut={signOut}
+          tutorials={tutorials}
+          onOpenMobileNav={() => setMobileNavOpen(true)}
+        />
         <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 py-8 lg:px-10 print:p-0">
           {children}
         </main>
@@ -153,6 +181,125 @@ export function AppShell({
 
       <CommandMenu />
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- Mobile nav */
+
+/**
+ * Slide-in drawer replacing the sidebar below the `md` breakpoint — the
+ * sidebar itself is `hidden md:flex`, so without this there was no way to
+ * navigate between modules on a phone at all (UX audit, 2026-07-20).
+ */
+function MobileNav({
+  sections,
+  open,
+  onClose,
+}: {
+  sections: NavSection[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const pathname = usePathname();
+
+  // Close automatically on navigation and on Escape.
+  useEffect(() => {
+    onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-[70] bg-slate-950/50 md:hidden"
+          onClick={onClose}
+        >
+          <motion.aside
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Main navigation"
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-full w-72 max-w-[85vw] flex-col bg-sidebar"
+          >
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <span className="flex items-center gap-2.5">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 text-sm font-bold text-white shadow-card">
+                  W
+                </span>
+                <span className="text-sm font-semibold text-white">Waxxor Ops</span>
+              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close navigation"
+                className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.06] hover:text-white"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main">
+              {sections.map((section, si) => (
+                <div key={section.name ?? si} className={cx(si > 0 && "mt-6")}>
+                  {section.name ? (
+                    <div className="mb-1.5 px-3 text-[11px] font-semibold tracking-wider text-slate-600 uppercase">
+                      {section.name}
+                    </div>
+                  ) : null}
+                  <ul className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const active =
+                        pathname === item.href || pathname.startsWith(`${item.href}/`);
+                      return (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            aria-current={active ? "page" : undefined}
+                            className={cx(
+                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                              active
+                                ? "bg-white/[0.06] text-white"
+                                : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200",
+                            )}
+                          >
+                            <item.icon
+                              className={cx("size-[18px] shrink-0", active ? "text-purple-400" : "text-slate-500")}
+                            />
+                            <span className="truncate">{item.label}</span>
+                            {item.badge ? (
+                              <span className="ml-auto rounded-full bg-white/[0.08] px-2 py-0.5 text-[11px] font-medium text-slate-300 tabular-nums">
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </nav>
+          </motion.aside>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -319,9 +466,27 @@ function Sidebar({
 
 /* ----------------------------------------------------------------- Topbar */
 
-function Topbar({ user, signOut }: { user: ShellUser; signOut: () => Promise<void> }) {
+function Topbar({
+  user,
+  signOut,
+  tutorials,
+  onOpenMobileNav,
+}: {
+  user: ShellUser;
+  signOut: () => Promise<void>;
+  tutorials: TutorialSummary[];
+  onOpenMobileNav: () => void;
+}) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-edge bg-canvas/85 px-6 backdrop-blur-md print:hidden">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-edge bg-canvas/85 px-4 backdrop-blur-md sm:px-6 print:hidden">
+      <button
+        type="button"
+        onClick={onOpenMobileNav}
+        aria-label="Open navigation"
+        className={cx(iconButtonClass, "shrink-0 md:hidden")}
+      >
+        <MenuIcon className="size-4" />
+      </button>
       <Breadcrumbs />
 
       <div className="ml-auto flex items-center gap-1.5">
@@ -345,6 +510,8 @@ function Topbar({ user, signOut }: { user: ShellUser; signOut: () => Promise<voi
         >
           <Search className="size-4" />
         </button>
+
+        <HelpMenuButton tutorials={tutorials} />
 
         {/* Quick create */}
         <Dropdown
@@ -373,6 +540,9 @@ function Topbar({ user, signOut }: { user: ShellUser; signOut: () => Promise<voi
           </Link>
           <Link href="/reports/new" className={menuItemClass}>
             <ClipboardList /> New report
+          </Link>
+          <Link href="/knowledge/new" className={menuItemClass}>
+            <BookOpen /> New KB article
           </Link>
         </Dropdown>
 

@@ -4,7 +4,7 @@ import {
   activities,
   attachments,
   auditLogs,
-  clients,
+  companies,
   milestoneActivities,
   projectComments,
   projectLists,
@@ -99,7 +99,7 @@ export type ProjectDirectoryFilters = {
   status?: string;
   health?: string;
   priority?: string;
-  clientId?: number;
+  companyId?: number;
   managerId?: number;
   memberId?: number;
 };
@@ -150,7 +150,7 @@ export async function getProjectsDirectory(
       );
       break;
     case "internal":
-      conditions.push(isNull(projects.clientId));
+      conditions.push(isNull(projects.companyId));
       conditions.push(sql`${projects.status} not in ('completed','cancelled','archived')`);
       break;
     case "completed":
@@ -184,7 +184,7 @@ export async function getProjectsDirectory(
       eq(projects.priority, filters.priority as (typeof projects.$inferSelect)["priority"]),
     );
   }
-  if (filters.clientId) conditions.push(eq(projects.clientId, filters.clientId));
+  if (filters.companyId) conditions.push(eq(projects.companyId, filters.companyId));
   if (filters.managerId) conditions.push(eq(projects.projectManagerId, filters.managerId));
   if (filters.memberId) {
     conditions.push(
@@ -196,12 +196,12 @@ export async function getProjectsDirectory(
   return db
     .select({
       project: projects,
-      clientName: clients.name,
+      companyName: companies.name,
       managerName: users.name,
       ...agg,
     })
     .from(projects)
-    .leftJoin(clients, eq(projects.clientId, clients.id))
+    .leftJoin(companies, eq(projects.companyId, companies.id))
     .leftJoin(users, eq(projects.projectManagerId, users.id))
     .where(and(...conditions))
     .orderBy(desc(projects.updatedAt))
@@ -214,12 +214,12 @@ export async function getProjectDetail(orgId: number, projectId: number) {
   const [row] = await db
     .select({
       project: projects,
-      clientName: clients.name,
+      companyName: companies.name,
       managerName: users.name,
       ...agg,
     })
     .from(projects)
-    .leftJoin(clients, eq(projects.clientId, clients.id))
+    .leftJoin(companies, eq(projects.companyId, companies.id))
     .leftJoin(users, eq(projects.projectManagerId, users.id))
     .where(and(eq(projects.id, projectId), eq(projects.organizationId, orgId)));
   return row ?? null;
@@ -260,7 +260,7 @@ export type ProjectTreeActivity = {
   priority: string;
   assigneeId: number | null;
   assigneeName: string | null;
-  clientId: number | null;
+  companyId: number | null;
   startDate: string | null;
   dueDate: string | null;
   estimatedMinutes: number | null;
@@ -289,7 +289,7 @@ export async function getProjectWorkTree(orgId: number, projectId: number) {
         priority: workItems.priority,
         assigneeId: workItems.assigneeId,
         assigneeName: users.name,
-        clientId: workItems.clientId,
+        companyId: workItems.companyId,
         startDate: workItems.startDate,
         dueDate: workItems.dueDate,
         estimatedMinutes: workItems.estimatedMinutes,

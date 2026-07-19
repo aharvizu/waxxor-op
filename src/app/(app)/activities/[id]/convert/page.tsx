@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/db";
-import { activities, clients, users, workItems } from "@/db/schema";
+import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, CardHeader, PageHeader, buttonGhostClass } from "@/components/ui";
 import { activityStatusMeta } from "@/lib/labels";
@@ -39,12 +39,12 @@ export default async function ConvertActivityPage({
   // Archived activities cannot be converted — send the user back to restore first.
   if (row.activity.archivedAt) redirect(`/activities/${activityId}`);
 
-  const [clientRows, userRows] = await Promise.all([
+  const [companyRows, userRows] = await Promise.all([
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -73,12 +73,12 @@ export default async function ConvertActivityPage({
         <div className="p-6">
           <ConvertForm
             activityId={row.activity.id}
-            clientId={row.item.clientId}
+            companyId={row.item.companyId}
             assigneeId={row.item.assigneeId}
             priority={row.item.priority}
             cancelled={row.item.status === "cancelled"}
             inProject={row.activity.projectId !== null}
-            clients={clientRows}
+            companies={companyRows}
             users={userRows}
           />
         </div>

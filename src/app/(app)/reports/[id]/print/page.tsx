@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { clients, organizations, projects, reports, users } from "@/db/schema";
+import { companies, organizations, projects, reports, users } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
 import { reportTypeMeta } from "@/lib/labels";
 import type { PeriodMetrics } from "@/lib/report-metrics";
@@ -37,13 +37,13 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
   const [row] = await db
     .select({
       report: reports,
-      clientName: clients.name,
+      companyName: companies.name,
       projectName: projects.name,
       responsibleName: users.name,
       orgName: organizations.name,
     })
     .from(reports)
-    .leftJoin(clients, eq(reports.clientId, clients.id))
+    .leftJoin(companies, eq(reports.companyId, companies.id))
     .leftJoin(projects, eq(reports.projectId, projects.id))
     .leftJoin(users, eq(reports.responsibleUserId, users.id))
     .leftJoin(organizations, eq(reports.organizationId, organizations.id))
@@ -57,7 +57,7 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
   const snapshot = report.contentSnapshot as { sections?: { key: string; title: string; enabled: boolean }[] } | null;
   const enabled = new Set((snapshot?.sections ?? []).filter((s) => s.enabled).map((s) => s.key));
   const has = (key: string) => enabled.size === 0 || enabled.has(key);
-  const isExternal = report.clientId !== null;
+  const isExternal = report.companyId !== null;
 
   return (
     <div className="mx-auto max-w-[720px] bg-white p-10 text-slate-900 print:p-0">
@@ -80,7 +80,7 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
             {reportTypeMeta[report.reportType]?.label ?? report.reportType}
           </p>
           <div className="mx-auto mt-10 max-w-sm space-y-1 text-sm text-slate-700">
-            {row.clientName ? <p>Cliente: <strong>{row.clientName}</strong></p> : null}
+            {row.companyName ? <p>Cliente: <strong>{row.companyName}</strong></p> : null}
             {row.projectName ? <p>Proyecto: <strong>{row.projectName}</strong></p> : null}
             <p>Periodo: <strong>{report.periodStart} – {report.periodEnd}</strong></p>
             <p>Responsable: <strong>{row.responsibleName ?? "—"}</strong></p>

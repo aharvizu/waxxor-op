@@ -27,6 +27,7 @@ Un solo barrido de work items (tickets + actividades no archivadas/convertidas, 
 8. **Esperando**: waiting_customer/third_party/pending_confirmation/waiting/blocked con antigüedad, responsable, seguimiento programado y acciones (registrar seguimiento → composer del ticket, reagendar).
 9. **Mensajes recientes**: última interacción por conversación (de tickets) con filtros No atendidos/Míos/Sin asignar/Todos y acciones (abrir, registrar respuesta, marcar atendida — auditada). **Menciones (2026-07-19)**: bloque "Te mencionaron" (hasta 5, `getUserUnreadMentions`) con enlace directo a la conversación en `/inbox` y a `/inbox?view=mentions` — la bandeja completa de todas las conversaciones (con o sin ticket) vive en `/inbox`, ver `docs/features/inbox.md`. "Crear ticket desde conversación" no aplica: las conversaciones de ticket siguen siendo 1:1 con su ticket.
 10. **Quick View**: drawer server-rendered vía `?peek=t:ID|a:ID` — datos clave + acciones frecuentes (asignar/estado/prioridad para tickets; completar/reabrir/reagendar/convertir para actividades) + enlaces al detalle completo. No duplica la pantalla de detalle.
+11. **Continuar aprendiendo (2026-07-19)**: tarjeta discreta que solo aparece si el usuario tiene un tutorial del Centro de Ayuda en progreso (`getContinueLearning`) — no se muestra nada si no hay ninguno. Enlaza directo a `/help/[slug]`. Ver `docs/features/knowledge.md`.
 
 ## No olvides (núcleo)
 

@@ -26,7 +26,7 @@ async function main() {
     apiKeys,
     auditLogs,
     catalogItems,
-    clients,
+    companies,
     organizationSettings,
     organizations,
     recurrenceDefinitions,
@@ -64,7 +64,7 @@ async function main() {
     apiKeys: [] as number[],
     users: [] as number[],
     workItems: [] as number[],
-    clients: [] as number[],
+    companies: [] as number[],
     recDefs: [] as number[],
   };
 
@@ -279,10 +279,10 @@ async function main() {
 
     /* 10. engine honors the configured failure limit (1) */
     const [cli] = await db
-      .insert(clients)
+      .insert(companies)
       .values({ organizationId: org.id, name: "SET Verify Client", status: "archived" })
       .returning();
-    cleanupIds.clients.push(cli.id);
+    cleanupIds.companies.push(cli.id);
     const [def] = await db
       .insert(recurrenceDefinitions)
       .values({
@@ -297,7 +297,7 @@ async function main() {
         timezone: "America/Mexico_City",
         startAt: "2026-01-01",
         nextRunAt: new Date("2026-01-01T15:00:00Z"),
-        clientId: cli.id, // archived client -> configuration error on execution
+        companyId: cli.id, // archived client -> configuration error on execution
         createdById: admin.id,
         templateData: { titleTemplate: "SET {{date}}", activityType: "general" },
       })
@@ -318,7 +318,7 @@ async function main() {
       await db.delete(recurrenceExecutions).where(eq(recurrenceExecutions.recurrenceDefinitionId, id));
       await db.delete(recurrenceDefinitions).where(eq(recurrenceDefinitions.id, id));
     }
-    for (const id of cleanupIds.clients) await db.delete(clients).where(eq(clients.id, id));
+    for (const id of cleanupIds.companies) await db.delete(companies).where(eq(companies.id, id));
     for (const id of cleanupIds.workItems) await db.delete(workItems).where(eq(workItems.id, id));
     for (const id of cleanupIds.users) {
       await db.delete(auditLogs).where(and(eq(auditLogs.entityType, "user"), eq(auditLogs.entityId, id)));

@@ -16,7 +16,8 @@ import {
   activities,
   attachments,
   auditLogs,
-  clients,
+  companies,
+  contacts,
   conversations,
   messages,
   tickets,
@@ -26,6 +27,10 @@ import {
 } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { getCatalog } from "@/lib/settings-data";
+import { getArticleForTicket } from "@/lib/knowledge-data";
+import { knowledgeStatusMeta } from "@/lib/labels";
+import { canCreateDraft } from "@/lib/knowledge";
+import { CreateKbArticleForm } from "./kb-from-ticket-form";
 import { Badge, Card, CardHeader, buttonSecondaryClass } from "@/components/ui";
 import { SlaPanel } from "@/components/sla-panel";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
@@ -85,12 +90,12 @@ export default async function TicketPage({
     .select({
       ticket: tickets,
       item: workItems,
-      clientName: clients.name,
+      companyName: companies.name,
       assigneeName: users.name,
     })
     .from(tickets)
     .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
-    .leftJoin(clients, eq(workItems.clientId, clients.id))
+    .leftJoin(companies, eq(workItems.companyId, companies.id))
     .leftJoin(users, eq(workItems.assigneeId, users.id))
     .where(and(eq(tickets.id, ticketId), eq(tickets.organizationId, user.organizationId)));
   if (!row) notFound();
@@ -103,7 +108,8 @@ export default async function TicketPage({
     timeRows,
     related,
     fileRows,
-    clientRows,
+    companyRows,
+    contactRows,
     userRows,
     linkable,
     [timeTotal],
@@ -149,10 +155,20 @@ export default async function TicketPage({
       .where(eq(attachments.workItemId, w.id))
       .orderBy(desc(attachments.createdAt)),
     db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(eq(clients.organizationId, user.organizationId))
-      .orderBy(asc(clients.name)),
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
+    db
+      .select({
+        id: contacts.id,
+        firstName: contacts.firstName,
+        lastName: contacts.lastName,
+        companyId: contacts.companyId,
+      })
+      .from(contacts)
+      .where(and(eq(contacts.organizationId, user.organizationId), eq(contacts.isActive, true)))
+      .orderBy(asc(contacts.lastName)),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
@@ -273,6 +289,7 @@ export default async function TicketPage({
   const categoryItems = await getCatalog(user.organizationId, "ticket_category");
   const categoryNames = categoryItems.filter((c) => c.parentId === null).map((c) => c.name);
   const subcategoryNames = [...new Set(categoryItems.filter((c) => c.parentId !== null).map((c) => c.name))];
+  const kbArticle = t.resolution ? await getArticleForTicket(user.organizationId, t.id) : null;
 
   return (
     <div>
@@ -296,7 +313,7 @@ export default async function TicketPage({
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
           <span className="font-mono text-xs text-faint">{t.folio}</span>
           <span aria-hidden>·</span>
-          <span>{row.clientName ?? "No client"}</span>
+          <span>{row.companyName ?? "No client"}</span>
           <span aria-hidden>·</span>
           <span>{row.assigneeName ?? "Unassigned"}</span>
           <span aria-hidden>·</span>
@@ -548,6 +565,37 @@ export default async function TicketPage({
                   <p className="p-5 text-sm whitespace-pre-wrap text-fg">{t.resolution}</p>
                 </Card>
               ) : null}
+              {t.resolution ? (
+                <Card className="overflow-hidden">
+                  <CardHeader
+                    title="Base de conocimiento"
+                    description="Genera un artículo reutilizable a partir de esta resolución — siempre como borrador."
+                  />
+                  <div className="p-5">
+                    {kbArticle ? (
+                      <p className="text-sm text-fg">
+                        Ya se generó{" "}
+                        <Link href={`/knowledge/${kbArticle.id}`} className="font-medium text-primary hover:underline">
+                          {kbArticle.title}
+                        </Link>{" "}
+                        <Badge tone={knowledgeStatusMeta[kbArticle.status]?.tone ?? "slate"}>
+                          {knowledgeStatusMeta[kbArticle.status]?.label ?? kbArticle.status}
+                        </Badge>
+                      </p>
+                    ) : canCreateDraft(user.role) ? (
+                      <CreateKbArticleForm
+                        ticketId={t.id}
+                        defaultTitle={w.title}
+                        defaultProblem={w.description}
+                        defaultSolution={t.resolution}
+                        defaultCategory={t.category}
+                      />
+                    ) : (
+                      <p className="text-sm text-muted">No tienes permiso para crear artículos de conocimiento.</p>
+                    )}
+                  </div>
+                </Card>
+              ) : null}
               {t.confirmationType ? (
                 <Card className="overflow-hidden">
                   <CardHeader
@@ -646,7 +694,8 @@ export default async function TicketPage({
                 defaults={{
                   title: w.title,
                   description: w.description,
-                  clientId: w.clientId,
+                  companyId: w.companyId,
+                  contactId: w.contactId,
                   assigneeId: w.assigneeId,
                   priority: w.priority,
                   category: t.category,
@@ -655,7 +704,8 @@ export default async function TicketPage({
                   modality: t.modality,
                   contact: t.contact,
                 }}
-                clients={clientRows}
+                companies={companyRows}
+                contacts={contactRows.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, companyId: c.companyId }))}
                 users={userRows}
               />
             </div>

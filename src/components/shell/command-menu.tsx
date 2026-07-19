@@ -6,16 +6,20 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Home,
   Timer,
+  BookOpen,
   ClipboardCheck,
   Building2,
   ClipboardList,
   FileText,
   FolderKanban,
   Gauge,
+  HelpCircle,
+  Inbox,
   LayoutDashboard,
   LifeBuoy,
   Plus,
   Search,
+  Settings,
   Users,
 } from "lucide-react";
 import { cx } from "@/components/ui";
@@ -25,7 +29,7 @@ export const OPEN_COMMAND_EVENT = "wx:open-command";
 type Item = {
   label: string;
   href: string;
-  group: "Navigate" | "Create";
+  group: "Navigate" | "Create" | "Knowledge Base" | "Help Center";
   icon: React.ComponentType<{ className?: string }>;
   keywords?: string;
 };
@@ -34,26 +38,38 @@ const items: Item[] = [
   { label: "Dashboard", href: "/dashboard", group: "Navigate", icon: LayoutDashboard, keywords: "home overview" },
   { label: "Hoy", href: "/today", group: "Navigate", icon: Home, keywords: "today home hoy pendientes" },
   { label: "Activities", href: "/activities", group: "Navigate", icon: ClipboardCheck, keywords: "tasks follow-up work" },
-  { label: "SLA", href: "/sla", group: "Navigate", icon: Timer, keywords: "sla service level targets calendar" },
+  { label: "SLA", href: "/settings/sla", group: "Navigate", icon: Timer, keywords: "sla service level targets calendar settings" },
   { label: "Helpdesk", href: "/helpdesk", group: "Navigate", icon: LifeBuoy, keywords: "tickets support" },
   { label: "Projects", href: "/projects", group: "Navigate", icon: FolderKanban, keywords: "engagements tasks" },
   { label: "Quotes", href: "/quotes", group: "Navigate", icon: FileText, keywords: "proposals pricing" },
   { label: "Reports", href: "/reports", group: "Navigate", icon: ClipboardList, keywords: "documents" },
   { label: "Report templates", href: "/reports/templates", group: "Navigate", icon: ClipboardList, keywords: "templates" },
   { label: "KPIs", href: "/kpis", group: "Navigate", icon: Gauge, keywords: "metrics numbers" },
-  { label: "Clients", href: "/clients", group: "Navigate", icon: Building2, keywords: "customers accounts" },
-  { label: "Users", href: "/users", group: "Navigate", icon: Users, keywords: "team members" },
+  { label: "Empresas", href: "/companies", group: "Navigate", icon: Building2, keywords: "clients customers accounts companies" },
+  { label: "Contactos", href: "/contacts", group: "Navigate", icon: Users, keywords: "contacts people" },
+  { label: "Inbox", href: "/inbox", group: "Navigate", icon: Inbox, keywords: "conversations messages" },
+  { label: "Base de conocimiento", href: "/knowledge", group: "Navigate", icon: BookOpen, keywords: "knowledge articles kb" },
+  { label: "Centro de Ayuda", href: "/help", group: "Navigate", icon: HelpCircle, keywords: "help tutorials ayuda" },
+  { label: "Settings", href: "/settings", group: "Navigate", icon: Settings, keywords: "configuracion" },
+  { label: "Users", href: "/settings/users", group: "Navigate", icon: Users, keywords: "team members settings" },
   { label: "New activity", href: "/activities/new", group: "Create", icon: Plus, keywords: "create activity task" },
   { label: "New ticket", href: "/helpdesk/new", group: "Create", icon: Plus, keywords: "create ticket support" },
   { label: "New project", href: "/projects/new", group: "Create", icon: Plus, keywords: "create project" },
   { label: "New quote", href: "/quotes/new", group: "Create", icon: Plus, keywords: "create quote proposal" },
   { label: "New report", href: "/reports/new", group: "Create", icon: Plus, keywords: "create report" },
+  { label: "New KB article", href: "/knowledge/new", group: "Create", icon: Plus, keywords: "create knowledge article" },
 ];
+
+type RemoteResults = {
+  articles: { id: number; title: string; slug: string }[];
+  tutorials: { slug: string; title: string; module: string }[];
+};
 
 export function CommandMenu() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [remote, setRemote] = useState<RemoteResults>({ articles: [], tutorials: [] });
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -65,12 +81,51 @@ export function CommandMenu() {
     );
   }, [query]);
 
+  const remoteItems = useMemo<Item[]>(() => {
+    if (query.trim().length < 2) return [];
+    return [
+      ...remote.articles.map((a) => ({
+        label: a.title,
+        href: `/knowledge/${a.id}`,
+        group: "Knowledge Base" as const,
+        icon: BookOpen,
+      })),
+      ...remote.tutorials.map((t) => ({
+        label: t.title,
+        href: `/help/${t.slug}`,
+        group: "Help Center" as const,
+        icon: HelpCircle,
+      })),
+    ];
+  }, [remote, query]);
+
+  const allFiltered = useMemo(() => [...filtered, ...remoteItems], [filtered, remoteItems]);
+
   const groups = useMemo(() => {
-    const order: Item["group"][] = ["Navigate", "Create"];
+    const order: Item["group"][] = ["Navigate", "Create", "Knowledge Base", "Help Center"];
     return order
-      .map((g) => ({ name: g, items: filtered.filter((i) => i.group === g) }))
+      .map((g) => ({ name: g, items: allFiltered.filter((i) => i.group === g) }))
       .filter((g) => g.items.length > 0);
-  }, [filtered]);
+  }, [allFiltered]);
+
+  // Live search of published KB articles + active tutorials while typing.
+  // remoteItems already ignores `remote` for short queries, so there is
+  // nothing to clear synchronously here — just skip fetching.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/search/knowledge?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : { articles: [], tutorials: [] }))
+        .then((data: RemoteResults) => setRemote(data))
+        .catch(() => {});
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
 
   const openMenu = useCallback(() => {
     setQuery("");
@@ -114,13 +169,13 @@ export function CommandMenu() {
   function onInputKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex((i) => Math.min(i + 1, allFiltered.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const item = filtered[activeIndex];
+      const item = allFiltered[activeIndex];
       if (item) select(item);
     } else if (e.key === "Escape") {
       setOpen(false);
@@ -168,7 +223,7 @@ export function CommandMenu() {
               </kbd>
             </div>
             <div className="max-h-72 overflow-y-auto p-2">
-              {filtered.length === 0 ? (
+              {allFiltered.length === 0 ? (
                 <p className="px-3 py-8 text-center text-sm text-muted">
                   No results for “{query}”.
                 </p>
@@ -179,7 +234,7 @@ export function CommandMenu() {
                       {group.name}
                     </div>
                     {group.items.map((item) => {
-                      const index = filtered.indexOf(item);
+                      const index = allFiltered.indexOf(item);
                       const active = index === activeIndex;
                       return (
                         <button

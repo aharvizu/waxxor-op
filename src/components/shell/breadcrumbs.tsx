@@ -5,21 +5,51 @@ import { usePathname } from "next/navigation";
 import { ChevronRight, Home } from "lucide-react";
 import { Fragment } from "react";
 
+/**
+ * Every top-level and known nested segment gets a human label — kept
+ * exhaustive on purpose (UX audit, 2026-07-20): an unmapped segment falls
+ * back to Title Case of the slug rather than showing raw router text.
+ */
 const segmentLabels: Record<string, string> = {
-  helpdesk: "Helpdesk",
+  today: "Hoy",
+  dashboard: "Dashboard",
+  inbox: "Inbox",
+  activities: "Activities",
+  helpdesk: "Tickets",
   projects: "Projects",
-  quotes: "Quotes",
+  recurring: "Recurring",
+  companies: "Empresas",
+  contacts: "Contactos",
+  knowledge: "Knowledge Base",
+  help: "Help Center",
   reports: "Reports",
-  templates: "Templates",
+  indicators: "Indicators",
   kpis: "KPIs",
-  clients: "Clients",
+  quotes: "Quotes",
+  settings: "Settings",
   users: "Users",
+  sla: "SLA",
+  roles: "Roles & Permissions",
+  tickets: "Tickets",
+  templates: "Templates",
+  audit: "Audit",
+  "api-keys": "API Keys",
+  environment: "Environment",
+  health: "System Health",
   new: "New",
+  convert: "Convert",
+  print: "Print",
 };
 
 function labelFor(segment: string) {
   if (/^\d+$/.test(segment)) return `#${segment}`;
-  return segmentLabels[segment] ?? segment;
+  if (segmentLabels[segment]) return segmentLabels[segment];
+  // Fallback: Title Case of an unmapped kebab-case slug — still readable if
+  // this list ever falls out of sync with the routes.
+  return segment
+    .split("-")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
 }
 
 export function Breadcrumbs() {
@@ -30,7 +60,7 @@ export function Breadcrumbs() {
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
       <Link
         href="/today"
-        aria-label="Dashboard"
+        aria-label="Home"
         className="flex items-center rounded-md p-1 text-faint transition-colors hover:bg-subtle hover:text-fg"
       >
         <Home className="size-4" />

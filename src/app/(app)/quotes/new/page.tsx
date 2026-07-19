@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { clients } from "@/db/schema";
+import { companies } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, PageHeader, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -11,11 +11,11 @@ export const metadata: Metadata = { title: "New quote" };
 
 export default async function NewQuotePage() {
   const user = await requireUser();
-  const clientRows = await db
-    .select({ id: clients.id, name: clients.name })
-    .from(clients)
-    .where(eq(clients.organizationId, user.organizationId))
-    .orderBy(asc(clients.name));
+  const companyRows = await db
+    .select({ id: companies.id, name: companies.name })
+    .from(companies)
+    .where(eq(companies.organizationId, user.organizationId))
+    .orderBy(asc(companies.name));
 
   return (
     <div className="max-w-2xl">
@@ -39,12 +39,12 @@ export default async function NewQuotePage() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="clientId" className={labelClass}>
+              <label htmlFor="companyId" className={labelClass}>
                 Client
               </label>
-              <select id="clientId" name="clientId" required className={inputClass}>
+              <select id="companyId" name="companyId" required className={inputClass}>
                 <option value="">Select a client…</option>
-                {clientRows.map((c) => (
+                {companyRows.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>

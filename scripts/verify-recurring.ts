@@ -24,7 +24,7 @@ async function main() {
   const { db } = await import("../src/db");
   const {
     activities,
-    clients,
+    companies,
     organizations,
     recurrenceDefinitions,
     recurrenceExecutions,
@@ -53,9 +53,9 @@ async function main() {
     .returning({ id: organizations.id });
 
   const [client] = await db
-    .insert(clients)
+    .insert(companies)
     .values({ organizationId: orgId, name: "REC-VERIFY Client" })
-    .returning({ id: clients.id });
+    .returning({ id: companies.id });
 
   // 1. Activity generation ---------------------------------------------------
   const [activityDef] = await db
@@ -70,7 +70,7 @@ async function main() {
       frequency: "daily",
       startAt: "2026-01-01",
       templateData: { targetType: "activity", title: "Revisión — {{client.name}}", priority: "medium" },
-      clientId: client.id,
+      companyId: client.id,
       createdById: userId,
     })
     .returning();
@@ -115,7 +115,7 @@ async function main() {
         channel: "internal",
         modality: "remote",
       },
-      clientId: client.id,
+      companyId: client.id,
       createdById: userId,
     })
     .returning();
@@ -175,7 +175,7 @@ async function main() {
   check("only one object was actually created", concurrentActivityCount.n === 1, `n=${concurrentActivityCount.n}`);
 
   // 5. Configuration error: archived client ------------------------------------
-  await db.update(clients).set({ status: "archived" }).where(eq(clients.id, client.id));
+  await db.update(companies).set({ status: "archived" }).where(eq(companies.id, client.id));
   const outcome3 = await executeOccurrence(orgId, activityDef.id, "2026-07-19", new Date(), "scheduler", null);
   check(
     "archived client → configuration error, no object created",
@@ -208,7 +208,7 @@ async function main() {
   check("auto-pause is audited", !!autoPauseAudit);
 
   // 7. Retry after fixing context succeeds, resets the counter -----------------
-  await db.update(clients).set({ status: "active" }).where(eq(clients.id, client.id));
+  await db.update(companies).set({ status: "active" }).where(eq(companies.id, client.id));
   const [lastFailedExec] = await db
     .select()
     .from(recurrenceExecutions)
@@ -329,7 +329,7 @@ async function main() {
   await db.delete(recurrenceDefinitions).where(eq(recurrenceDefinitions.id, ticketDef.id));
   await db.delete(recurrenceDefinitions).where(eq(recurrenceDefinitions.id, concurrencyDef.id));
   await db.delete(recurrenceDefinitions).where(eq(recurrenceDefinitions.id, otherDef.id));
-  await db.delete(clients).where(eq(clients.id, client.id));
+  await db.delete(companies).where(eq(companies.id, client.id));
   await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
 
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

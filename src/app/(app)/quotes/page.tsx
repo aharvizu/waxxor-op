@@ -3,7 +3,7 @@ import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { FileText, Plus } from "lucide-react";
 import { db } from "@/db";
-import { clients, quoteItems, quotes } from "@/db/schema";
+import { companies, quoteItems, quotes } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import {
   Badge,
@@ -30,22 +30,22 @@ export default async function QuotesPage() {
       status: quotes.status,
       currency: quotes.currency,
       validUntil: quotes.validUntil,
-      clientName: clients.name,
+      companyName: companies.name,
       subtotal: sql<string>`coalesce(sum(${quoteItems.quantity} * ${quoteItems.unitPrice}), 0)`,
       taxRate: quotes.taxRate,
     })
     .from(quotes)
-    .innerJoin(clients, eq(quotes.clientId, clients.id))
+    .innerJoin(companies, eq(quotes.companyId, companies.id))
     .leftJoin(quoteItems, eq(quoteItems.quoteId, quotes.id))
     .where(eq(quotes.organizationId, user.organizationId))
-    .groupBy(quotes.id, clients.name)
+    .groupBy(quotes.id, companies.name)
     .orderBy(desc(quotes.createdAt));
 
   return (
     <div>
       <PageHeader
         title="Quotes"
-        subtitle="Proposals and quotations for clients."
+        subtitle="Proposals and quotations for companies."
         action={
           <Link href="/quotes/new" className={buttonClass}>
             <Plus /> New quote
@@ -95,7 +95,7 @@ export default async function QuotesPage() {
                         {q.title}
                       </Link>
                     </Td>
-                    <Td className="text-muted">{q.clientName}</Td>
+                    <Td className="text-muted">{q.companyName}</Td>
                     <Td>
                       <Badge tone={quoteStatusMeta[q.status].tone}>
                         {quoteStatusMeta[q.status].label}

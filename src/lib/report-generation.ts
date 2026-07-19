@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db, type DbExecutor } from "@/db";
 import {
-  clients,
+  companies,
   projects,
   reportTemplates,
   reportVersions,
@@ -71,11 +71,11 @@ export async function generateReport(
       `No se puede generar desde el estado "${report.status}".`,
     );
   }
-  if (report.clientId) {
+  if (report.companyId) {
     const [client] = await db
-      .select({ id: clients.id, name: clients.name })
-      .from(clients)
-      .where(and(eq(clients.id, report.clientId), eq(clients.organizationId, orgId)));
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(and(eq(companies.id, report.companyId), eq(companies.organizationId, orgId)));
     if (!client) throw new ReportGenerationError("bad_client", "El cliente no existe en esta organización.");
   }
   if (report.projectId) {
@@ -98,7 +98,7 @@ export async function generateReport(
   const metrics = await computePeriodMetrics(
     orgId,
     { start: report.periodStart, end: report.periodEnd },
-    { clientId: report.clientId, projectId: report.projectId },
+    { companyId: report.companyId, projectId: report.projectId },
   );
   const narrative = buildNarrative({
     periodStart: report.periodStart,
@@ -116,7 +116,7 @@ export async function generateReport(
     sections,
     narrativeBaseline: narrative,
     template: template ? { id: template.id, name: template.name } : null,
-    generatedFor: { clientId: report.clientId, projectId: report.projectId },
+    generatedFor: { companyId: report.companyId, projectId: report.projectId },
   };
 
   return db.transaction(async (tx) => {
@@ -182,7 +182,7 @@ export async function createReportForRecurrence(
   input: {
     organizationId: number;
     title: string;
-    clientId: number | null;
+    companyId: number | null;
     projectId: number | null;
     templateId: number | null;
     responsibleUserId: number | null;
@@ -197,9 +197,9 @@ export async function createReportForRecurrence(
     .values({
       organizationId: input.organizationId,
       title: input.title,
-      reportType: input.clientId ? "monthly_service" : "custom_internal",
+      reportType: input.companyId ? "monthly_service" : "custom_internal",
       status: "draft",
-      clientId: input.clientId,
+      companyId: input.companyId,
       projectId: input.projectId,
       templateId: input.templateId,
       responsibleUserId: input.responsibleUserId,

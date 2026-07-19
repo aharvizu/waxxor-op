@@ -33,6 +33,8 @@
 12. **API Keys** — preparación de infraestructura únicamente; SSO/LDAP/Azure AD/Google Sync explícitamente fuera de alcance.
 13. **Entorno** — diagnóstico de variables (presente/faltante/opcional) con secretos **siempre enmascarados** (`maskSecret`: 4 caracteres + longitud; verificado que el valor completo no aparece en la respuesta).
 14. **Salud del sistema** — latencia de BD, versión (package.json), migraciones aplicadas (tabla drizzle), CRON_SECRET configurado, última ejecución de recurrencias + éxitos/fallos 24 h + activas atrasadas, última generación de reportes + fallidos.
+15. **Conocimiento** (2026-07-19) — administra categorías de la Base de Conocimiento (crear/archivar/restaurar).
+16. **Ayuda** (2026-07-19) — activa/desactiva tutoriales del Centro de Ayuda; el contenido se administra por código/seed, no hay editor completo (sin LMS). Ver `docs/features/knowledge.md`.
 
 ## Auditoría
 

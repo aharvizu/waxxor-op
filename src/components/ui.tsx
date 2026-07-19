@@ -228,6 +228,12 @@ export function Avatar({
 
 /* ----------------------------------------------------------------- Tables */
 
+/**
+ * Always wraps itself in a horizontal-scroll container — about half the call
+ * sites used to remember this individually and half didn't, which broke wide
+ * tables on narrow screens (UX audit, 2026-07-20). Fixing it once here beats
+ * fixing it at every call site.
+ */
 export function Table({
   children,
   className,
@@ -236,7 +242,9 @@ export function Table({
   className?: string;
 }) {
   return (
-    <table className={cx("w-full text-sm", className)}>{children}</table>
+    <div className="overflow-x-auto">
+      <table className={cx("w-full text-sm", className)}>{children}</table>
+    </div>
   );
 }
 

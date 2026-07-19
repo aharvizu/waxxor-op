@@ -2,7 +2,7 @@ import { and, eq, gte, isNull, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activities,
-  clients,
+  companies,
   messages,
   projects,
   recurrenceExecutions,
@@ -28,7 +28,7 @@ import { ORG_TIMEZONE } from "@/lib/reports";
  */
 
 export type MetricsScope = {
-  clientId?: number | null;
+  companyId?: number | null;
   projectId?: number | null;
   userId?: number | null;
 };
@@ -46,7 +46,7 @@ const int = (expr: SQL<unknown>) => sql<number>`coalesce(${expr}, 0)::int`;
 
 function scopeWork(scope: MetricsScope): SQL[] {
   const conds: SQL[] = [];
-  if (scope.clientId) conds.push(sql`${workItems.clientId} = ${scope.clientId}`);
+  if (scope.companyId) conds.push(sql`${workItems.companyId} = ${scope.companyId}`);
   if (scope.userId) conds.push(sql`${workItems.assigneeId} = ${scope.userId}`);
   return conds;
 }
@@ -263,7 +263,7 @@ export async function activityMetrics(orgId: number, period: Period, scope: Metr
 export async function projectMetrics(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
   const conds = [eq(projects.organizationId, orgId)];
-  if (scope.clientId) conds.push(eq(projects.clientId, scope.clientId));
+  if (scope.companyId) conds.push(eq(projects.companyId, scope.companyId));
   if (scope.projectId) conds.push(eq(projects.id, scope.projectId));
   const [row] = await db
     .select({
@@ -277,13 +277,13 @@ export async function projectMetrics(orgId: number, period: Period, scope: Metri
       milestonesOverdue: int(sql`(select count(*) from project_milestones m
         join projects p2 on p2.id = m.project_id
         where p2.organization_id = ${orgId}
-        ${scope.clientId ? sql`and p2.client_id = ${scope.clientId}` : sql``}
+        ${scope.companyId ? sql`and p2.company_id = ${scope.companyId}` : sql``}
         ${scope.projectId ? sql`and p2.id = ${scope.projectId}` : sql``}
         and m.status in ('pending','in_progress','delayed') and m.target_date < current_date)`),
       highRisks: int(sql`(select count(*) from project_risks r
         join projects p3 on p3.id = r.project_id
         where p3.organization_id = ${orgId}
-        ${scope.clientId ? sql`and p3.client_id = ${scope.clientId}` : sql``}
+        ${scope.companyId ? sql`and p3.company_id = ${scope.companyId}` : sql``}
         ${scope.projectId ? sql`and p3.id = ${scope.projectId}` : sql``}
         and r.status in ('open','monitoring','occurred')
         and (r.probability = 'high' and r.impact in ('high','critical')
@@ -307,7 +307,7 @@ export async function timeMetrics(orgId: number, period: Period, scope: MetricsS
     gte(timeEntries.date, period.start),
     lte(timeEntries.date, period.end),
     ...(scope.userId ? [eq(timeEntries.userId, scope.userId)] : []),
-    ...(scope.clientId ? [sql`${workItems.clientId} = ${scope.clientId}`] : []),
+    ...(scope.companyId ? [sql`${workItems.companyId} = ${scope.companyId}`] : []),
     ...(scope.projectId
       ? [sql`exists (select 1 from ${activities} a where a.work_item_id = ${workItems.id} and a.project_id = ${scope.projectId})`]
       : []),
@@ -336,10 +336,10 @@ export async function timeMetrics(orgId: number, period: Period, scope: MetricsS
       .orderBy(sql`2 desc`)
       .limit(12),
     db
-      .select({ key: sql<string>`coalesce(${clients.name}, 'Interno')`, minutes: int(sql`sum(${timeEntries.durationMinutes})`) })
+      .select({ key: sql<string>`coalesce(${companies.name}, 'Interno')`, minutes: int(sql`sum(${timeEntries.durationMinutes})`) })
       .from(timeEntries)
       .innerJoin(workItems, eq(timeEntries.workItemId, workItems.id))
-      .leftJoin(clients, eq(workItems.clientId, clients.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
       .where(base)
       .groupBy(sql`1`)
       .orderBy(sql`2 desc`)
@@ -364,8 +364,8 @@ export async function timeMetrics(orgId: number, period: Period, scope: MetricsS
 
 export async function conversationMetrics(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
-  const clientCond = scope.clientId
-    ? sql`and c.client_id = ${scope.clientId}`
+  const clientCond = scope.companyId
+    ? sql`and c.company_id = ${scope.companyId}`
     : sql``;
   const [row] = await db
     .select({
@@ -391,7 +391,7 @@ export async function conversationMetrics(orgId: number, period: Period, scope: 
     })
     .from(sql`conversations`)
     .where(
-      sql`organization_id = ${orgId} ${scope.clientId ? sql`and client_id = ${scope.clientId}` : sql``}`,
+      sql`organization_id = ${orgId} ${scope.companyId ? sql`and company_id = ${scope.companyId}` : sql``}`,
     );
   return { ...row, ...pending };
 }
@@ -443,8 +443,8 @@ export async function billingMetrics(orgId: number, period: Period, scope: Metri
 
 export async function recurringMetrics(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
-  const clientCond = scope.clientId
-    ? sql`and d.client_id = ${scope.clientId}`
+  const clientCond = scope.companyId
+    ? sql`and d.company_id = ${scope.companyId}`
     : sql``;
   const [row] = await db
     .select({
@@ -472,7 +472,7 @@ export async function recurringMetrics(orgId: number, period: Period, scope: Met
     .from(sql`recurrence_definitions`)
     .where(
       sql`organization_id = ${orgId} and archived_at is null
-        ${scope.clientId ? sql`and client_id = ${scope.clientId}` : sql``}`,
+        ${scope.companyId ? sql`and company_id = ${scope.companyId}` : sql``}`,
     );
   return { ...row, ...defs };
 }
@@ -496,7 +496,7 @@ export async function computePeriodMetrics(orgId: number, period: Period, scope:
     ]);
   return {
     period,
-    scope: { clientId: scope.clientId ?? null, projectId: scope.projectId ?? null, userId: scope.userId ?? null },
+    scope: { companyId: scope.companyId ?? null, projectId: scope.projectId ?? null, userId: scope.userId ?? null },
     computedAt: new Date().toISOString(),
     tickets: ticketsM,
     sla,

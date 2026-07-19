@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
 import {
-  clients,
+  companies,
   projectLists,
   projects,
   recurrenceDefinitions,
@@ -131,7 +131,7 @@ const definitionCoreSchema = z.object({
   name: z.string("Nombre requerido.").trim().min(1, "Nombre requerido."),
   description: optionalText,
   targetType: z.enum(ENABLED_TARGET_TYPES, "Selecciona un tipo soportado."),
-  clientId: optionalId,
+  companyId: optionalId,
   projectId: optionalId,
   projectListId: optionalId,
   assigneeId: optionalId,
@@ -160,13 +160,13 @@ function validateTemplateVariables(templateData: Record<string, unknown>) {
 async function validateContext(
   tx: DbExecutor,
   orgId: number,
-  data: { clientId: number | null; projectId: number | null; projectListId: number | null; assigneeId: number | null },
+  data: { companyId: number | null; projectId: number | null; projectListId: number | null; assigneeId: number | null },
 ) {
-  if (data.clientId) {
+  if (data.companyId) {
     const [client] = await tx
-      .select({ id: clients.id })
-      .from(clients)
-      .where(and(eq(clients.id, data.clientId), eq(clients.organizationId, orgId)));
+      .select({ id: companies.id })
+      .from(companies)
+      .where(and(eq(companies.id, data.companyId), eq(companies.organizationId, orgId)));
     if (!client) throw new RuleError("El cliente no existe en esta organización.");
   }
   if (data.projectId) {
@@ -294,7 +294,7 @@ export async function createRecurrence(
           endAt: s.endAt,
           maxOccurrences: schedule.data.maxOccurrences,
           nextRunAt: activate ? (next?.runAt ?? null) : null,
-          clientId: core.data.clientId,
+          companyId: core.data.companyId,
           projectId: core.data.projectId,
           projectListId: core.data.projectListId,
           assigneeId: resolved.assigneeId,
@@ -322,7 +322,7 @@ export async function createRecurrence(
 /* =============================================================== update */
 
 const REC_AUDITED = [
-  "name", "description", "clientId", "projectId", "projectListId", "assigneeId",
+  "name", "description", "companyId", "projectId", "projectListId", "assigneeId",
   "timezone", "frequency", "interval", "dayOfMonth", "monthOfYear", "weekOfMonth",
   "timeOfDay", "startAt", "endAt", "maxOccurrences",
 ] as const;
@@ -396,7 +396,7 @@ export async function updateRecurrence(
       const patch = {
         name: core.data.name,
         description: core.data.description,
-        clientId: core.data.clientId,
+        companyId: core.data.companyId,
         projectId: core.data.projectId,
         projectListId: core.data.projectListId,
         assigneeId: resolved.assigneeId,
@@ -757,7 +757,7 @@ export async function duplicateRecurrence(
     await db.transaction(async (tx) => {
       const before = await loadDefinition(tx, user, data.id);
       const resolved = await validateContext(tx, user.organizationId, {
-        clientId: before.clientId,
+        companyId: before.companyId,
         projectId: before.projectId,
         projectListId: before.projectListId,
         assigneeId: before.assigneeId,
@@ -784,7 +784,7 @@ export async function duplicateRecurrence(
           endAt: before.endAt,
           maxOccurrences: before.maxOccurrences,
           nextRunAt: null,
-          clientId: before.clientId,
+          companyId: before.companyId,
           projectId: before.projectId,
           projectListId: before.projectListId,
           assigneeId: resolved.assigneeId,

@@ -45,8 +45,8 @@ export const organizationProfileSchema = z.object({
   ),
 });
 
-/** Section: Clientes — defaults applied when creating clients. */
-export const clientDefaultsSchema = z.object({
+/** Section: Empresas — defaults applied when creating companies. */
+export const companyDefaultsSchema = z.object({
   defaultAccountOwnerId: z.coerce.number().int().positive().optional().nullable(),
   defaultTechnicianId: z.coerce.number().int().positive().optional().nullable(),
 });
@@ -96,7 +96,7 @@ export const reportBrandingSchema = z.object({
 
 export const SETTINGS_SCHEMAS = {
   "organization.profile": organizationProfileSchema,
-  "clients.defaults": clientDefaultsSchema,
+  "companies.defaults": companyDefaultsSchema,
   "projects.defaults": projectDefaultsSchema,
   "recurrence.defaults": recurrenceDefaultsSchema,
   "reports.branding": reportBrandingSchema,
@@ -107,7 +107,7 @@ export type SettingsKey = keyof typeof SETTINGS_SCHEMAS;
 export const SETTINGS_KEYS = Object.keys(SETTINGS_SCHEMAS) as SettingsKey[];
 
 export type OrganizationProfile = z.output<typeof organizationProfileSchema>;
-export type ClientDefaults = z.output<typeof clientDefaultsSchema>;
+export type CompanyDefaults = z.output<typeof companyDefaultsSchema>;
 export type ProjectDefaults = z.output<typeof projectDefaultsSchema>;
 export type RecurrenceDefaults = z.output<typeof recurrenceDefaultsSchema>;
 export type ReportBranding = z.output<typeof reportBrandingSchema>;
@@ -130,19 +130,19 @@ export const CATALOG_KINDS = {
     wired: true,
     note: "Alimentan los campos categoría/subcategoría de Helpdesk (texto compatible con datos históricos).",
   },
-  client_category: {
-    label: "Categorías de clientes",
+  company_category: {
+    label: "Categorías de empresas",
     hasChildren: false,
     childLabel: null,
     wired: false,
-    note: "Catálogo preparado; el campo en la ficha de cliente llega con una fase posterior de Clientes.",
+    note: "Catálogo preparado; el campo en la ficha de empresa llega con una fase posterior de Empresas.",
   },
-  client_tag: {
-    label: "Etiquetas de clientes",
+  company_tag: {
+    label: "Etiquetas de empresas",
     hasChildren: false,
     childLabel: null,
     wired: false,
-    note: "Catálogo preparado; el etiquetado de clientes llega con una fase posterior de Clientes.",
+    note: "Catálogo preparado; el etiquetado de empresas llega con una fase posterior de Empresas.",
   },
   activity_tag: {
     label: "Etiquetas de actividades",

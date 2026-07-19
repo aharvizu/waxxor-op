@@ -78,3 +78,7 @@ Category/channel catalogs (OQ-09) · Contact entity for confirmation/messages ·
 ## Catálogo de categorías (2026-07-18, Configuración)
 
 Las categorías y subcategorías de ticket ahora tienen catálogo administrable (Configuración → Tickets, tabla `catalog_items`). Los campos siguen siendo **texto libre** — el catálogo alimenta datalists en Nuevo ticket, Resolver y el panel de clasificación, sin migrar ni invalidar los valores históricos. Ver `docs/features/settings.md`.
+
+## Integración con Knowledge (2026-07-19)
+
+La pestaña Resolution gana "Crear artículo de conocimiento" cuando el ticket tiene una resolución escrita: precarga título/problema/solución desde el ticket, permite anonimizar cliente/contacto, y **siempre crea un borrador** (nunca publica solo). Si ya existe un artículo generado desde este ticket, la misma pestaña lo muestra en su lugar. Ver `docs/features/knowledge.md`.
