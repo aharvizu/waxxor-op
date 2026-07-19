@@ -60,7 +60,7 @@ Ver "Configuración del scheduler" abajo y `docs/architecture/background-jobs.md
 
 ## Configuración del scheduler
 
-- **Cron**: `vercel.json` define `*/10 * * * *` (cada 10 minutos) llamando a `GET /api/cron/recurrences`.
+- **Cron**: `vercel.json` define `0 6 * * *` (una vez al día, 06:00 UTC) llamando a `GET /api/cron/recurrences`. Cambiado desde `*/10 * * * *` el 2026-07-19 — el plan **Vercel Hobby limita los Cron Jobs a una ejecución diaria** y la cadencia anterior hacía fallar el despliegue. Ver `docs/architecture/background-jobs.md` para el detalle y la consecuencia práctica en la acumulación de ocurrencias vencidas.
 - **Variable de entorno requerida**: `CRON_SECRET` — el endpoint responde `503` si no está configurada y `401` si el header `Authorization: Bearer <secret>` no coincide (Vercel Cron lo envía automáticamente al desplegar con esta variable).
 - **Lote**: `RECURRENCE_BATCH_LIMIT = 50` por ejecución del cron (`src/lib/recurrence.ts`).
 - **Reintentos automáticos**: el motor no reintenta solo — un fallo se registra y queda disponible para reintento manual; tras N fallos consecutivos la recurrencia pasa a `status = "error"` (auditado, `isActive = false`) para evitar reintentos infinitos silenciosos. **N es configurable por organización desde 2026-07-18** (Configuración → Recurrentes, 1–10; el motor lo lee vía `orgFailureLimit` con fallback a `RECURRENCE_MAX_CONSECUTIVE_FAILURES = 3`; verificado en `scripts/verify-settings.ts` con límite 1). La timezone y hora por defecto del asistente también salen de esa sección.

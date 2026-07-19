@@ -12,7 +12,7 @@ Watson no tenía ninguna infraestructura de cron/colas/jobs previa. El repositor
 - No requiere infraestructura adicional (no hay Redis, no hay worker process separado que mantener vivo).
 - Encaja con "endpoint protegido invocado por cron" que el spec ofrece como opción explícita.
 
-**Opciones descartadas**: colas (Redis/BullMQ) — over-engineering para un lote de ≤50 recurrencias cada 10 minutos; `node-cron` en proceso — no sobrevive a despliegues serverless (cada invocación de función es efímera, no hay proceso persistente); proveedor externo de cron — spec prohíbe integrar un proveedor externo nuevo sin aprobación.
+**Opciones descartadas**: colas (Redis/BullMQ) — over-engineering para un lote de ≤50 recurrencias por ejecución; `node-cron` en proceso — no sobrevive a despliegues serverless (cada invocación de función es efímera, no hay proceso persistente); proveedor externo de cron — spec prohíbe integrar un proveedor externo nuevo sin aprobación.
 
 ## El endpoint (`src/app/api/cron/recurrences/route.ts`)
 
@@ -39,12 +39,14 @@ Authorization: Bearer <CRON_SECRET>
 ```json
 {
   "crons": [
-    { "path": "/api/cron/recurrences", "schedule": "*/10 * * * *" }
+    { "path": "/api/cron/recurrences", "schedule": "0 6 * * *" }
   ]
 }
 ```
 
-Cada 10 minutos, acorde a la recomendación del spec (5–10 minutos) y al lote máximo de 50 (`RECURRENCE_BATCH_LIMIT`). Ajustar el `schedule` si el volumen de recurrencias crece; documentar el cambio aquí.
+**Una vez al día (06:00 UTC)** — cambiado el 2026-07-19 desde `*/10 * * * *` (cada 10 minutos, la recomendación original del spec de 5–10 minutos): el plan **Vercel Hobby limita los Cron Jobs a una ejecución diaria**, y ese era el `schedule` que estaba haciendo fallar el despliegue. El endpoint y el motor no cambiaron — solo la frecuencia de invocación automática.
+
+**Consecuencia práctica**: con una sola corrida diaria, las recurrencias con `nextRunAt` vencido dentro de esas 24 horas se acumulan hasta la siguiente ejecución en vez de procesarse minutos después de vencer. El lote máximo (`RECURRENCE_BATCH_LIMIT = 50`) sigue aplicando por invocación — si un día acumula más de 50 ocurrencias vencidas entre todas las recurrencias activas, las restantes quedan para la corrida siguiente o para un **Backfill** manual (ver §"Recuperación ante fallos" abajo). Si el volumen de recurrencias crece al punto de que esto importe, subir de plan (Pro permite cron más frecuente) es la palanca, no rediseñar el motor.
 
 ## Ejecución local sin cron desplegado
 
