@@ -35,7 +35,7 @@ const openStatusList = sql.join(
 );
 
 /** Per-project aggregate columns reused by directory and detail. */
-function projectAggregates() {
+export function projectAggregates() {
   const total = sql<number>`(select count(*)::int from ${activities} a
     join ${workItems} w on w.id = a.work_item_id
     where a.project_id = ${projects.id} and a.converted_at is null
@@ -91,121 +91,6 @@ function projectAggregates() {
     openHighRisks,
     openRisks,
   };
-}
-
-export type ProjectDirectoryFilters = {
-  q?: string;
-  view?: string;
-  status?: string;
-  health?: string;
-  priority?: string;
-  companyId?: number;
-  managerId?: number;
-  memberId?: number;
-};
-
-export async function getProjectsDirectory(
-  orgId: number,
-  userId: number,
-  filters: ProjectDirectoryFilters = {},
-) {
-  const agg = projectAggregates();
-  const conditions = [eq(projects.organizationId, orgId)];
-
-  switch (filters.view) {
-    case "all":
-      break;
-    case "mine":
-      conditions.push(
-        or(
-          eq(projects.projectManagerId, userId),
-          sql`exists (select 1 from ${projectMembers} pm where pm.project_id = ${projects.id}
-            and pm.user_id = ${userId} and pm.is_active)`,
-        )!,
-      );
-      conditions.push(sql`${projects.status} not in ('completed','cancelled','archived')`);
-      break;
-    case "team":
-      // No Team entity yet (OQ-02): equals the org-wide active view, no fake data.
-      conditions.push(sql`${projects.status} not in ('completed','cancelled','archived')`);
-      break;
-    case "at_risk":
-      conditions.push(
-        or(eq(projects.status, "at_risk"), eq(projects.healthStatus, "at_risk"))!,
-      );
-      break;
-    case "blocked":
-      conditions.push(eq(projects.healthStatus, "blocked"));
-      break;
-    case "due_soon":
-      conditions.push(
-        sql`${projects.status} in ('planning','active','on_hold','at_risk')
-          and ${projects.targetDate} between current_date and current_date + 14`,
-      );
-      break;
-    case "overdue":
-      conditions.push(
-        sql`${projects.status} in ('planning','active','on_hold','at_risk')
-          and ${projects.targetDate} < current_date`,
-      );
-      break;
-    case "internal":
-      conditions.push(isNull(projects.companyId));
-      conditions.push(sql`${projects.status} not in ('completed','cancelled','archived')`);
-      break;
-    case "completed":
-      conditions.push(eq(projects.status, "completed"));
-      break;
-    case "archived":
-      conditions.push(eq(projects.status, "archived"));
-      break;
-    default:
-      // "active" default view: everything operational
-      conditions.push(sql`${projects.status} not in ('completed','cancelled','archived')`);
-  }
-
-  if (filters.q) {
-    const term = `%${filters.q.trim()}%`;
-    conditions.push(
-      sql`(${projects.name} ilike ${term} or ${projects.folio} ilike ${term}
-        or coalesce(${projects.description}, '') ilike ${term})`,
-    );
-  }
-  if (filters.status && (projects.status.enumValues as readonly string[]).includes(filters.status)) {
-    conditions.push(eq(projects.status, filters.status as (typeof projects.$inferSelect)["status"]));
-  }
-  if (filters.health && (projects.healthStatus.enumValues as readonly string[]).includes(filters.health)) {
-    conditions.push(
-      eq(projects.healthStatus, filters.health as (typeof projects.$inferSelect)["healthStatus"]),
-    );
-  }
-  if (filters.priority && (projects.priority.enumValues as readonly string[]).includes(filters.priority)) {
-    conditions.push(
-      eq(projects.priority, filters.priority as (typeof projects.$inferSelect)["priority"]),
-    );
-  }
-  if (filters.companyId) conditions.push(eq(projects.companyId, filters.companyId));
-  if (filters.managerId) conditions.push(eq(projects.projectManagerId, filters.managerId));
-  if (filters.memberId) {
-    conditions.push(
-      sql`exists (select 1 from ${projectMembers} pm where pm.project_id = ${projects.id}
-        and pm.user_id = ${filters.memberId} and pm.is_active)`,
-    );
-  }
-
-  return db
-    .select({
-      project: projects,
-      companyName: companies.name,
-      managerName: users.name,
-      ...agg,
-    })
-    .from(projects)
-    .leftJoin(companies, eq(projects.companyId, companies.id))
-    .leftJoin(users, eq(projects.projectManagerId, users.id))
-    .where(and(...conditions))
-    .orderBy(desc(projects.updatedAt))
-    .limit(200);
 }
 
 /** One project + all header aggregates in a single round trip. */

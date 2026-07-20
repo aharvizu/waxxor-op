@@ -1,7 +1,7 @@
 import { and, eq, gt, gte, ilike, inArray, isNull, isNotNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { customFieldValues, tickets, workItems } from "@/db/schema";
+import { activities, customFieldValues, projectMembers, projects, recurrenceDefinitions, tickets, workItems } from "@/db/schema";
 
 /**
  * Generic AND/OR filter engine (Part 2, dynamic config 2026-07-20). Field
@@ -87,6 +87,43 @@ export const TICKET_FIELDS: Record<string, FieldDefinition> = {
   createdAt: { key: "createdAt", label: "Creado", type: "date", column: workItems.createdAt },
   dueAt: { key: "dueAt", label: "Vence", type: "date", column: tickets.resolutionTargetAt },
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
+};
+
+/** Projects field registry — "configuración por entidad" over the same engine, no new machinery. */
+export const PROJECT_FIELDS: Record<string, FieldDefinition> = {
+  status: { key: "status", label: "Estado", type: "select", column: projects.status },
+  healthStatus: { key: "healthStatus", label: "Salud", type: "select", column: projects.healthStatus },
+  priority: { key: "priority", label: "Prioridad", type: "select", column: projects.priority },
+  companyId: { key: "companyId", label: "Empresa", type: "company", column: projects.companyId },
+  projectManagerId: { key: "projectManagerId", label: "Project Manager", type: "user", column: projects.projectManagerId },
+  targetDate: { key: "targetDate", label: "Objetivo", type: "date", column: projects.targetDate },
+  createdAt: { key: "createdAt", label: "Creado", type: "date", column: projects.createdAt },
+  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: projects.updatedAt },
+};
+
+/** Activities field registry — shares the workItems columns with Tickets (same underlying work item). */
+export const ACTIVITY_FIELDS: Record<string, FieldDefinition> = {
+  status: { key: "status", label: "Estado", type: "select", column: workItems.status },
+  priority: { key: "priority", label: "Prioridad", type: "select", column: workItems.priority },
+  activityType: { key: "activityType", label: "Tipo", type: "select", column: activities.activityType },
+  companyId: { key: "companyId", label: "Cliente", type: "company", column: workItems.companyId },
+  assigneeId: { key: "assigneeId", label: "Responsable", type: "user", column: workItems.assigneeId },
+  dueDate: { key: "dueDate", label: "Vence", type: "date", column: workItems.dueDate },
+  createdAt: { key: "createdAt", label: "Creado", type: "date", column: workItems.createdAt },
+  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
+};
+
+/** Recurring field registry — "configuración por entidad" over the same engine, no new machinery. */
+export const RECURRENCE_FIELDS: Record<string, FieldDefinition> = {
+  status: { key: "status", label: "Estado", type: "select", column: recurrenceDefinitions.status },
+  targetType: { key: "targetType", label: "Tipo", type: "select", column: recurrenceDefinitions.targetType },
+  frequency: { key: "frequency", label: "Frecuencia", type: "select", column: recurrenceDefinitions.frequency },
+  companyId: { key: "companyId", label: "Empresa", type: "company", column: recurrenceDefinitions.companyId },
+  projectId: { key: "projectId", label: "Proyecto", type: "text", column: recurrenceDefinitions.projectId },
+  assigneeId: { key: "assigneeId", label: "Responsable", type: "user", column: recurrenceDefinitions.assigneeId },
+  nextRunAt: { key: "nextRunAt", label: "Próxima ejecución", type: "date", column: recurrenceDefinitions.nextRunAt },
+  createdAt: { key: "createdAt", label: "Creado", type: "date", column: recurrenceDefinitions.createdAt },
+  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: recurrenceDefinitions.updatedAt },
 };
 
 /** Loads a module's field registry with its active custom fields appended as filterable "select"/"text"/etc fields. */
@@ -221,9 +258,18 @@ export function buildFilterSql(
   return group.logic === "OR" ? or(...parts) : and(...parts);
 }
 
-/** Quick filters (Part 2): fixed, one-click starting points. Evaluated the same way as a saved filter. */
-export type QuickFilterKey = "mine" | "unassigned" | "pending" | "overdue" | "closed_recent" | "favorites";
-export const QUICK_FILTERS: { key: QuickFilterKey; label: string }[] = [
+/**
+ * Quick filters: fixed, one-click starting points. Each module's set reads
+ * columns specific to it (workItems.assigneeId / tickets.resolutionTargetAt
+ * for Tickets, projects.projectManagerId / projectMembers for Projects), so
+ * the key sets don't generalize into one shared list — but the mechanism
+ * (a `quick` key resolved to SQL at query time, evaluated the same way as a
+ * saved filter) is shared. Projects' three keys (mine/active/at_risk) are
+ * exactly the ones its five seeded views need — no advanced AND/OR builder
+ * or parallel machinery invented for it.
+ */
+export type TicketQuickFilterKey = "mine" | "unassigned" | "pending" | "overdue" | "closed_recent" | "favorites";
+export const TICKET_QUICK_FILTERS: { key: TicketQuickFilterKey; label: string }[] = [
   { key: "mine", label: "Mis elementos" },
   { key: "unassigned", label: "Sin asignar" },
   { key: "pending", label: "Pendientes" },
@@ -244,8 +290,8 @@ const ACTIVE_TICKET_STATUSES = [
 ] as const;
 
 /** Quick-filter SQL for Tickets. `favorites` needs a caller-supplied set of favorited ticket IDs (see helpdesk actions). */
-export function quickFilterSql(
-  key: QuickFilterKey,
+export function ticketQuickFilterSql(
+  key: TicketQuickFilterKey,
   userId: number,
   favoriteIds: number[] = [],
 ): SQL | undefined {
@@ -268,6 +314,101 @@ export function quickFilterSql(
       return and(inArray(workItems.status, ["closed", "cancelled"]), gte(workItems.updatedAt, weekAgo));
     case "favorites":
       return favoriteIds.length > 0 ? inArray(tickets.id, favoriteIds) : sql`false`;
+    default:
+      return undefined;
+  }
+}
+
+const TERMINAL_PROJECT_STATUSES = ["completed", "cancelled", "archived"] as const;
+
+export type ProjectQuickFilterKey = "mine" | "active" | "at_risk";
+export const PROJECT_QUICK_FILTERS: { key: ProjectQuickFilterKey; label: string }[] = [
+  { key: "mine", label: "Mis proyectos" },
+  { key: "active", label: "Activos" },
+  { key: "at_risk", label: "En riesgo" },
+];
+
+/** Quick-filter SQL for Projects — mirrors ticketQuickFilterSql's shape for the shared FilterBar. */
+export function projectQuickFilterSql(key: ProjectQuickFilterKey, userId: number): SQL | undefined {
+  switch (key) {
+    case "mine":
+      return and(
+        or(
+          eq(projects.projectManagerId, userId),
+          sql`exists (select 1 from ${projectMembers} pm where pm.project_id = ${projects.id}
+            and pm.user_id = ${userId} and pm.is_active)`,
+        ),
+        notInArray(projects.status, [...TERMINAL_PROJECT_STATUSES]),
+      );
+    case "active":
+      return notInArray(projects.status, [...TERMINAL_PROJECT_STATUSES]);
+    case "at_risk":
+      return or(eq(projects.status, "at_risk"), eq(projects.healthStatus, "at_risk"));
+    default:
+      return undefined;
+  }
+}
+
+export type ActivityQuickFilterKey = "mine" | "unassigned" | "overdue" | "no_date" | "completed";
+export const ACTIVITY_QUICK_FILTERS: { key: ActivityQuickFilterKey; label: string }[] = [
+  { key: "mine", label: "Mis actividades" },
+  { key: "unassigned", label: "Sin asignar" },
+  { key: "overdue", label: "Vencidas" },
+  { key: "no_date", label: "Sin fecha" },
+  { key: "completed", label: "Completadas" },
+];
+
+/** Quick-filter SQL for Activities — reads the same workItems columns Tickets does (shared work item). */
+export function activityQuickFilterSql(key: ActivityQuickFilterKey, userId: number): SQL | undefined {
+  const today = new Date().toISOString().slice(0, 10);
+  switch (key) {
+    case "mine":
+      return eq(workItems.assigneeId, userId);
+    case "unassigned":
+      return isNull(workItems.assigneeId);
+    case "overdue":
+      return and(isNotNull(workItems.dueDate), lt(workItems.dueDate, today), notInArray(workItems.status, ["completed", "cancelled"]));
+    case "no_date":
+      return isNull(workItems.dueDate);
+    case "completed":
+      return eq(workItems.status, "completed");
+    default:
+      return undefined;
+  }
+}
+
+export type RecurrenceQuickFilterKey = "mine" | "upcoming" | "today" | "overdue" | "errors" | "paused";
+export const RECURRENCE_QUICK_FILTERS: { key: RecurrenceQuickFilterKey; label: string }[] = [
+  { key: "mine", label: "Mis recurrencias" },
+  { key: "upcoming", label: "Próximas" },
+  { key: "today", label: "Hoy" },
+  { key: "overdue", label: "Vencidas por ejecutar" },
+  { key: "errors", label: "Con errores" },
+  { key: "paused", label: "Pausadas" },
+];
+
+/** Quick-filter SQL for Recurring. */
+export function recurrenceQuickFilterSql(key: RecurrenceQuickFilterKey, userId: number): SQL | undefined {
+  const now = new Date();
+  const in7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  switch (key) {
+    case "mine":
+      return eq(recurrenceDefinitions.assigneeId, userId);
+    case "upcoming":
+      return and(eq(recurrenceDefinitions.status, "active"), sql`${recurrenceDefinitions.nextRunAt} between ${now} and ${in7}`);
+    case "today": {
+      const startOfDay = new Date(now);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+      return and(eq(recurrenceDefinitions.status, "active"), sql`${recurrenceDefinitions.nextRunAt} between ${startOfDay} and ${endOfDay}`);
+    }
+    case "overdue":
+      return and(eq(recurrenceDefinitions.status, "active"), lte(recurrenceDefinitions.nextRunAt, now));
+    case "errors":
+      return or(eq(recurrenceDefinitions.status, "error"), sql`${recurrenceDefinitions.failedCount} > 0`);
+    case "paused":
+      return eq(recurrenceDefinitions.status, "paused");
     default:
       return undefined;
   }

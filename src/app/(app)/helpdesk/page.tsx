@@ -3,43 +3,58 @@ import Link from "next/link";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import { db } from "@/db";
-import { companies, itemFavorites, tickets, timeEntries, users, workItems } from "@/db/schema";
+import { companies, tickets, timeEntries, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { PageHeader, buttonClass } from "@/components/ui";
 import { getStyledMeta } from "@/lib/catalog-styles";
 import { getValuesForEntities, getFieldDefinitions } from "@/lib/custom-fields";
-import { buildFieldRegistry, buildFilterSql, filterGroupSchema, quickFilterSql, TICKET_FIELDS, toPublicFields, type FilterGroup, type QuickFilterKey } from "@/lib/filters";
+import {
+  buildFieldRegistry,
+  buildFilterSql,
+  filterGroupSchema,
+  ticketQuickFilterSql,
+  toPublicFields,
+  TICKET_FIELDS,
+  TICKET_QUICK_FILTERS,
+  type FilterGroup,
+  type TicketQuickFilterKey,
+} from "@/lib/filters";
+import { getLastViewId } from "@/lib/last-view";
 import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
-import { createView, defaultViewConfig, getDefaultView, listViews, type SavedView } from "@/lib/views";
-import { FilterBar } from "./filter-bar";
-import { ViewSwitcher } from "./view-switcher";
-import { buildColumnRegistry, CalendarView, KanbanView, ListView, TableView, TimelineView, type TicketRow } from "./ticket-views";
-import { updateTicketViewConfig } from "./views-actions";
+import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { TICKET_COLUMN_OPTIONS, TICKET_KANBAN_GROUP_OPTIONS, type TicketRow } from "./ticket-views";
+import { TicketsViewContent } from "./tickets-view-content";
 
 export const metadata: Metadata = { title: "Helpdesk" };
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string };
+const BASE_PATH = "/helpdesk";
+
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; billing?: string };
 
 export default async function HelpdeskPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const params = await searchParams;
   const userId = Number(user.id);
 
-  let views = await listViews(user.organizationId, userId, "tickets");
-  if (views.length === 0) {
-    // First visit: bootstrap one default Table view so the switcher/filter bar always has something to show.
-    await createView(user.organizationId, userId, { module: "tickets", name: "Todos", viewType: "table", isDefault: true });
-    views = await listViews(user.organizationId, userId, "tickets");
-  }
+  await ensureInitialViews(user.organizationId, "tickets", [
+    { name: "Todos", viewType: "table" },
+    { name: "Mis tickets", viewType: "table", quick: "mine" },
+    { name: "Sin asignar", viewType: "table", quick: "unassigned" },
+    { name: "Vencidos", viewType: "table", quick: "overdue" },
+    { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
+  ]);
+  const views = await listViews(user.organizationId, userId, "tickets");
 
+  const lastViewId = await getLastViewId("tickets");
   const requestedViewId = Number(params.view);
-  const activeView: SavedView =
+  const activeView =
     views.find((v) => v.id === requestedViewId) ??
-    (await getDefaultView(user.organizationId, userId, "tickets")) ??
+    (lastViewId ? views.find((v) => v.id === lastViewId) : undefined) ??
+    views.find((v) => v.isDefault) ??
     views[0];
 
   const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
-  const quick = (params.quick as QuickFilterKey | undefined) ?? null;
+  const quick = (params.quick as TicketQuickFilterKey | undefined) ?? (viewConfig.quick as TicketQuickFilterKey | null) ?? null;
   const search = params.q ?? viewConfig.search ?? "";
   let filters: FilterGroup | null = viewConfig.filters ?? null;
   if (params.filters) {
@@ -50,22 +65,27 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   const customFieldDefs = await getFieldDefinitions(user.organizationId, "tickets", { activeOnly: true });
   const fieldRegistry = await buildFieldRegistry(TICKET_FIELDS, customFieldDefs);
 
-  const favoriteRows = await db
-    .select({ entityId: itemFavorites.entityId })
-    .from(itemFavorites)
-    .where(and(eq(itemFavorites.userId, userId), eq(itemFavorites.module, "tickets")));
-  const favoriteIds = favoriteRows.map((r) => r.entityId);
+  const favoriteIds = await getFavoriteIds(user.organizationId, userId, "tickets");
 
   const conditions = [eq(tickets.organizationId, user.organizationId)];
   const filterSql = buildFilterSql(filters, fieldRegistry, "tickets", tickets.id);
   if (filterSql) conditions.push(filterSql);
   if (quick) {
-    const qSql = quickFilterSql(quick, userId, favoriteIds);
+    const qSql = ticketQuickFilterSql(quick, userId, favoriteIds);
     if (qSql) conditions.push(qSql);
   }
   if (search.trim()) {
     const term = `%${search.trim()}%`;
     conditions.push(or(ilike(workItems.title, term), ilike(tickets.folio, term))!);
+  }
+  // Direct status/billing passthrough — bookmarkable dashboard/indicator
+  // drill-down links (today/page.tsx, lib/indicators.ts) that don't map to
+  // a quick filter or saved view.
+  if (params.status && (workItems.status.enumValues as readonly string[]).includes(params.status)) {
+    conditions.push(eq(workItems.status, params.status as (typeof workItems.status.enumValues)[number]));
+  }
+  if (params.billing && (tickets.billingStatus.enumValues as readonly string[]).includes(params.billing)) {
+    conditions.push(eq(tickets.billingStatus, params.billing as (typeof tickets.billingStatus.enumValues)[number]));
   }
 
   const timeByItem = db.$with("time_by_item").as(
@@ -81,6 +101,10 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
 
   const sortColumn = viewConfig.sortBy?.field === "priority" ? workItems.priority : workItems.updatedAt;
   const orderFn = viewConfig.sortBy?.direction === "asc" ? asc : desc;
+
+  // Kanban shows the whole board regardless of the view's saved pageSize (a
+  // capped page would silently hide cards in later columns).
+  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
 
   const rawRows = await db
     .with(timeByItem)
@@ -108,7 +132,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     .leftJoin(timeByItem, eq(timeByItem.workItemId, workItems.id))
     .where(and(...conditions))
     .orderBy(orderFn(sortColumn))
-    .limit(viewConfig.pageSize);
+    .limit(limit);
 
   const ticketIds = rawRows.map((r) => r.id);
   const cfValuesByEntity = await getValuesForEntities(user.organizationId, "tickets", ticketIds);
@@ -129,15 +153,6 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     getStyledMeta(user.organizationId, "ticket_status_style", ticketStatusMeta),
     getStyledMeta(user.organizationId, "ticket_priority_style", ticketPriorityMeta),
   ]);
-  const columnRegistry = buildColumnRegistry(customFieldDefs.map((f) => ({ key: f.key, name: f.name })));
-
-  async function saveFilters(nextFilters: FilterGroup | null) {
-    "use server";
-    const fd = new FormData();
-    fd.set("id", String(activeView.id));
-    fd.set("config", JSON.stringify({ ...viewConfig, filters: nextFilters }));
-    await updateTicketViewConfig(null, fd);
-  }
 
   return (
     <div>
@@ -151,30 +166,26 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
         }
       />
 
-      <ViewSwitcher views={views} activeViewId={activeView.id} currentUserId={userId} />
-      <FilterBar fields={toPublicFields(fieldRegistry)} activeQuick={quick} activeFilters={filters} activeSearch={search} onSaveToView={saveFilters} />
-
-      {activeView.viewType === "table" ? (
-        <TableView
-          rows={rows}
-          columns={viewConfig.columns.filter((c) => c.visible).map((c) => c.key)}
-          registry={columnRegistry}
-          users={userRows}
-        />
-      ) : activeView.viewType === "list" ? (
-        <ListView rows={rows} />
-      ) : activeView.viewType === "kanban" ? (
-        <KanbanView
-          rows={rows}
-          groupByField={viewConfig.groupBy === "priority" ? "priority" : "status"}
-          groupStyles={viewConfig.groupBy === "priority" ? priorityStyles : statusStyles}
-          groupValues={viewConfig.groupBy === "priority" ? (Object.keys(priorityStyles)) : (Object.keys(statusStyles))}
-        />
-      ) : activeView.viewType === "calendar" ? (
-        <CalendarView rows={rows} />
-      ) : (
-        <TimelineView rows={rows} />
-      )}
+      <TicketsViewContent
+        views={views}
+        activeViewId={activeView.id}
+        currentUserId={userId}
+        currentUserRole={user.role}
+        orgUsers={userRows}
+        basePath={BASE_PATH}
+        rows={rows}
+        users={userRows}
+        customFieldDefs={customFieldDefs.map((f) => ({ key: f.key, name: f.name }))}
+        statusStyles={statusStyles}
+        priorityStyles={priorityStyles}
+        fields={toPublicFields(fieldRegistry)}
+        quickFilters={TICKET_QUICK_FILTERS}
+        activeQuick={quick}
+        activeFilters={filters}
+        activeSearch={search}
+        columnOptions={TICKET_COLUMN_OPTIONS}
+        kanbanGroupOptions={TICKET_KANBAN_GROUP_OPTIONS}
+      />
     </div>
   );
 }

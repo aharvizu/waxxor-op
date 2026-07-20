@@ -24,7 +24,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: "count(tickets creados ≤ fin del periodo, sin closed_at ≤ fin, estado ≠ cancelled)",
     unit: "count",
     source: "tickets + work_items",
-    drillDownRoute: "/helpdesk?view=all",
+    drillDownRoute: "/helpdesk?quick=pending",
     emptyState: "Sin tickets abiertos en el periodo.",
   },
   {
@@ -34,7 +34,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: "count(work_items.created_at ∈ periodo, type = ticket)",
     unit: "count",
     source: "work_items",
-    drillDownRoute: "/helpdesk?view=new",
+    drillDownRoute: "/helpdesk?status=new",
     emptyState: "No se crearon tickets en el periodo.",
   },
   {
@@ -44,7 +44,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: "count(tickets.closed_at ∈ periodo)",
     unit: "count",
     source: "tickets",
-    drillDownRoute: "/helpdesk?view=closed",
+    drillDownRoute: "/helpdesk?status=closed",
     emptyState: "No se cerraron tickets en el periodo.",
   },
   {
@@ -54,7 +54,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: "reabiertos ∈ periodo / cerrados ∈ periodo × 100",
     unit: "percent",
     source: "tickets (last_reopened_at, closed_at)",
-    drillDownRoute: "/helpdesk?view=reopened",
+    drillDownRoute: "/helpdesk?status=reopened",
     emptyState: "Sin cierres en el periodo — la tasa no aplica.",
   },
   {
@@ -65,7 +65,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
       "count(sla_resolution_met = true) / count(sla_resolution_met is not null) × 100 — cancelados y sin snapshot excluidos por construcción",
     unit: "percent",
     source: "tickets (banderas finales congeladas al cierre)",
-    drillDownRoute: "/helpdesk?view=overdue",
+    drillDownRoute: "/helpdesk?quick=overdue",
     emptyState: "Sin tickets evaluables cerrados en el periodo.",
   },
   {
@@ -145,7 +145,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: "count(status = 'at_risk' or health_status in ('at_risk','blocked'))",
     unit: "count",
     source: "projects",
-    drillDownRoute: "/projects?view=at_risk",
+    drillDownRoute: "/projects?quick=at_risk",
     emptyState: "Ningún proyecto en riesgo.",
   },
   {
@@ -155,7 +155,7 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     formula: "succeeded / (succeeded + failed) × 100",
     unit: "percent",
     source: "recurrence_executions",
-    drillDownRoute: "/recurring?view=errors",
+    drillDownRoute: "/recurring?quick=errors",
     emptyState: "Sin ejecuciones de recurrencia en el periodo.",
   },
   {
@@ -239,7 +239,7 @@ export function buildExecutiveAttention(input: {
       key: "sla_below_target",
       severity: "high",
       text: `Cumplimiento de SLA en ${input.slaCompliancePct}% — por debajo del objetivo (${input.thresholds.sla_target_pct}%).`,
-      href: "/helpdesk?view=overdue",
+      href: "/helpdesk?quick=overdue",
     });
   }
   if (input.overdueTickets > 0) {
@@ -247,7 +247,7 @@ export function buildExecutiveAttention(input: {
       key: "tickets_overdue",
       severity: "high",
       text: `${input.overdueTickets} ticket(s) con SLA vencido ahora mismo.`,
-      href: "/helpdesk?view=overdue",
+      href: "/helpdesk?quick=overdue",
     });
   }
   if (input.projectsAtRisk > 0) {
@@ -255,7 +255,7 @@ export function buildExecutiveAttention(input: {
       key: "projects_at_risk",
       severity: "medium",
       text: `${input.projectsAtRisk} proyecto(s) en riesgo o bloqueado(s).`,
-      href: "/projects?view=at_risk",
+      href: "/projects?quick=at_risk",
     });
   }
   if (input.billingPendingReview > 0) {
@@ -279,7 +279,7 @@ export function buildExecutiveAttention(input: {
       key: "recurrences_error",
       severity: "medium",
       text: `${input.recurrencesInError} recurrencia(s) pausada(s) por fallos.`,
-      href: "/recurring?view=errors",
+      href: "/recurring?quick=errors",
     });
   }
   return out.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "high" ? -1 : 1));

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Filter, Plus, Search, Trash2, X } from "lucide-react";
 import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
-import { FILTER_OPERATORS, QUICK_FILTERS, type PublicFieldDefinition, type FilterCondition, type FilterGroup, type QuickFilterKey } from "@/lib/filters";
+import { FILTER_OPERATORS, type PublicFieldDefinition, type FilterCondition, type FilterGroup } from "@/lib/filters";
 
 const OPERATOR_LABELS: Record<string, string> = {
   eq: "es",
@@ -30,21 +30,27 @@ function emptyGroup(): FilterGroup {
 }
 
 /**
- * Filter administrator (Part 2, dynamic config 2026-07-20) — replaces the old
- * fixed filter panel. Quick filters are one click; "Filtros" opens the
- * AND/OR condition builder. Both write into the URL (?quick=, ?filters=) so
- * the server component re-queries; "Guardar" persists the current state into
- * the active saved view via onSaveToView.
+ * Shared filter administrator (motor de vistas reutilizable, 2026-07-21) —
+ * one component for every module, quick filters injected as data
+ * ("configuración por entidad", not per-module copies). Fuera de alcance
+ * este sprint: constructor AND/OR avanzado (anidación) — se mantiene el
+ * editor de un nivel ya existente, reutilizado tal cual. Quick filters are
+ * one click; "Filtros" opens the single-level AND/OR condition builder.
+ * Both write into the URL (?quick=, ?filters=) so the server component
+ * re-queries; "Guardar en vista" persists the current state via onSaveToView.
  */
 export function FilterBar({
   fields,
+  quickFilters = [],
   activeQuick,
   activeFilters,
   activeSearch,
   onSaveToView,
 }: {
   fields: Record<string, PublicFieldDefinition>;
-  activeQuick: QuickFilterKey | null;
+  /** Module-specific quick filter chips — empty array renders none. */
+  quickFilters?: { key: string; label: string }[];
+  activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
   onSaveToView?: (filters: FilterGroup | null) => void | Promise<void>;
@@ -61,7 +67,7 @@ export function FilterBar({
     router.push(`${url.pathname}?${url.searchParams.toString()}`);
   }
 
-  function selectQuick(key: QuickFilterKey) {
+  function selectQuick(key: string) {
     setUrlParam("quick", activeQuick === key ? null : key);
   }
 
@@ -107,7 +113,7 @@ export function FilterBar({
           />
         </form>
 
-        {QUICK_FILTERS.map((qf) => (
+        {quickFilters.map((qf) => (
           <button
             key={qf.key}
             type="button"
@@ -155,7 +161,7 @@ export function FilterBar({
 
               <div className="max-h-72 space-y-2 overflow-y-auto">
                 {draft.conditions.map((c, i) => {
-                  if (isGroup(c)) return null; // nested groups: builder UI kept to one level for the pilot
+                  if (isGroup(c)) return null; // nested groups: builder UI kept to one level (fuera de alcance el constructor avanzado)
                   const field = fields[c.field];
                   return (
                     <div key={i} className="flex flex-wrap items-center gap-1.5">

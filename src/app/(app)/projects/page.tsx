@@ -1,96 +1,148 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, asc, eq, ne } from "drizzle-orm";
-import { FolderKanban, Plus } from "lucide-react";
+import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { Plus } from "lucide-react";
 import { db } from "@/db";
-import { companies, users } from "@/db/schema";
-import { fmtDate } from "@/lib/format";
-import { projectHealthMeta, projectPriorityMeta, projectStatusMeta } from "@/lib/labels";
-import { getProjectsDirectory } from "@/lib/project-data";
-import { PROJECT_HEALTHS, PROJECT_PRIORITIES, PROJECT_STATUSES } from "@/lib/projects";
+import { companies, projects, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
-import { formatMinutes } from "@/lib/time-entries";
+import { PageHeader, buttonClass } from "@/components/ui";
+import { projectAggregates } from "@/lib/project-data";
 import {
-  Badge,
-  Card,
-  EmptyState,
-  PageHeader,
-  Progress,
-  THead,
-  Table,
-  Td,
-  Th,
-  buttonClass,
-  buttonSecondaryClass,
-  cx,
-  inputClass,
-} from "@/components/ui";
+  buildFieldRegistry,
+  buildFilterSql,
+  filterGroupSchema,
+  projectQuickFilterSql,
+  toPublicFields,
+  PROJECT_FIELDS,
+  PROJECT_QUICK_FILTERS,
+  type FilterGroup,
+  type ProjectQuickFilterKey,
+} from "@/lib/filters";
+import { getLastViewId } from "@/lib/last-view";
+import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { PROJECT_COLUMN_OPTIONS, PROJECT_KANBAN_GROUP_OPTIONS, type ProjectRow } from "./project-views";
+import { ProjectsViewContent } from "./projects-view-content";
 
 export const metadata: Metadata = { title: "Projects" };
 
-const VIEWS = [
-  ["", "Activos"],
-  ["all", "Todos"],
-  ["mine", "Mis proyectos"],
-  ["team", "Mi equipo"],
-  ["at_risk", "En riesgo"],
-  ["blocked", "Bloqueados"],
-  ["due_soon", "Próximos a vencer"],
-  ["overdue", "Vencidos"],
-  ["internal", "Sin cliente"],
-  ["completed", "Completados"],
-  ["archived", "Archivados"],
-] as const;
+const BASE_PATH = "/projects";
 
-export default async function ProjectsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    q?: string;
-    view?: string;
-    status?: string;
-    health?: string;
-    priority?: string;
-    companyId?: string;
-    managerId?: string;
-  }>;
-}) {
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string };
+
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const params = await searchParams;
+  const userId = Number(user.id);
 
-  const [rows, companyRows, managerRows] = await Promise.all([
-    getProjectsDirectory(user.organizationId, Number(user.id), {
-      q: params.q,
-      view: params.view,
-      status: params.status,
-      health: params.health,
-      priority: params.priority,
-      companyId: params.companyId ? Number(params.companyId) : undefined,
-      managerId: params.managerId ? Number(params.managerId) : undefined,
-    }),
-    db
-      .select({ id: companies.id, name: companies.name })
-      .from(companies)
-      .where(eq(companies.organizationId, user.organizationId))
-      .orderBy(asc(companies.name)),
-    db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client")))
-      .orderBy(asc(users.name)),
+  await ensureInitialViews(user.organizationId, "projects", [
+    { name: "Todos", viewType: "table" },
+    { name: "Mis proyectos", viewType: "table", quick: "mine" },
+    { name: "Activos", viewType: "table", quick: "active" },
+    { name: "En riesgo", viewType: "table", quick: "at_risk" },
+    { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
   ]);
+  const views = await listViews(user.organizationId, userId, "projects");
 
-  const buildHref = (patch: Record<string, string | undefined>) => {
-    const next = { ...params, ...patch };
-    const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries(next)) if (v) qs.set(k, v);
-    const s = qs.toString();
-    return s ? `/projects?${s}` : "/projects";
-  };
+  const lastViewId = await getLastViewId("projects");
+  const requestedViewId = Number(params.view);
+  const activeView =
+    views.find((v) => v.id === requestedViewId) ??
+    (lastViewId ? views.find((v) => v.id === lastViewId) : undefined) ??
+    views.find((v) => v.isDefault) ??
+    views[0];
 
-  const canCreate = ["superadmin", "administrator", "director", "project_manager"].includes(
-    user.role,
-  );
+  const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
+  const quick = (params.quick as ProjectQuickFilterKey | undefined) ?? (viewConfig.quick as ProjectQuickFilterKey | null) ?? null;
+  const search = params.q ?? viewConfig.search ?? "";
+  let filters: FilterGroup | null = viewConfig.filters ?? null;
+  if (params.filters) {
+    const parsed = filterGroupSchema.safeParse(JSON.parse(params.filters));
+    if (parsed.success) filters = parsed.data;
+  }
+
+  const fieldRegistry = await buildFieldRegistry(PROJECT_FIELDS, []);
+  const favoriteIds = await getFavoriteIds(user.organizationId, userId, "projects");
+
+  const conditions = [eq(projects.organizationId, user.organizationId)];
+  const filterSql = buildFilterSql(filters, fieldRegistry, "projects", projects.id);
+  if (filterSql) conditions.push(filterSql);
+  if (quick) {
+    const qSql = projectQuickFilterSql(quick, userId);
+    if (qSql) conditions.push(qSql);
+  }
+  if (search.trim()) {
+    const term = `%${search.trim()}%`;
+    conditions.push(or(ilike(projects.name, term), ilike(projects.folio, term))!);
+  }
+  // Direct status passthrough — bookmarkable dashboard/indicator drill-down
+  // links that don't map to a quick filter or saved view.
+  if (params.status && (projects.status.enumValues as readonly string[]).includes(params.status)) {
+    conditions.push(eq(projects.status, params.status as (typeof projects.status.enumValues)[number]));
+  }
+
+  const agg = projectAggregates();
+
+  // Kanban shows the whole board regardless of the view's saved pageSize (a
+  // capped page would silently hide cards in later columns).
+  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
+
+  const rawRows = await db
+    .select({
+      id: projects.id,
+      folio: projects.folio,
+      name: projects.name,
+      status: projects.status,
+      healthStatus: projects.healthStatus,
+      priority: projects.priority,
+      companyId: projects.companyId,
+      companyName: companies.name,
+      managerId: projects.projectManagerId,
+      managerName: users.name,
+      targetDate: projects.targetDate,
+      total: agg.total,
+      completed: agg.completed,
+      overdue: agg.overdue,
+      nextMilestone: agg.nextMilestone,
+      loggedMinutes: agg.loggedMinutes,
+    })
+    .from(projects)
+    .leftJoin(companies, eq(projects.companyId, companies.id))
+    .leftJoin(users, eq(projects.projectManagerId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(projects.updatedAt))
+    .limit(limit);
+
+  const favoriteSet = new Set(favoriteIds);
+  const rows: ProjectRow[] = rawRows.map((r) => {
+    const percent = r.total === 0 ? 0 : Math.round((r.completed / r.total) * 100);
+    return {
+      id: r.id,
+      folio: r.folio,
+      name: r.name,
+      status: r.status,
+      healthStatus: r.healthStatus,
+      priority: r.priority,
+      companyId: r.companyId,
+      companyName: r.companyName,
+      managerId: r.managerId,
+      managerName: r.managerName,
+      targetDate: r.targetDate,
+      percent,
+      pending: r.total - r.completed,
+      overdue: r.overdue,
+      nextMilestone: r.nextMilestone,
+      loggedMinutes: r.loggedMinutes,
+      isFavorite: favoriteSet.has(r.id),
+    };
+  });
+
+  const canCreate = ["superadmin", "administrator", "director", "project_manager"].includes(user.role);
+
+  const orgUsers = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.organizationId, user.organizationId))
+    .orderBy(asc(users.name));
 
   return (
     <div>
@@ -106,166 +158,22 @@ export default async function ProjectsPage({
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {VIEWS.map(([value, label]) => (
-          <Link
-            key={value}
-            href={buildHref({ view: value || undefined })}
-            className={cx(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              (params.view ?? "") === value
-                ? "bg-primary-soft text-primary"
-                : "border border-edge text-muted hover:bg-subtle hover:text-fg",
-            )}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
-
-      <form method="get" className="mb-6 flex flex-wrap items-center gap-3">
-        {params.view ? <input type="hidden" name="view" value={params.view} /> : null}
-        <input
-          type="search"
-          name="q"
-          defaultValue={params.q ?? ""}
-          placeholder="Buscar por folio, nombre o descripción…"
-          className={cx(inputClass, "max-w-xs")}
-        />
-        <select name="status" defaultValue={params.status ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Estado</option>
-          {PROJECT_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {projectStatusMeta[s]?.label ?? s}
-            </option>
-          ))}
-        </select>
-        <select name="health" defaultValue={params.health ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Salud</option>
-          {PROJECT_HEALTHS.map((s) => (
-            <option key={s} value={s}>
-              {projectHealthMeta[s]?.label ?? s}
-            </option>
-          ))}
-        </select>
-        <select
-          name="priority"
-          defaultValue={params.priority ?? ""}
-          className={cx(inputClass, "w-auto")}
-        >
-          <option value="">Prioridad</option>
-          {PROJECT_PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {projectPriorityMeta[p]?.label ?? p}
-            </option>
-          ))}
-        </select>
-        <select
-          name="companyId"
-          defaultValue={params.companyId ?? ""}
-          className={cx(inputClass, "w-auto")}
-        >
-          <option value="">Empresa</option>
-          {companyRows.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          name="managerId"
-          defaultValue={params.managerId ?? ""}
-          className={cx(inputClass, "w-auto")}
-        >
-          <option value="">Project Manager</option>
-          {managerRows.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className={buttonSecondaryClass}>
-          Filtrar
-        </button>
-      </form>
-
-      {rows.length === 0 ? (
-        <EmptyState icon={<FolderKanban />} title="Sin proyectos en esta vista">
-          Cambia la vista o los filtros, o crea un proyecto nuevo.
-        </EmptyState>
-      ) : (
-        <Card className="overflow-visible">
-          <Table>
-            <THead>
-              <tr>
-                <Th>Proyecto</Th>
-                <Th>Empresa</Th>
-                <Th>PM</Th>
-                <Th>Estado</Th>
-                <Th>Salud</Th>
-                <Th>Prioridad</Th>
-                <Th>Avance</Th>
-                <Th>Pend. / Venc.</Th>
-                <Th>Próximo hito</Th>
-                <Th>Objetivo</Th>
-                <Th>Tiempo</Th>
-              </tr>
-            </THead>
-            <tbody className="divide-y divide-edge">
-              {rows.map((r) => {
-                const percent =
-                  r.total === 0 ? 0 : Math.round((r.completed / r.total) * 100);
-                const pending = r.total - r.completed;
-                return (
-                  <tr key={r.project.id} className="group transition-colors hover:bg-subtle">
-                    <Td>
-                      <Link
-                        href={`/projects/${r.project.id}`}
-                        className="font-medium text-fg transition-colors group-hover:text-primary"
-                      >
-                        <span className="text-xs text-faint tabular-nums">{r.project.folio}</span>{" "}
-                        {r.project.name}
-                      </Link>
-                    </Td>
-                    <Td className="text-muted">{r.companyName ?? "Interno"}</Td>
-                    <Td className="text-muted">{r.managerName ?? "—"}</Td>
-                    <Td>
-                      <Badge tone={projectStatusMeta[r.project.status]?.tone ?? "slate"}>
-                        {projectStatusMeta[r.project.status]?.label ?? r.project.status}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge tone={projectHealthMeta[r.project.healthStatus]?.tone ?? "slate"}>
-                        {projectHealthMeta[r.project.healthStatus]?.label ?? r.project.healthStatus}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge tone={projectPriorityMeta[r.project.priority]?.tone ?? "slate"}>
-                        {projectPriorityMeta[r.project.priority]?.label ?? r.project.priority}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <div className="flex items-center gap-2">
-                        <Progress value={percent} className="w-16" />
-                        <span className="text-xs text-muted tabular-nums">{percent}%</span>
-                      </div>
-                    </Td>
-                    <Td className="tabular-nums">
-                      <span className="text-muted">{pending}</span>
-                      {r.overdue > 0 ? <span className="ml-1 text-danger">/ {r.overdue}</span> : null}
-                    </Td>
-                    <Td className="max-w-40 truncate text-xs text-muted">{r.nextMilestone ?? "—"}</Td>
-                    <Td className="text-muted">
-                      {r.project.targetDate ? fmtDate(r.project.targetDate) : "—"}
-                    </Td>
-                    <Td className="tabular-nums text-muted">{formatMinutes(r.loggedMinutes)}</Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </Card>
-      )}
+      <ProjectsViewContent
+        views={views}
+        activeViewId={activeView.id}
+        currentUserId={userId}
+        currentUserRole={user.role}
+        orgUsers={orgUsers}
+        basePath={BASE_PATH}
+        rows={rows}
+        fields={toPublicFields(fieldRegistry)}
+        quickFilters={PROJECT_QUICK_FILTERS}
+        activeQuick={quick}
+        activeFilters={filters}
+        activeSearch={search}
+        columnOptions={PROJECT_COLUMN_OPTIONS}
+        kanbanGroupOptions={PROJECT_KANBAN_GROUP_OPTIONS}
+      />
     </div>
   );
 }

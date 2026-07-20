@@ -608,7 +608,7 @@ export function buildFocus(counts: {
     out.push({
       title: `Cierra ${counts.pendingConfirmation} ticket${counts.pendingConfirmation === 1 ? "" : "s"} pendiente${counts.pendingConfirmation === 1 ? "" : "s"} de confirmación`,
       impact: "Convierte trabajo terminado en tickets cerrados",
-      href: "/helpdesk?view=pending_confirmation",
+      href: "/helpdesk?status=pending_confirmation",
     });
   }
   if (counts.unassignedActivities + counts.unassignedTickets > 0) {

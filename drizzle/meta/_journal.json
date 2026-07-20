@@ -162,6 +162,20 @@
       "when": 1784501982137,
       "tag": "0022_dynamic_config_views_filters_custom_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784520947412,
+      "tag": "0023_views_engine_scope_and_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784520961308,
+      "tag": "0024_views_engine_drop_legacy_columns",
+      "breakpoints": true
     }
   ]
 }

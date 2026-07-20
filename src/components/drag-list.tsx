@@ -24,6 +24,11 @@ export function DragList<T extends { id: number | string }>({
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  // draggable only turns on while the mouse is down on the grip handle —
+  // otherwise a native-draggable row hijacks clicks on anything nested
+  // inside it (buttons, links) the moment the mouse moves even 1-2px, which
+  // is basically every real click. See git history for the bug report.
+  const [armedIndex, setArmedIndex] = useState<number | null>(null);
 
   function handleDrop() {
     if (dragIndex === null || overIndex === null || dragIndex === overIndex) {
@@ -44,7 +49,7 @@ export function DragList<T extends { id: number | string }>({
       {items.map((item, index) => (
         <li
           key={item.id}
-          draggable
+          draggable={armedIndex === index}
           onDragStart={() => setDragIndex(index)}
           onDragOver={(e) => {
             e.preventDefault();
@@ -54,6 +59,7 @@ export function DragList<T extends { id: number | string }>({
           onDragEnd={() => {
             setDragIndex(null);
             setOverIndex(null);
+            setArmedIndex(null);
           }}
           className={cx(
             "flex items-center gap-2 rounded-lg border border-transparent transition-colors",
@@ -61,7 +67,12 @@ export function DragList<T extends { id: number | string }>({
             overIndex === index && dragIndex !== index && "border-primary/50 bg-primary-soft/40",
           )}
         >
-          <span className="cursor-grab pl-1 text-faint active:cursor-grabbing" aria-hidden>
+          <span
+            className="cursor-grab pl-1 text-faint active:cursor-grabbing"
+            aria-hidden
+            onMouseDown={() => setArmedIndex(index)}
+            onMouseUp={() => setArmedIndex(null)}
+          >
             <GripVertical className="size-4" />
           </span>
           <div className="min-w-0 flex-1">{renderItem(item, index)}</div>

@@ -6,7 +6,8 @@ import { formatMinutes } from "@/lib/time-entries";
 import { Badge, Card, EmptyState, THead, Table, Td, Th, cx } from "@/components/ui";
 import { LifeBuoy, Plus } from "lucide-react";
 import { TicketRowActions } from "./ticket-row-actions";
-import { FavoriteToggle } from "./favorite-toggle";
+import { FavoriteToggle } from "@/components/views/favorite-toggle";
+import { TicketKanban } from "./ticket-kanban";
 
 export type TicketRow = {
   id: number;
@@ -86,6 +87,11 @@ export function buildColumnRegistry(customFieldDefs: { key: string; name: string
 }
 
 export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "slaName", "dueAt", "minutes", "billingStatus", "updatedAt"];
+export const TICKET_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: buildColumnRegistry([])[key]?.label ?? key }));
+export const TICKET_KANBAN_GROUP_OPTIONS = [
+  { key: "status", label: "Estado" },
+  { key: "priority", label: "Prioridad" },
+];
 
 function EmptyTickets({ createHref = "/helpdesk/new" }: { createHref?: string }) {
   return (
@@ -102,11 +108,13 @@ export function TableView({
   columns,
   registry,
   users,
+  basePath,
 }: {
   rows: TicketRow[];
   columns: string[];
   registry: Record<string, ColumnDef>;
   users: { id: number; name: string }[];
+  basePath: string;
 }) {
   if (rows.length === 0) return <EmptyTickets />;
   const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => registry[c]);
@@ -123,7 +131,7 @@ export function TableView({
         <tbody className="divide-y divide-edge">
           {rows.map((r) => (
             <tr key={r.id} className="group transition-colors hover:bg-subtle">
-              <Td><FavoriteToggle ticketId={r.id} isFavorite={r.isFavorite} /></Td>
+              <Td><FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} /></Td>
               {activeColumns.map((c) => <Td key={c}>{registry[c].render(r)}</Td>)}
               <Td>
                 <TicketRowActions ticketId={r.id} status={r.status} priority={r.priority} assigneeId={r.assigneeId} users={users} />
@@ -138,14 +146,14 @@ export function TableView({
 
 /* ------------------------------------------------------------------- list */
 
-export function ListView({ rows }: { rows: TicketRow[] }) {
+export function ListView({ rows, basePath }: { rows: TicketRow[]; basePath: string }) {
   if (rows.length === 0) return <EmptyTickets />;
   return (
     <Card className="overflow-hidden">
       <ul className="divide-y divide-edge">
         {rows.map((r) => (
           <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-            <FavoriteToggle ticketId={r.id} isFavorite={r.isFavorite} />
+            <FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
             <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>{ticketStatusMeta[r.status]?.label ?? r.status}</Badge>
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">
               {r.folio} · {r.title}
@@ -164,56 +172,23 @@ export function ListView({ rows }: { rows: TicketRow[] }) {
 
 export function KanbanView({
   rows,
-  groupByField,
-  groupStyles,
-  groupValues,
+  groupField,
+  statusStyles,
+  priorityStyles,
 }: {
   rows: TicketRow[];
-  groupByField: "status" | "priority";
-  groupStyles: Record<string, StyledMeta>;
-  groupValues: readonly string[];
+  groupField: "status" | "priority";
+  statusStyles: Record<string, StyledMeta>;
+  priorityStyles: Record<string, StyledMeta>;
 }) {
   if (rows.length === 0) return <EmptyTickets />;
-  const ordered = [...groupValues].sort((a, b) => groupStyles[a].sortOrder - groupStyles[b].sortOrder);
-  return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
-      {ordered.map((value) => {
-        const items = rows.filter((r) => r[groupByField] === value);
-        const meta = groupStyles[value];
-        return (
-          <div key={value} className="w-72 shrink-0">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <Badge tone={meta.tone}>{meta.label}</Badge>
-              <span className="text-xs text-faint">{items.length}</span>
-            </div>
-            <div className="space-y-2">
-              {items.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/helpdesk/${r.id}`}
-                  className="block rounded-lg border border-edge bg-surface p-3 text-sm shadow-card transition-colors hover:border-edge-strong"
-                >
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-faint">{r.folio}</span>
-                    <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>
-                  </div>
-                  <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span className="truncate">{r.companyName ?? "—"}</span>
-                    <span className="shrink-0">{r.assigneeName ?? "Sin asignar"}</span>
-                  </div>
-                </Link>
-              ))}
-              {items.length === 0 ? <p className="px-1 text-xs text-faint">Sin tickets</p> : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <TicketKanban rows={rows} groupField={groupField} statusStyles={statusStyles} priorityStyles={priorityStyles} />;
 }
 
 /* --------------------------------------------------------------- calendar */
+/* Fuera de alcance este sprint (Calendar/Timeline) — se conserva el render
+ * para no romper vistas ya existentes creadas en el sprint piloto; la
+ * creación de vistas nuevas de este tipo ya no se ofrece (view-switcher.tsx). */
 
 export function CalendarView({ rows }: { rows: TicketRow[] }) {
   const dated = rows.filter((r) => r.resolutionTargetAt);

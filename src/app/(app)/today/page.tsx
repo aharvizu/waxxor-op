@@ -360,16 +360,16 @@ async function CoreSections({
   const indicators: [string, number, string][] = [
     ["Para hoy", counts.dueToday, qs({ filter: "today" })],
     ["Vencidos", counts.overdue, qs({ filter: "overdue" })],
-    ["Tickets nuevos", counts.newTickets, "/helpdesk?view=new"],
+    ["Tickets nuevos", counts.newTickets, "/helpdesk?status=new"],
     ["Sin asignar", counts.unassignedTickets + counts.unassignedActivities, qs({ filter: "unassigned" })],
     ["SLA en riesgo", counts.slaAtRisk, qs({ filter: "sla_risk" })],
-    ["SLA vencidos", counts.slaBreached, "/helpdesk?view=overdue"],
+    ["SLA vencidos", counts.slaBreached, "/helpdesk?quick=overdue"],
     ["Por confirmar", counts.pendingConfirmation, qs({ filter: "pending_confirmation" })],
     ["Conversaciones", counts.unansweredConversations, "#messages"],
     ["Cobro por revisar", counts.billingReview, "/helpdesk?billing=pending_review"],
-    ["Recurrencias hoy", recurrenceSummary.scheduledToday, "/recurring?view=today"],
-    ["Recurrencias con error", recurrenceSummary.inError, "/recurring?view=errors"],
-    ["Generado hoy (recurrente)", recurrenceSummary.generatedToday, "/recurring?view=all"],
+    ["Recurrencias hoy", recurrenceSummary.scheduledToday, "/recurring?quick=today"],
+    ["Recurrencias con error", recurrenceSummary.inError, "/recurring?quick=errors"],
+    ["Generado hoy (recurrente)", recurrenceSummary.generatedToday, "/recurring"],
   ];
 
   return (
@@ -651,7 +651,7 @@ function EmptyStateNoWork({ qs }: { qs: (o: Record<string, string>) => string })
             <Link href="/activities/new" className={buttonClass}>
               Crear actividad
             </Link>
-            <Link href="/helpdesk?view=unassigned" className={buttonSecondaryClass}>
+            <Link href="/helpdesk?quick=unassigned" className={buttonSecondaryClass}>
               Tickets sin asignar
             </Link>
           </span>

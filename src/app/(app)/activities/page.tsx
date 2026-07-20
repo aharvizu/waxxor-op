@@ -1,159 +1,130 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, asc, desc, eq, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
-import { ClipboardCheck, Plus } from "lucide-react";
+import { and, asc, desc, eq, ilike, isNull } from "drizzle-orm";
+import { Plus } from "lucide-react";
 import { db } from "@/db";
 import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
+import { PageHeader, buttonClass } from "@/components/ui";
+import { ACTIVITY_STATUSES, type ActivityStatus } from "@/lib/activities";
 import {
-  ACTIVITY_STATUSES,
-  ACTIVITY_TYPES,
-  type ActivityStatus,
-  type ActivityType,
-} from "@/lib/activities";
-import {
-  Badge,
-  Card,
-  EmptyState,
-  PageHeader,
-  THead,
-  Table,
-  Td,
-  Th,
-  buttonClass,
-  buttonSecondaryClass,
-  cx,
-  inputClass,
-} from "@/components/ui";
-import { fmtDate } from "@/lib/format";
-import { activityStatusMeta, activityTypeMeta } from "@/lib/labels";
+  ACTIVITY_FIELDS,
+  ACTIVITY_QUICK_FILTERS,
+  activityQuickFilterSql,
+  buildFieldRegistry,
+  buildFilterSql,
+  filterGroupSchema,
+  toPublicFields,
+  type ActivityQuickFilterKey,
+  type FilterGroup,
+} from "@/lib/filters";
+import { getLastViewId } from "@/lib/last-view";
+import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { ACTIVITY_COLUMN_OPTIONS, ACTIVITY_KANBAN_GROUP_OPTIONS, type ActivityRow } from "./activity-views";
+import { ActivitiesViewContent } from "./activities-view-content";
 
 export const metadata: Metadata = { title: "Activities" };
 
-const views = [
-  { key: "all", label: "All" },
-  { key: "mine", label: "Mine" },
-  { key: "unassigned", label: "Unassigned" },
-  { key: "overdue", label: "Overdue" },
-  { key: "no_date", label: "No date" },
-  { key: "completed", label: "Completed" },
-  { key: "archived", label: "Archived" },
-] as const;
-type ViewKey = (typeof views)[number]["key"];
+const BASE_PATH = "/activities";
 
-type Search = {
-  view?: string;
-  status?: string;
-  priority?: string;
-  assignee?: string;
-  client?: string;
-  type?: string;
-};
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string };
 
-export default async function ActivitiesPage({
-  searchParams,
-}: {
-  searchParams: Promise<Search>;
-}) {
+export default async function ActivitiesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const params = await searchParams;
-  const view: ViewKey = views.some((v) => v.key === params.view)
-    ? (params.view as ViewKey)
-    : "all";
+  const userId = Number(user.id);
 
-  const today = new Date().toISOString().slice(0, 10);
+  await ensureInitialViews(user.organizationId, "activities", [
+    { name: "Todos", viewType: "table" },
+    { name: "Mis actividades", viewType: "table", quick: "mine" },
+    { name: "Sin asignar", viewType: "table", quick: "unassigned" },
+    { name: "Vencidas", viewType: "table", quick: "overdue" },
+    { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
+  ]);
+  const views = await listViews(user.organizationId, userId, "activities");
+
+  const lastViewId = await getLastViewId("activities");
+  const requestedViewId = Number(params.view);
+  const activeView =
+    views.find((v) => v.id === requestedViewId) ??
+    (lastViewId ? views.find((v) => v.id === lastViewId) : undefined) ??
+    views.find((v) => v.isDefault) ??
+    views[0];
+
+  const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
+  const quick = (params.quick as ActivityQuickFilterKey | undefined) ?? (viewConfig.quick as ActivityQuickFilterKey | null) ?? null;
+  const search = params.q ?? viewConfig.search ?? "";
+  let filters: FilterGroup | null = viewConfig.filters ?? null;
+  if (params.filters) {
+    const parsed = filterGroupSchema.safeParse(JSON.parse(params.filters));
+    if (parsed.success) filters = parsed.data;
+  }
+
+  const fieldRegistry = await buildFieldRegistry(ACTIVITY_FIELDS, []);
+  const favoriteIds = await getFavoriteIds(user.organizationId, userId, "activities");
+
+  // Structural baseline (not a view/filter concern): converted activities
+  // live in Helpdesk now, and archived ones are hidden unless restored.
   const conditions = [
     eq(workItems.organizationId, user.organizationId),
     eq(workItems.type, "activity"),
-    isNull(activities.convertedAt), // converted activities live in the Helpdesk now
+    isNull(activities.convertedAt),
+    isNull(activities.archivedAt),
   ];
-
-  if (view === "archived") {
-    conditions.push(isNotNull(activities.archivedAt));
-  } else {
-    conditions.push(isNull(activities.archivedAt));
-    if (view === "mine") conditions.push(eq(workItems.assigneeId, Number(user.id)));
-    if (view === "unassigned") conditions.push(isNull(workItems.assigneeId));
-    if (view === "overdue") {
-      conditions.push(
-        lt(workItems.dueDate, today),
-        notInArray(workItems.status, ["completed", "cancelled"]),
-      );
-    }
-    if (view === "no_date") conditions.push(isNull(workItems.dueDate));
-    if (view === "completed") conditions.push(eq(workItems.status, "completed"));
+  const filterSql = buildFilterSql(filters, fieldRegistry, "activities", activities.id);
+  if (filterSql) conditions.push(filterSql);
+  if (quick) {
+    const qSql = activityQuickFilterSql(quick, userId);
+    if (qSql) conditions.push(qSql);
   }
-
-  // basic filters on top of the view
-  if ((ACTIVITY_STATUSES as readonly string[]).includes(params.status ?? "")) {
+  if (search.trim()) {
+    conditions.push(ilike(workItems.title, `%${search.trim()}%`));
+  }
+  // Direct status passthrough — bookmarkable dashboard/indicator drill-down
+  // links that don't map to a quick filter or saved view.
+  if (params.status && (ACTIVITY_STATUSES as readonly string[]).includes(params.status)) {
     conditions.push(eq(workItems.status, params.status as ActivityStatus));
   }
-  if (["low", "medium", "high", "critical"].includes(params.priority ?? "")) {
-    conditions.push(
-      eq(workItems.priority, params.priority as (typeof workItems.priority.enumValues)[number]),
-    );
-  }
-  const assigneeId = Number(params.assignee);
-  if (Number.isInteger(assigneeId) && assigneeId > 0) {
-    conditions.push(eq(workItems.assigneeId, assigneeId));
-  }
-  const companyId = Number(params.client);
-  if (Number.isInteger(companyId) && companyId > 0) {
-    conditions.push(eq(workItems.companyId, companyId));
-  }
-  if ((ACTIVITY_TYPES as readonly string[]).includes(params.type ?? "")) {
-    conditions.push(eq(activities.activityType, params.type as ActivityType));
-  }
 
-  const [rows, companyRows, userRows] = await Promise.all([
-    db
-      .select({
-        id: activities.id,
-        title: workItems.title,
-        status: workItems.status,
-        priority: workItems.priority,
-        activityType: activities.activityType,
-        dueDate: workItems.dueDate,
-        companyName: companies.name,
-        assigneeName: users.name,
-      })
-      .from(activities)
-      .innerJoin(workItems, eq(activities.workItemId, workItems.id))
-      .leftJoin(companies, eq(workItems.companyId, companies.id))
-      .leftJoin(users, eq(workItems.assigneeId, users.id))
-      .where(and(...conditions))
-      .orderBy(desc(workItems.updatedAt)),
-    db
-      .select({ id: companies.id, name: companies.name })
-      .from(companies)
-      .where(eq(companies.organizationId, user.organizationId))
-      .orderBy(asc(companies.name)),
-    db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(eq(users.organizationId, user.organizationId))
-      .orderBy(asc(users.name)),
-  ]);
+  // Kanban shows the whole board regardless of the view's saved pageSize (a
+  // capped page would silently hide cards in later columns).
+  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
 
-  const overdueSet = new Set(
-    view === "archived"
-      ? []
-      : rows
-          .filter(
-            (r) =>
-              r.dueDate &&
-              r.dueDate < today &&
-              r.status !== "completed" &&
-              r.status !== "cancelled",
-          )
-          .map((r) => r.id),
-  );
+  const rawRows = await db
+    .select({
+      id: activities.id,
+      title: workItems.title,
+      status: workItems.status,
+      priority: workItems.priority,
+      activityType: activities.activityType,
+      dueDate: workItems.dueDate,
+      companyId: workItems.companyId,
+      companyName: companies.name,
+      assigneeId: workItems.assigneeId,
+      assigneeName: users.name,
+    })
+    .from(activities)
+    .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+    .leftJoin(companies, eq(workItems.companyId, companies.id))
+    .leftJoin(users, eq(workItems.assigneeId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(workItems.updatedAt))
+    .limit(limit);
+
+  const favoriteSet = new Set(favoriteIds);
+  const rows: ActivityRow[] = rawRows.map((r) => ({ ...r, isFavorite: favoriteSet.has(r.id) }));
+
+  const orgUsers = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.organizationId, user.organizationId))
+    .orderBy(asc(users.name));
 
   return (
     <div>
       <PageHeader
         title="Activities"
-        subtitle="Standalone work — follow-ups, meetings, internal tasks — that isn’t a ticket or a project."
+        subtitle="Standalone work — follow-ups, meetings, internal tasks — that isn't a ticket or a project."
         action={
           <Link href="/activities/new" className={buttonClass}>
             <Plus /> New activity
@@ -161,140 +132,22 @@ export default async function ActivitiesPage({
         }
       />
 
-      <div className="mb-4 inline-flex flex-wrap items-center gap-1 rounded-lg border border-edge bg-surface p-1 shadow-card">
-        {views.map((v) => (
-          <Link
-            key={v.key}
-            href={v.key === "all" ? "/activities" : `/activities?view=${v.key}`}
-            aria-current={view === v.key ? "page" : undefined}
-            className={cx(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
-              view === v.key
-                ? "bg-primary-soft text-primary"
-                : "text-muted hover:bg-subtle hover:text-fg",
-            )}
-          >
-            {v.label}
-          </Link>
-        ))}
-      </div>
-
-      <form
-        method="GET"
-        className="mb-5 grid grid-cols-2 items-end gap-3 sm:grid-cols-3 lg:grid-cols-6"
-      >
-        <input type="hidden" name="view" value={view} />
-        <select name="status" defaultValue={params.status ?? ""} aria-label="Status" className={inputClass}>
-          <option value="">Any status</option>
-          {ACTIVITY_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {activityStatusMeta[s]?.label ?? s}
-            </option>
-          ))}
-        </select>
-        <select name="priority" defaultValue={params.priority ?? ""} aria-label="Priority" className={inputClass}>
-          <option value="">Any priority</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="critical">Critical</option>
-        </select>
-        <select name="assignee" defaultValue={params.assignee ?? ""} aria-label="Assignee" className={inputClass}>
-          <option value="">Any assignee</option>
-          {userRows.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-        <select name="client" defaultValue={params.client ?? ""} aria-label="Client" className={inputClass}>
-          <option value="">Any client</option>
-          {companyRows.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select name="type" defaultValue={params.type ?? ""} aria-label="Type" className={inputClass}>
-          <option value="">Any type</option>
-          {ACTIVITY_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {activityTypeMeta[t]?.label ?? t}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className={buttonSecondaryClass}>
-          Apply filters
-        </button>
-      </form>
-
-      {rows.length === 0 ? (
-        <EmptyState
-          icon={<ClipboardCheck />}
-          title="No activities here"
-          action={
-            <Link href="/activities/new" className={buttonClass}>
-              <Plus /> New activity
-            </Link>
-          }
-        >
-          Nothing matches this view or filters. Activities can exist without a
-          client or date — capture everything, forget nothing.
-        </EmptyState>
-      ) : (
-        <Card className="overflow-visible">
-          <Table>
-            <THead>
-              <tr>
-                <Th>Activity</Th>
-                <Th>Type</Th>
-                <Th>Client</Th>
-                <Th>Assignee</Th>
-                <Th>Priority</Th>
-                <Th>Status</Th>
-                <Th>Due</Th>
-              </tr>
-            </THead>
-            <tbody className="divide-y divide-edge">
-              {rows.map((a) => (
-                <tr key={a.id} className="group transition-colors hover:bg-subtle">
-                  <Td>
-                    <Link
-                      href={`/activities/${a.id}`}
-                      className="font-medium text-fg transition-colors group-hover:text-primary"
-                    >
-                      {a.title}
-                    </Link>
-                  </Td>
-                  <Td className="text-muted">
-                    {activityTypeMeta[a.activityType]?.label ?? a.activityType}
-                  </Td>
-                  <Td className="text-muted">{a.companyName ?? "—"}</Td>
-                  <Td className="text-muted">{a.assigneeName ?? "Unassigned"}</Td>
-                  <Td>
-                    <Badge tone={a.priority === "critical" ? "red" : a.priority === "high" ? "amber" : a.priority === "medium" ? "blue" : "slate"}>
-                      {a.priority.charAt(0).toUpperCase() + a.priority.slice(1)}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <Badge tone={activityStatusMeta[a.status]?.tone ?? "slate"}>
-                      {activityStatusMeta[a.status]?.label ?? a.status}
-                    </Badge>
-                  </Td>
-                  <Td
-                    className={cx(
-                      "tabular-nums",
-                      overdueSet.has(a.id) ? "font-medium text-danger" : "text-muted",
-                    )}
-                  >
-                    {a.dueDate ? fmtDate(a.dueDate) : "—"}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Card>
-      )}
+      <ActivitiesViewContent
+        views={views}
+        activeViewId={activeView.id}
+        currentUserId={userId}
+        currentUserRole={user.role}
+        orgUsers={orgUsers}
+        basePath={BASE_PATH}
+        rows={rows}
+        fields={toPublicFields(fieldRegistry)}
+        quickFilters={ACTIVITY_QUICK_FILTERS}
+        activeQuick={quick}
+        activeFilters={filters}
+        activeSearch={search}
+        columnOptions={ACTIVITY_COLUMN_OPTIONS}
+        kanbanGroupOptions={ACTIVITY_KANBAN_GROUP_OPTIONS}
+      />
     </div>
   );
 }

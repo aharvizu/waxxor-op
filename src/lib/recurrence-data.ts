@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   companies,
@@ -43,109 +43,6 @@ export function upcomingOccurrences(def: typeof recurrenceDefinitions.$inferSele
   if (!next) return [];
   const locals = [next.local, ...nextOccurrencesLocal(schedule, next.local, count - 1)];
   return locals.map((local) => ({ local, runAt: occurrenceRunAt(schedule, local) }));
-}
-
-export type RecurrenceDirectoryFilters = {
-  q?: string;
-  view?: string;
-  status?: string;
-  targetType?: string;
-  frequency?: string;
-  companyId?: number;
-  projectId?: number;
-  assigneeId?: number;
-  createdById?: number;
-  hasErrors?: boolean;
-};
-
-export async function getRecurrencesDirectory(
-  orgId: number,
-  userId: number,
-  filters: RecurrenceDirectoryFilters = {},
-) {
-  const conditions = [eq(recurrenceDefinitions.organizationId, orgId)];
-  const now = new Date();
-  const in7 = new Date(now.getTime() + 7 * 86_400_000);
-
-  switch (filters.view) {
-    case "upcoming":
-      conditions.push(eq(recurrenceDefinitions.status, "active"));
-      conditions.push(sql`${recurrenceDefinitions.nextRunAt} between ${now} and ${in7}`);
-      break;
-    case "today": {
-      const startOfDay = new Date(now);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      const endOfDay = new Date(now);
-      endOfDay.setUTCHours(23, 59, 59, 999);
-      conditions.push(eq(recurrenceDefinitions.status, "active"));
-      conditions.push(
-        sql`${recurrenceDefinitions.nextRunAt} between ${startOfDay} and ${endOfDay}`,
-      );
-      break;
-    }
-    case "overdue":
-      conditions.push(eq(recurrenceDefinitions.status, "active"));
-      conditions.push(lte(recurrenceDefinitions.nextRunAt, now));
-      break;
-    case "errors":
-      conditions.push(
-        or(eq(recurrenceDefinitions.status, "error"), sql`${recurrenceDefinitions.failedCount} > 0`)!,
-      );
-      break;
-    case "paused":
-      conditions.push(eq(recurrenceDefinitions.status, "paused"));
-      break;
-    case "mine":
-      conditions.push(eq(recurrenceDefinitions.assigneeId, userId));
-      break;
-    case "completed":
-      conditions.push(eq(recurrenceDefinitions.status, "completed"));
-      break;
-    case "archived":
-      conditions.push(sql`${recurrenceDefinitions.archivedAt} is not null`);
-      break;
-    case "all":
-      conditions.push(ne(recurrenceDefinitions.status, "archived"));
-      break;
-    default:
-      conditions.push(
-        inArray(recurrenceDefinitions.status, ["active", "draft", "paused", "error"]),
-      );
-  }
-  if (filters.view !== "archived") {
-    conditions.push(isNull(recurrenceDefinitions.archivedAt));
-  }
-
-  if (filters.q) {
-    const term = `%${filters.q.trim()}%`;
-    conditions.push(sql`(${recurrenceDefinitions.name} ilike ${term})`);
-  }
-  if (filters.status) conditions.push(eq(recurrenceDefinitions.status, filters.status as never));
-  if (filters.targetType) conditions.push(eq(recurrenceDefinitions.targetType, filters.targetType as never));
-  if (filters.frequency) conditions.push(eq(recurrenceDefinitions.frequency, filters.frequency as never));
-  if (filters.companyId) conditions.push(eq(recurrenceDefinitions.companyId, filters.companyId));
-  if (filters.projectId) conditions.push(eq(recurrenceDefinitions.projectId, filters.projectId));
-  if (filters.assigneeId) conditions.push(eq(recurrenceDefinitions.assigneeId, filters.assigneeId));
-  if (filters.createdById) conditions.push(eq(recurrenceDefinitions.createdById, filters.createdById));
-  if (filters.hasErrors) conditions.push(sql`${recurrenceDefinitions.failedCount} > 0`);
-
-  return db
-    .select({
-      def: recurrenceDefinitions,
-      companyName: companies.name,
-      projectName: projects.name,
-      assigneeName: users.name,
-      lastResultStatus: sql<string | null>`(select e.status::text from recurrence_executions e
-        where e.recurrence_definition_id = ${recurrenceDefinitions.id}
-        order by e.created_at desc limit 1)`,
-    })
-    .from(recurrenceDefinitions)
-    .leftJoin(companies, eq(recurrenceDefinitions.companyId, companies.id))
-    .leftJoin(projects, eq(recurrenceDefinitions.projectId, projects.id))
-    .leftJoin(users, eq(recurrenceDefinitions.assigneeId, users.id))
-    .where(and(...conditions))
-    .orderBy(desc(recurrenceDefinitions.updatedAt))
-    .limit(200);
 }
 
 export async function getRecurrenceDetail(orgId: number, id: number) {

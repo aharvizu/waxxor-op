@@ -1963,12 +1963,35 @@ export const customFieldType = pgEnum("custom_field_type", [
 ]);
 
 /**
- * Per-user saved view (ClickUp-style): list/table/kanban/calendar/timeline,
- * with its own columns/grouping/sort/filters/density frozen in `config`
- * (validated by savedViewConfigSchema in src/lib/views.ts — jsonb here is
- * intentionally loose, same tradeoff as organization_settings.value).
- * `sharedWithTeam` makes it visible (read-only for non-owners, who can
- * duplicate it into their own) to the rest of the organization.
+ * Four scopes, one model (2026-07-22 consolidation):
+ * - system: seeded once per (organization, module) by Watson itself — never
+ *   owned by a user (`userId` null), never editable/deletable, visible to
+ *   everyone in the org.
+ * - personal: owned by exactly one user, visible only to them.
+ * - team: shared beyond the owner. There is no Teams entity in this schema
+ *   yet (see project-data.ts's OQ-02 note), so the visible audience is the
+ *   whole organization for now, same as `organization` — the scope exists
+ *   as its own value so RBAC and the future Teams feature don't require a
+ *   migration, even though the audience computation is an interim stand-in.
+ * - organization: shared org-wide; only administrator/superadmin may
+ *   create, edit or delete one.
+ */
+export const savedViewScope = pgEnum("saved_view_scope", [
+  "system",
+  "personal",
+  "team",
+  "organization",
+]);
+
+/**
+ * Saved view (ClickUp-style): list/table/kanban/calendar/timeline, with its
+ * own columns/grouping/sort/filters/density frozen in `config` (validated by
+ * savedViewConfigSchema in src/lib/views.ts — jsonb here is intentionally
+ * loose, same tradeoff as organization_settings.value). `scope` decides who
+ * can see and mutate the row; `userId` is the owner (null for `system`).
+ * Favorite/default status is NOT stored here — see savedViewPreferences —
+ * because a shared (system/team/organization) row can have a different
+ * favorite/default status per viewer.
  */
 export const savedViews = pgTable(
   "saved_views",
@@ -1977,30 +2000,63 @@ export const savedViews = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizations.id),
-    userId: integer("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
     module: configModule("module").notNull(),
+    scope: savedViewScope("scope").notNull().default("personal"),
     name: text("name").notNull(),
     viewType: savedViewType("view_type").notNull().default("table"),
     config: jsonb("config").notNull().default({}),
-    isDefault: boolean("is_default").notNull().default(false),
-    isFavorite: boolean("is_favorite").notNull().default(false),
-    sharedWithTeam: boolean("shared_with_team").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
     index("saved_views_user_module_idx").on(table.userId, table.module),
-    index("saved_views_org_module_shared_idx").on(table.organizationId, table.module, table.sharedWithTeam),
+    index("saved_views_org_module_scope_idx").on(table.organizationId, table.module, table.scope),
+  ],
+);
+
+/**
+ * Per-viewer favorite/default status for a saved view — split out from
+ * saved_views itself so a shared (system/team/organization) view can be
+ * someone's favorite/default without mutating the shared row (which other
+ * viewers, possibly with no edit rights, also see).
+ */
+export const savedViewPreferences = pgTable(
+  "saved_view_preferences",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewId: integer("view_id")
+      .notNull()
+      .references(() => savedViews.id, { onDelete: "cascade" }),
+    isFavorite: boolean("is_favorite").notNull().default(false),
+    isDefault: boolean("is_default").notNull().default(false),
+    /** Per-viewer tab position — null falls back to the view's own
+     * sortOrder. Reordering a shared view's tab therefore never mutates the
+     * shared row, so it needs no edit permission on that view. */
+    sortOrder: integer("sort_order"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("saved_view_prefs_user_view_idx").on(table.userId, table.viewId),
+    index("saved_view_prefs_user_default_idx").on(table.userId, table.isDefault),
   ],
 );
 
 /**
  * Generic per-user favorite marker, reusable across modules (mirrors the
  * existing knowledgeArticleFavorites pattern, generalized). Powers the
- * "Favoritos" quick filter.
+ * "Favoritos" quick filter. Entity favorites only — saved *views* use
+ * savedViewPreferences instead (a saved_views.id and, say, a tickets.id can
+ * collide numerically, so item_favorites' (module, entityId) pair must
+ * never point at a saved view row).
  */
 export const itemFavorites = pgTable(
   "item_favorites",

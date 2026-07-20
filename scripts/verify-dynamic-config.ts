@@ -24,7 +24,7 @@ async function main() {
   const { neon } = await import("@neondatabase/serverless");
   const sqlHttp = neon(process.env.DATABASE_URL!);
   const { db } = await import("../src/db");
-  const { catalogItems, companies, organizations, savedViews, tickets, workItems } = await import("../src/db/schema");
+  const { catalogItems, companies, organizations, savedViews, tickets, users, workItems } = await import("../src/db/schema");
   const {
     createFieldDefinition,
     deleteFieldDefinition,
@@ -43,12 +43,13 @@ async function main() {
     createView,
     deleteView,
     duplicateView,
+    ensureInitialViews,
     listViews,
     renameView,
     reorderViews,
     setDefaultView,
+    setViewScope,
     toggleFavoriteView,
-    toggleShareView,
   } = await import("../src/lib/views");
   const { createWorkItem } = await import("../src/lib/work-items");
 
@@ -160,18 +161,23 @@ async function main() {
   check("AND/OR filter builder produces a working predicate", filteredRows.some((r) => r.id === ticket.id));
 
   // --------------------------------------------------------------- views
-  const view = await createView(orgId, userId, { module: "tickets", name: "VERIFY view A", viewType: "table" });
+  const adminRole = "superadmin" as const;
+  const view = await createView(orgId, userId, adminRole, { module: "tickets", name: "VERIFY view A", viewType: "table" });
   check("view created", view.id > 0);
-  const dup = await duplicateView(orgId, userId, view.id, "VERIFY view A copy");
+  check("view created as personal by default", view.scope === "personal");
+  const dup = await duplicateView(orgId, userId, view.id, { name: "VERIFY view A copy" });
   check("view duplicated with a new id", dup.id !== view.id);
-  await renameView(orgId, userId, view.id, "VERIFY view A renamed");
+  const [dupRowAtCreation] = await db.select().from(savedViews).where(eq(savedViews.id, dup.id));
+  const dupSortOrderAtCreation = dupRowAtCreation.sortOrder;
+  await renameView(orgId, userId, adminRole, view.id, "VERIFY view A renamed");
   const [renamed] = (await listViews(orgId, userId, "tickets")).filter((v) => v.id === view.id);
   check("view rename persists", renamed.name === "VERIFY view A renamed");
 
   const fav = await toggleFavoriteView(orgId, userId, view.id);
   check("favorite toggles on", fav === true);
-  const shared = await toggleShareView(orgId, userId, view.id);
-  check("share toggles on", shared === true);
+  await setViewScope(orgId, userId, adminRole, view.id, "team");
+  const [sharedRow] = (await listViews(orgId, userId, "tickets")).filter((v) => v.id === view.id);
+  check("share (team scope) persists", sharedRow.scope === "team");
 
   await setDefaultView(orgId, userId, view.id);
   await setDefaultView(orgId, userId, dup.id);
@@ -180,9 +186,68 @@ async function main() {
   check("only one default view survives (siblings demoted)", defaultCount === 1);
 
   await reorderViews(orgId, userId, "tickets", [dup.id, view.id]);
-  const [dupRow] = await db.select().from(savedViews).where(eq(savedViews.id, dup.id));
-  const [viewRow] = await db.select().from(savedViews).where(eq(savedViews.id, view.id));
-  check("reorder persists (dup before view)", dupRow.sortOrder < viewRow.sortOrder);
+  const reorderedViews = await listViews(orgId, userId, "tickets");
+  const dupOrder = reorderedViews.findIndex((v) => v.id === dup.id);
+  const viewOrder = reorderedViews.findIndex((v) => v.id === view.id);
+  check("reorder persists (dup before view)", dupOrder !== -1 && viewOrder !== -1 && dupOrder < viewOrder);
+  const [dupRowRaw] = await db.select().from(savedViews).where(eq(savedViews.id, dup.id));
+  check(
+    "reorder is per-viewer (preferences), not a mutation of the shared row itself",
+    dupRowRaw.sortOrder === dupSortOrderAtCreation,
+  );
+
+  // ------------------------------------------------------- scopes & RBAC
+  const [technicianUser] = await db
+    .insert(users)
+    .values({ organizationId: orgId, name: "VERIFY Technician", email: `verify-technician-${Date.now()}@watson.test`, role: "technician", passwordHash: "x" })
+    .returning({ id: users.id });
+
+  let orgScopeBlocked = false;
+  try {
+    await createView(orgId, technicianUser.id, "technician", { module: "tickets", name: "VERIFY org view (should fail)", viewType: "table", scope: "organization" });
+  } catch {
+    orgScopeBlocked = true;
+  }
+  check("non-admin cannot create an organization-scope view", orgScopeBlocked);
+
+  const orgView = await createView(orgId, userId, adminRole, { module: "tickets", name: "VERIFY org view", viewType: "table", scope: "organization" });
+  check("admin can create an organization-scope view", orgView.scope === "organization");
+  const visibleToTechnician = await listViews(orgId, technicianUser.id, "tickets");
+  check("organization-scope view is visible to every org member", visibleToTechnician.some((v) => v.id === orgView.id));
+
+  let systemDeleteBlocked = false;
+  await ensureInitialViews(orgId, "tickets", [{ name: "VERIFY System View", viewType: "table" }]);
+  const withSystem = await listViews(orgId, userId, "tickets");
+  const systemView = withSystem.find((v) => v.scope === "system");
+  if (systemView) {
+    try {
+      await deleteView(orgId, userId, adminRole, systemView.id);
+    } catch {
+      systemDeleteBlocked = true;
+    }
+  }
+  check("a System view can never be deleted, even by an admin", systemView !== undefined && systemDeleteBlocked);
+
+  // "knowledge" is never wired to ensureInitialViews (out of scope for the
+  // Views Engine rollout), so it has no System views — guaranteeing this
+  // technician's only *visible* view for the module is the one inserted
+  // below, regardless of what earlier runs/manual testing seeded elsewhere.
+  let lastViewBlocked = false;
+  const [onlyView] = await db
+    .insert(savedViews)
+    .values({ organizationId: orgId, userId: technicianUser.id, module: "knowledge", scope: "personal", name: "VERIFY only view", viewType: "table", config: {} })
+    .returning();
+  try {
+    await deleteView(orgId, technicianUser.id, "technician", onlyView.id);
+  } catch {
+    lastViewBlocked = true;
+  }
+  check("the last remaining view for a module cannot be deleted", lastViewBlocked);
+  await db.delete(savedViews).where(eq(savedViews.id, onlyView.id));
+
+  await deleteView(orgId, userId, adminRole, orgView.id);
+  if (systemView) await db.delete(savedViews).where(eq(savedViews.id, systemView.id));
+  await db.delete(users).where(eq(users.id, technicianUser.id));
 
   // -------------------------------------------------------- catalog styles
   const fallback = { new: { label: "New", tone: "blue" as const }, closed: { label: "Closed", tone: "slate" as const } };
@@ -205,8 +270,8 @@ async function main() {
   // ----------------------------------------------------------------------
   // cleanup — every delete below is scoped by exact id/company, never by
   // organization_id (see header comment).
-  await deleteView(orgId, userId, dup.id);
-  await deleteView(orgId, userId, view.id);
+  await deleteView(orgId, userId, adminRole, dup.id);
+  await deleteView(orgId, userId, adminRole, view.id);
   // field.id still has captured values on purpose (that's what the in-use
   // guard check above needs) — clear the value rows directly, then the
   // definition, bypassing deleteFieldDefinition's guard (this is cleanup,
