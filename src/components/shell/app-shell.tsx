@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { Avatar, Badge, cx, iconButtonClass } from "@/components/ui";
 import { Breadcrumbs } from "./breadcrumbs";
-import { CommandMenu, OPEN_COMMAND_EVENT } from "./command-menu";
+import { CommandCenter, OPEN_COMMAND_EVENT } from "./command-center";
 import { HelpMenuButton, type TutorialSummary } from "./help-menu";
 import { Dropdown, MenuLabel, MenuSeparator, menuItemClass } from "./dropdown";
 import { ThemeToggle } from "./theme-toggle";
@@ -179,7 +179,7 @@ export function AppShell({
         </main>
       </div>
 
-      <CommandMenu />
+      <CommandCenter signOut={signOut} />
     </div>
   );
 }

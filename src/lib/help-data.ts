@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { helpTutorialSteps, helpTutorials, userTutorialProgress } from "@/db/schema";
 import type { HelpModuleKey } from "@/lib/help";
@@ -70,15 +70,6 @@ export async function getContinueLearning(userId: number) {
   return row ?? null;
 }
 
-export async function searchTutorialsForPalette(q: string, limit = 5) {
-  const term = `%${q}%`;
-  return db
-    .select({ slug: helpTutorials.slug, title: helpTutorials.title, module: helpTutorials.module })
-    .from(helpTutorials)
-    .where(and(eq(helpTutorials.isActive, true), or(ilike(helpTutorials.title, term), ilike(helpTutorials.objective, term))))
-    .orderBy(asc(helpTutorials.sortOrder))
-    .limit(limit);
-}
 
 export function recommendedForModule(
   all: Awaited<ReturnType<typeof getTutorialsWithProgress>>,

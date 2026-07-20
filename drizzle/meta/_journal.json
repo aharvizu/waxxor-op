@@ -176,6 +176,13 @@
       "when": 1784520961308,
       "tag": "0024_views_engine_drop_legacy_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784559469086,
+      "tag": "0025_search_extensions",
+      "breakpoints": true
     }
   ]
 }

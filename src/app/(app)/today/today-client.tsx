@@ -22,7 +22,7 @@ import {
 } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
 import type { ActionState } from "@/lib/action-result";
-import { OPEN_COMMAND_EVENT } from "@/components/shell/command-menu";
+import { OPEN_COMMAND_EVENT } from "@/components/shell/command-center";
 import { Dropdown, MenuLabel, menuItemClass } from "@/components/shell/dropdown";
 import { completeActivity, reopenActivity } from "@/app/(app)/activities/actions";
 import {

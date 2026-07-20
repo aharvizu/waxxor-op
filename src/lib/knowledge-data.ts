@@ -256,19 +256,3 @@ export async function getArticleForTicket(orgId: number, ticketId: number) {
   return row ?? null;
 }
 
-/** Lightweight matches for the global Command Palette search. */
-export async function searchArticlesForPalette(orgId: number, q: string, limit = 5) {
-  const term = `%${q}%`;
-  return db
-    .select({ id: knowledgeArticles.id, title: knowledgeArticles.title, slug: knowledgeArticles.slug })
-    .from(knowledgeArticles)
-    .where(
-      and(
-        eq(knowledgeArticles.organizationId, orgId),
-        eq(knowledgeArticles.status, "published"),
-        ilike(knowledgeArticles.title, term),
-      ),
-    )
-    .orderBy(desc(knowledgeArticles.updatedAt))
-    .limit(limit);
-}
