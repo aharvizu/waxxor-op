@@ -374,9 +374,9 @@ export function NewConversationForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Cliente (opcional)</label>
+          <label className={labelClass}>Empresa (opcional)</label>
           <select name="companyId" defaultValue={prefill?.companyId ?? ""} className={inputClass}>
-            <option value="">— Sin cliente —</option>
+            <option value="">— Sin empresa —</option>
             {companies.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -428,7 +428,7 @@ export function LinkConversationForm({
       {current.workItemId ? <input type="hidden" name="workItemId" value={current.workItemId} /> : null}
       <div className="grid grid-cols-1 gap-2">
         <select name="companyId" defaultValue={current.companyId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
-          <option value="">— Sin cliente —</option>
+          <option value="">— Sin empresa —</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}

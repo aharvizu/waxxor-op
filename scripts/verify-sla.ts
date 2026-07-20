@@ -40,6 +40,21 @@ async function main() {
   const [u] = await sqlHttp`select id from users where organization_id = ${org.id} limit 1`;
   const user = { id: String(u.id), role: "superadmin" as const, organizationId: org.id as number };
 
+  // The real app enforces "one active default per priority" via
+  // demoteOtherDefaults() in settings/sla/actions.ts, invoked on every
+  // create/update through the UI. This script inserts raw rows and bypasses
+  // that, so it must demote (and later restore) any real default for "high"
+  // itself — otherwise resolveSlaDefinition's fallback pick between two
+  // simultaneous defaults is undefined, and this test becomes flaky against
+  // a populated org (2026-07-20 incident: seeded demo data has a real
+  // "Alto 2h/8h" default for "high").
+  const demoted: number[] = (
+    await sqlHttp`
+      update sla_definitions set is_default = false
+      where organization_id = ${org.id} and priority = 'high' and is_default = true
+      returning id`
+  ).map((r) => r.id as number);
+
   // two definitions for priority high: one default, one explicit alternative
   const [defA] = await sqlHttp`
     insert into sla_definitions (organization_id, name, priority, first_response_minutes, resolution_minutes, business_hours_only, is_default)
@@ -224,11 +239,26 @@ async function main() {
   );
   check("org isolation (outsider resolves no definition, even explicit)", outsiderDef === null);
 
-  // cleanup
-  await sqlHttp`delete from audit_logs where organization_id in (${org.id}, ${otherOrg.id})`;
-  await sqlHttp`delete from tickets where organization_id = ${org.id}`;
-  await sqlHttp`delete from work_items where title like 'SLA-VERIFY%'`;
-  await sqlHttp`delete from sla_definitions where organization_id = ${org.id}`;
+  // cleanup — scoped to exactly what this run created. NEVER blanket-delete by
+  // organization_id: this script runs against the real watson org, which can
+  // (and, per docs/features/companies-contacts.md's audit-mvp seed, does)
+  // hold real tickets/audit_logs/sla_definitions unrelated to this test —
+  // an earlier org-wide `delete from tickets/audit_logs where organization_id
+  // = watson` wiped real seeded data (2026-07-20 incident, see
+  // scripts/seed-audit-mvp.ts header).
+  await sqlHttp`delete from audit_logs where organization_id = ${otherOrg.id}`;
+  await sqlHttp`
+    delete from audit_logs
+    where (entity_type = 'ticket' and entity_id in (${t1}, ${t2}))
+       or (entity_type = 'work_item' and entity_id in (
+            select id from work_items where title in ('SLA-VERIFY ticket', 'SLA-VERIFY rollback')
+          ))`;
+  await sqlHttp`delete from tickets where id in (${t1}, ${t2})`;
+  await sqlHttp`delete from work_items where title in ('SLA-VERIFY ticket', 'SLA-VERIFY rollback')`;
+  await sqlHttp`delete from sla_definitions where id in (${defA.id}, ${defB.id})`;
+  if (demoted.length > 0) {
+    await sqlHttp`update sla_definitions set is_default = true where id = any(${demoted})`;
+  }
   await sqlHttp`delete from organizations where slug = 'sla-verify'`;
 
   if (failures > 0) process.exit(1);

@@ -53,7 +53,7 @@ export default async function ContactsPage({
           type="search"
           name="q"
           defaultValue={q ?? ""}
-          placeholder="Buscar por nombre, correo, teléfono, empresa…"
+          placeholder="Buscar por nombre, cargo, correo, teléfono, empresa…"
           className={cx(inputClass, "max-w-sm")}
         />
         <select name="companyId" defaultValue={companyId ?? ""} className={cx(inputClass, "w-auto")}>

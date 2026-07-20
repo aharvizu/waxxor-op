@@ -108,6 +108,7 @@ export async function getClientsDirectory(
       sql`(
         ${companies.name} ilike ${term}
         or coalesce(${companies.legalName}, '') ilike ${term}
+        or coalesce(${companies.industry}, '') ilike ${term}
         or coalesce(${companies.email}, '') ilike ${term}
         or coalesce(${companies.phone}, '') ilike ${term}
         or exists (select 1 from ${contacts} c where c.company_id = ${companies.id}

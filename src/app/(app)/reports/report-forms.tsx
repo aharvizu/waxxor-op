@@ -133,7 +133,7 @@ export function CreateReportForm({
           <FieldError id="title-error" errors={errors.title} />
         </div>
         <div>
-          <label htmlFor="companyId" className={labelClass}>Cliente{clientRequired ? " (requerido)" : " (opcional)"}</label>
+          <label htmlFor="companyId" className={labelClass}>Empresa{clientRequired ? " (requerido)" : " (opcional)"}</label>
           <select id="companyId" name="companyId" defaultValue={defaults?.companyId ? String(defaults.companyId) : ""} className={inputClass}>
             <option value="">— Sin cliente —</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

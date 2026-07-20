@@ -165,7 +165,7 @@ export default async function ProjectsPage({
           defaultValue={params.companyId ?? ""}
           className={cx(inputClass, "w-auto")}
         >
-          <option value="">Cliente</option>
+          <option value="">Empresa</option>
           {companyRows.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -199,7 +199,7 @@ export default async function ProjectsPage({
             <THead>
               <tr>
                 <Th>Proyecto</Th>
-                <Th>Cliente</Th>
+                <Th>Empresa</Th>
                 <Th>PM</Th>
                 <Th>Estado</Th>
                 <Th>Salud</Th>

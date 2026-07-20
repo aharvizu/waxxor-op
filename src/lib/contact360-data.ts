@@ -36,6 +36,7 @@ export async function getContactsDirectory(
         or coalesce(${contacts.email}, '') ilike ${term}
         or coalesce(${contacts.phone}, '') ilike ${term}
         or coalesce(${contacts.mobile}, '') ilike ${term}
+        or coalesce(${contacts.jobTitle}, '') ilike ${term}
         or ${companies.name} ilike ${term}
       )`,
     );

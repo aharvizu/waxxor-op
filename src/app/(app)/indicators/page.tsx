@@ -136,7 +136,7 @@ export default async function IndicatorsPage({
           </select>
           <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
             <option value="">Toda la organización</option>
-            {companyRows.map((c) => <option key={c.id} value={c.id}>Cliente: {c.name}</option>)}
+            {companyRows.map((c) => <option key={c.id} value={c.id}>Empresa: {c.name}</option>)}
           </select>
           <select name="userId" defaultValue={params.userId ?? ""} className={cx(inputClass, "w-auto")}>
             <option value="">Todos los usuarios</option>
@@ -313,11 +313,11 @@ async function ExecutivePanel({
       </section>
 
       <Card className="overflow-visible">
-        <CardHeader title="Clientes" description="Salud operativa por cliente (top 15 por consumo del periodo)." />
+        <CardHeader title="Empresas" description="Salud operativa por empresa (top 15 por consumo del periodo)." />
         <Table>
           <THead>
             <tr>
-              <Th>Cliente</Th>
+              <Th>Empresa</Th>
               <Th>Abiertos</Th>
               <Th>Vencidos</Th>
               <Th>Cobro pendiente</Th>

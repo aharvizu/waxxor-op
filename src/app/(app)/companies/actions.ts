@@ -35,7 +35,7 @@ export async function createClient(
   const { data, error } = parseForm(clientSchema, formData);
   if (error) return error;
 
-  // Org defaults (Settings -> Clientes) apply only when the quick form leaves them empty.
+  // Org defaults (Settings -> Empresas) apply only when the quick form leaves them empty.
   const orgDefaults = await getSetting(user.organizationId, "companies.defaults");
   const values = {
     ...data,

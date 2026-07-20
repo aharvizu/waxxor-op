@@ -58,6 +58,7 @@ import {
   workItemPrioritySchema,
 } from "@/lib/work-items";
 import { activityTypeSchema } from "@/lib/activities";
+import { FieldValidationError, setValues } from "@/lib/custom-fields";
 
 class TicketNotFoundError extends Error {}
 class InvalidTransitionError extends Error {
@@ -128,6 +129,16 @@ async function orgContactId(orgId: number, id: number | null, companyId: number 
   if (companyId !== null) conditions.push(eq(contacts.companyId, companyId));
   const [row] = await db.select({ id: contacts.id }).from(contacts).where(and(...conditions));
   return row?.id ?? null;
+}
+
+/** Pulls "cf_<key>" fields (Custom Fields form, see custom-fields-form.tsx) back into {key: value}. */
+function extractCustomFieldValues(formData: FormData): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const [name, raw] of formData.entries()) {
+    if (!name.startsWith("cf_")) continue;
+    values[name.slice(3)] = raw;
+  }
+  return values;
 }
 
 /** Org-scoped ticket + work item; throws inside transactions. */
@@ -339,6 +350,13 @@ export async function createTicket(
       return ticket.id;
     });
   } catch (err) {
+    return unexpectedError(err);
+  }
+
+  try {
+    await setValues(user.organizationId, "tickets", ticketId, extractCustomFieldValues(formData));
+  } catch (err) {
+    if (err instanceof FieldValidationError) return businessError(err.message);
     return unexpectedError(err);
   }
 

@@ -143,7 +143,7 @@ export default async function RecurringPage({
           ))}
         </select>
         <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Cliente</option>
+          <option value="">Empresa</option>
           {companyRows.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
@@ -181,7 +181,7 @@ export default async function RecurringPage({
               <tr>
                 <Th>Nombre</Th>
                 <Th>Tipo</Th>
-                <Th>Cliente</Th>
+                <Th>Empresa</Th>
                 <Th>Proyecto</Th>
                 <Th>Responsable</Th>
                 <Th>Frecuencia</Th>

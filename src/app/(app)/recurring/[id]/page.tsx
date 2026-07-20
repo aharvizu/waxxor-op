@@ -239,7 +239,7 @@ async function ResumenTab({
         <Card className="p-5">
           <CardHeader title="Contexto" className="mb-3 px-0 pt-0" />
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between"><dt className="text-muted">Cliente</dt><dd className="text-fg">{detail.companyName ?? "Interno"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Empresa</dt><dd className="text-fg">{detail.companyName ?? "Interno"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Proyecto</dt><dd className="text-fg">{detail.projectName ?? "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Responsable</dt><dd className="text-fg">{detail.assigneeName ?? "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Creado por</dt><dd className="text-fg">{detail.creatorName ?? "—"}</dd></div>

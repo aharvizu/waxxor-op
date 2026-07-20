@@ -80,7 +80,7 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
             {reportTypeMeta[report.reportType]?.label ?? report.reportType}
           </p>
           <div className="mx-auto mt-10 max-w-sm space-y-1 text-sm text-slate-700">
-            {row.companyName ? <p>Cliente: <strong>{row.companyName}</strong></p> : null}
+            {row.companyName ? <p>Empresa: <strong>{row.companyName}</strong></p> : null}
             {row.projectName ? <p>Proyecto: <strong>{row.projectName}</strong></p> : null}
             <p>Periodo: <strong>{report.periodStart} – {report.periodEnd}</strong></p>
             <p>Responsable: <strong>{row.responsibleName ?? "—"}</strong></p>

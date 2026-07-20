@@ -170,7 +170,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
               <option value="closed">Cerradas</option>
             </select>
             <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
-              <option value="">Cliente: todos</option>
+              <option value="">Empresa: todas</option>
               {companyRows.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -437,7 +437,7 @@ function ConversationPane({
             {conv.companyId ? (
               <li>
                 <Link href={`/companies/${conv.companyId}`} className="text-primary hover:underline">
-                  Cliente: {detail.companyName}
+                  Empresa: {detail.companyName}
                 </Link>
               </li>
             ) : null}

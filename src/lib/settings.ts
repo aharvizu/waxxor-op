@@ -94,12 +94,93 @@ export const reportBrandingSchema = z.object({
   ),
 });
 
+/** Section: Tickets — default priority applied when a ticket form leaves it unset. */
+export const ticketDefaultsSchema = z.object({
+  defaultPriority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+});
+
+/**
+ * Form sections/editor UIs post one hidden input per complex field, holding
+ * a JSON string (see FormConfigEditor / ViewSettingsEditor) — `saveOrganizationSetting`
+ * validates raw FormData (Object.fromEntries), so each such field needs its
+ * own JSON.parse before schema validation. A plain object (already parsed,
+ * e.g. from getSetting) passes through untouched.
+ */
+function jsonField<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((v) => {
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }, schema);
+}
+
+/**
+ * Section: Formularios (Part 5, dynamic config 2026-07-20) — per-module form
+ * layout: section grouping, field order/visibility/required/default, with
+ * Custom Fields interleaved (isCustomField + the field's `key`). One row per
+ * (org, `${module}.formConfig`) via the existing organization_settings KV
+ * table — no new table needed, same pattern as every other settings section.
+ */
+const formFieldConfigSchema = z.object({
+  key: z.string().trim().min(1),
+  visible: z.boolean().default(true),
+  required: z.boolean().default(false),
+  order: z.number().int().default(0),
+  defaultValue: z.string().optional(),
+  isCustomField: z.boolean().default(false),
+});
+const formSectionConfigSchema = z.object({
+  key: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  collapsed: z.boolean().default(false),
+  order: z.number().int().default(0),
+  fields: z.array(formFieldConfigSchema).default([]),
+});
+export const formConfigSchema = z.object({
+  sections: jsonField(z.array(formSectionConfigSchema).default([])),
+});
+
+/**
+ * Section: Vistas (Part 6) — org-wide defaults new users start from; each
+ * user can still personalize their own saved view afterward (src/lib/views.ts).
+ * globalFilters is intentionally a flat AND-only list (not the full AND/OR
+ * tree from src/lib/filters.ts) — org-level defaults are meant to be a small,
+ * unambiguous baseline, not a complex query; the per-user filter builder
+ * still supports full AND/OR nesting.
+ */
+const globalFilterConditionSchema = z.object({
+  field: z.string().trim().min(1),
+  operator: z.string().trim().min(1),
+  value: z.unknown(),
+});
+export const viewSettingsSchema = z.object({
+  defaultColumns: jsonField(z.array(z.string()).default([])),
+  defaultSort: jsonField(
+    z
+      .object({ field: z.string(), direction: z.enum(["asc", "desc"]) })
+      .nullable()
+      .default(null),
+  ),
+  initialViewType: z.enum(["list", "table", "kanban", "calendar", "timeline"]).default("table"),
+  defaultGroupBy: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.string().nullable().default(null),
+  ),
+  globalFilters: jsonField(z.array(globalFilterConditionSchema).default([])),
+});
+
 export const SETTINGS_SCHEMAS = {
   "organization.profile": organizationProfileSchema,
   "companies.defaults": companyDefaultsSchema,
   "projects.defaults": projectDefaultsSchema,
   "recurrence.defaults": recurrenceDefaultsSchema,
   "reports.branding": reportBrandingSchema,
+  "tickets.defaults": ticketDefaultsSchema,
+  "tickets.formConfig": formConfigSchema,
+  "tickets.viewSettings": viewSettingsSchema,
 } as const;
 
 export type SettingsKey = keyof typeof SETTINGS_SCHEMAS;
@@ -111,6 +192,9 @@ export type CompanyDefaults = z.output<typeof companyDefaultsSchema>;
 export type ProjectDefaults = z.output<typeof projectDefaultsSchema>;
 export type RecurrenceDefaults = z.output<typeof recurrenceDefaultsSchema>;
 export type ReportBranding = z.output<typeof reportBrandingSchema>;
+export type TicketDefaults = z.output<typeof ticketDefaultsSchema>;
+export type FormConfig = z.output<typeof formConfigSchema>;
+export type ViewSettings = z.output<typeof viewSettingsSchema>;
 
 /** Defaults when no row exists — every schema parses an empty object. */
 export function settingsDefaults<K extends SettingsKey>(key: K): z.output<(typeof SETTINGS_SCHEMAS)[K]> {
@@ -129,6 +213,27 @@ export const CATALOG_KINDS = {
     childLabel: "Subcategorías",
     wired: true,
     note: "Alimentan los campos categoría/subcategoría de Helpdesk (texto compatible con datos históricos).",
+  },
+  ticket_status_style: {
+    label: "Estilo de estados de tickets",
+    hasChildren: false,
+    childLabel: null,
+    wired: true,
+    note: "Personaliza etiqueta/color/ícono/orden de cada estado. El valor técnico (workflow) no cambia — ver docs/features/dynamic-configuration.md.",
+  },
+  ticket_priority_style: {
+    label: "Estilo de prioridades de tickets",
+    hasChildren: false,
+    childLabel: null,
+    wired: true,
+    note: "Personaliza etiqueta/color/ícono/orden de cada prioridad. El valor técnico no cambia.",
+  },
+  ticket_billing_status_style: {
+    label: "Estilo de estatus de cobro de tickets",
+    hasChildren: false,
+    childLabel: null,
+    wired: true,
+    note: "Personaliza etiqueta/color/ícono/orden de cada estatus de cobro. El valor técnico no cambia.",
   },
   company_category: {
     label: "Categorías de empresas",

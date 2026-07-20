@@ -25,6 +25,7 @@ import {
   unexpectedError,
 } from "@/lib/action-result";
 import { recordAudit } from "@/lib/audit";
+import { isBadgeTone } from "@/lib/catalog-styles";
 import { normalizeRole } from "@/lib/roles";
 import { requireRole, type SessionUser } from "@/lib/session";
 import {
@@ -195,18 +196,38 @@ const catalogItemSchema = z.object({
     (v) => (v === "" || v === null || v === undefined ? null : Number(v)),
     z.number().int().positive().nullable(),
   ),
+  // Hex for freeform catalogs (ticket_category etc.); one of the 7 Badge
+  // tone names for *_style kinds (see src/lib/catalog-styles.ts) — same
+  // column, different meaning per kind, both validated here.
   color: z.preprocess(
     (v) => (v === undefined || (typeof v === "string" && v.trim() === "") ? null : v),
-    z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color hex inválido.").nullable(),
+    z
+      .string()
+      .refine((v) => /^#[0-9a-fA-F]{6}$/.test(v) || isBadgeTone(v), "Color inválido.")
+      .nullable(),
   ),
   description: z.preprocess(
     (v) => (v === undefined || (typeof v === "string" && v.trim() === "") ? null : v),
     z.string().trim().max(300).nullable(),
   ),
   templateLists: z.string().optional(),
+  // *_style kinds only: lucide icon name + a custom display label (the
+  // enum's raw value stays in `name`, unchanged — see EnumStyleManager).
+  icon: z.string().trim().max(60).optional(),
+  styleLabel: z.string().trim().max(120).optional(),
 });
 
-function parseTemplateConfig(kind: string, templateLists: string | undefined) {
+const STYLE_KINDS = ["ticket_status_style", "ticket_priority_style", "ticket_billing_status_style"];
+
+function parseTemplateConfig(
+  kind: string,
+  templateLists: string | undefined,
+  style?: { icon?: string; styleLabel?: string },
+) {
+  if (STYLE_KINDS.includes(kind)) {
+    if (!style?.icon && !style?.styleLabel) return null;
+    return { icon: style.icon || undefined, label: style.styleLabel || undefined };
+  }
   if (kind !== "project_template") return null;
   const lists = (templateLists ?? "")
     .split("\n")
@@ -238,7 +259,7 @@ export async function createCatalogItem(
     if (data.parentId && !kindMeta.hasChildren) {
       return businessError("Este catálogo no admite subelementos.");
     }
-    const config = parseTemplateConfig(data.kind, data.templateLists);
+    const config = parseTemplateConfig(data.kind, data.templateLists, { icon: data.icon, styleLabel: data.styleLabel });
 
     await db.transaction(async (tx) => {
       if (data.parentId) {
@@ -304,7 +325,7 @@ export async function updateCatalogItem(
 
     await db.transaction(async (tx) => {
       const before = await loadCatalogItem(tx, user, data.id);
-      const config = parseTemplateConfig(before.kind, data.templateLists) ?? before.config;
+      const config = parseTemplateConfig(before.kind, data.templateLists, { icon: data.icon, styleLabel: data.styleLabel }) ?? before.config;
       await tx
         .update(catalogItems)
         .set({

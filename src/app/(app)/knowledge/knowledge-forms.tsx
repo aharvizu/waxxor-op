@@ -178,3 +178,35 @@ export function ArticleWorkflowPanel({
     </div>
   );
 }
+
+/**
+ * GET-form filter select that submits its enclosing <form> on change. A bare
+ * onChange handler can't be passed to a <select> rendered by a Server
+ * Component (React throws "Event handlers cannot be passed to Client
+ * Component props") — this client leaf is the fix. `e.currentTarget.form`
+ * resolves via native DOM nesting, so this still submits whichever <form>
+ * the select is placed inside (no ref needed), used by the Knowledge Base
+ * filter bar to keep q/status/categoryId in one combined submission.
+ */
+export function AutoSubmitSelect({
+  name,
+  defaultValue,
+  className,
+  children,
+}: {
+  name: string;
+  defaultValue: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      name={name}
+      defaultValue={defaultValue}
+      className={className}
+      onChange={(e) => e.currentTarget.form?.requestSubmit()}
+    >
+      {children}
+    </select>
+  );
+}

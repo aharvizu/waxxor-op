@@ -407,7 +407,7 @@ export function RecurrenceWizard({
   const missing: string[] = [];
   if (!name.trim()) missing.push("Nombre de la recurrencia");
   if (!title.trim()) missing.push("Título de la plantilla");
-  if (targetType === "ticket" && !companyId) missing.push("Cliente (los tickets requieren cliente)");
+  if (targetType === "ticket" && !companyId) missing.push("Empresa (los tickets requieren empresa)");
   if (targetType === "report" && !assigneeId) missing.push("Responsable del reporte (recomendado)" );
   if (targetType === "ticket" && !category.trim()) missing.push("Categoría del ticket");
   if (targetType === "project_activity" && (!projectId || !projectListId)) missing.push("Proyecto y Lista");
@@ -450,7 +450,7 @@ export function RecurrenceWizard({
           <Field label="Nombre de la recurrencia" name="name" errors={errors}>
             <input id="name" name="name" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
           </Field>
-          <Field label={`Cliente${targetType === "ticket" ? " (requerido)" : " (opcional)"}`} name="companyId" errors={errors}>
+          <Field label={`Empresa${targetType === "ticket" ? " (requerido)" : " (opcional)"}`} name="companyId" errors={errors}>
             <select id="companyId" name="companyId" value={companyId} onChange={(e) => setClientId(e.target.value)} className={inputClass}>
               <option value="">— Sin cliente / interno —</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

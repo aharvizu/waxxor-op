@@ -4,7 +4,9 @@ import { useActionState, useState } from "react";
 import { inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
+import { CustomFieldsForm } from "@/components/custom-fields-form";
 import type { ActionState } from "@/lib/action-result";
+import type { CustomFieldDefinition } from "@/lib/custom-fields";
 import { createTicket } from "../actions";
 
 type Option = { id: number; name: string };
@@ -17,6 +19,7 @@ export function NewTicketForm({
   slas,
   defaultCompanyId,
   categoryOptions = [],
+  customFields = [],
 }: {
   companies: Option[];
   contacts: ContactOption[];
@@ -25,6 +28,8 @@ export function NewTicketForm({
   defaultCompanyId?: number;
   /** Active names from the org's ticket-category catalog (Settings). */
   categoryOptions?: string[];
+  /** Active Custom Fields for module "tickets" (Settings → Campos Personalizados). */
+  customFields?: CustomFieldDefinition[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createTicket, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
@@ -161,6 +166,7 @@ export function NewTicketForm({
         </label>
         <textarea id="description" name="description" rows={6} className={inputClass} />
       </div>
+      {customFields.length > 0 ? <CustomFieldsForm fields={customFields} errors={errors} /> : null}
       <SubmitButton>Create ticket</SubmitButton>
     </form>
   );

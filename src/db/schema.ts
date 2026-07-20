@@ -1910,3 +1910,180 @@ export const userTutorialProgress = pgTable(
     uniqueIndex("user_tutorial_progress_unique_idx").on(table.userId, table.tutorialId),
   ],
 );
+
+/* ==================================================================== */
+/* Dynamic Configuration: Views, Filters, Custom Fields (2026-07-20)      */
+/* ==================================================================== */
+
+/**
+ * Module keys the dynamic-configuration engine (views/favorites/custom
+ * fields) understands. Only "tickets" has UI wired up yet (pilot module);
+ * the schema covers all 8 target modules so later sprints only need to add
+ * UI, not tables — see docs/features/dynamic-configuration.md.
+ */
+export const configModule = pgEnum("config_module", [
+  "activities",
+  "tickets",
+  "projects",
+  "companies",
+  "contacts",
+  "reports",
+  "knowledge",
+  "recurring",
+]);
+
+export const savedViewType = pgEnum("saved_view_type", [
+  "list",
+  "table",
+  "kanban",
+  "calendar",
+  "timeline",
+]);
+
+export const customFieldType = pgEnum("custom_field_type", [
+  "text",
+  "textarea",
+  "number",
+  "decimal",
+  "currency",
+  "date",
+  "time",
+  "datetime",
+  "checkbox",
+  "select",
+  "multiselect",
+  "radio",
+  "user",
+  "company",
+  "contact",
+  "email",
+  "phone",
+  "url",
+  "color",
+]);
+
+/**
+ * Per-user saved view (ClickUp-style): list/table/kanban/calendar/timeline,
+ * with its own columns/grouping/sort/filters/density frozen in `config`
+ * (validated by savedViewConfigSchema in src/lib/views.ts — jsonb here is
+ * intentionally loose, same tradeoff as organization_settings.value).
+ * `sharedWithTeam` makes it visible (read-only for non-owners, who can
+ * duplicate it into their own) to the rest of the organization.
+ */
+export const savedViews = pgTable(
+  "saved_views",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    module: configModule("module").notNull(),
+    name: text("name").notNull(),
+    viewType: savedViewType("view_type").notNull().default("table"),
+    config: jsonb("config").notNull().default({}),
+    isDefault: boolean("is_default").notNull().default(false),
+    isFavorite: boolean("is_favorite").notNull().default(false),
+    sharedWithTeam: boolean("shared_with_team").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("saved_views_user_module_idx").on(table.userId, table.module),
+    index("saved_views_org_module_shared_idx").on(table.organizationId, table.module, table.sharedWithTeam),
+  ],
+);
+
+/**
+ * Generic per-user favorite marker, reusable across modules (mirrors the
+ * existing knowledgeArticleFavorites pattern, generalized). Powers the
+ * "Favoritos" quick filter.
+ */
+export const itemFavorites = pgTable(
+  "item_favorites",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    module: configModule("module").notNull(),
+    entityId: integer("entity_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("item_favorites_unique_idx").on(table.userId, table.module, table.entityId),
+  ],
+);
+
+/**
+ * Org-defined custom field, scoped to one module. `key` is the stable
+ * machine name (used in filters/config/exports); `options` holds
+ * [{value,label,color}] for select/multiselect/radio. Never hard-deleted
+ * while it has values — see deleteCustomFieldDefinition in
+ * src/lib/custom-fields.ts (archive via isActive instead, same convention
+ * as catalog_items).
+ */
+export const customFieldDefinitions = pgTable(
+  "custom_field_definitions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    module: configModule("module").notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    helpText: text("help_text"),
+    fieldType: customFieldType("field_type").notNull(),
+    required: boolean("required").notNull().default(false),
+    visible: boolean("visible").notNull().default(true),
+    editable: boolean("editable").notNull().default(true),
+    placeholder: text("placeholder"),
+    defaultValue: jsonb("default_value"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    groupName: text("group_name"),
+    maxLength: integer("max_length"),
+    validations: jsonb("validations"),
+    options: jsonb("options"),
+    color: text("color"),
+    icon: text("icon"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("custom_field_definitions_unique_idx").on(table.organizationId, table.module, table.key),
+    index("custom_field_definitions_module_idx").on(table.organizationId, table.module, table.sortOrder),
+  ],
+);
+
+/** One value per (entity, field). `value` shape depends on the field's type. */
+export const customFieldValues = pgTable(
+  "custom_field_values",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    module: configModule("module").notNull(),
+    entityId: integer("entity_id").notNull(),
+    fieldId: integer("field_id")
+      .notNull()
+      .references(() => customFieldDefinitions.id, { onDelete: "cascade" }),
+    value: jsonb("value"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("custom_field_values_unique_idx").on(table.module, table.entityId, table.fieldId),
+    index("custom_field_values_field_idx").on(table.fieldId),
+  ],
+);

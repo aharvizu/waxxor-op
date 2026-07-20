@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { companies, contacts, slaDefinitions, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, PageHeader } from "@/components/ui";
+import { getFieldDefinitions } from "@/lib/custom-fields";
 import { getCatalogNames } from "@/lib/settings-data";
 import { NewTicketForm } from "./new-ticket-form";
 
@@ -52,6 +53,7 @@ export default async function NewTicketPage({
     companyId: c.companyId,
   }));
   const categoryOptions = await getCatalogNames(user.organizationId, "ticket_category");
+  const customFields = await getFieldDefinitions(user.organizationId, "tickets", { activeOnly: true });
 
   return (
     <div className="max-w-2xl">
@@ -66,6 +68,7 @@ export default async function NewTicketPage({
           users={userRows}
           slas={slaRows}
           categoryOptions={categoryOptions}
+          customFields={customFields}
           defaultCompanyId={
             defaultCompanyId && companyRows.some((c) => c.id === defaultCompanyId)
               ? defaultCompanyId

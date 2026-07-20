@@ -153,7 +153,7 @@ export async function updateClientProfile(
     return fail(err);
   }
   refresh(data.id);
-  return success("Cliente actualizado.");
+  return success("Empresa actualizada.");
 }
 
 /** Permanent client deletion — SuperAdmin only; blocked while it has work. */
@@ -191,7 +191,7 @@ export async function deleteClient(
     return fail(err);
   }
   revalidatePath("/companies");
-  return success("Cliente eliminado permanentemente.");
+  return success("Empresa eliminada permanentemente.");
 }
 
 /* ------------------------------------------------------------ contacts */

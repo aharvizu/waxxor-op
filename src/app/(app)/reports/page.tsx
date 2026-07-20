@@ -172,7 +172,7 @@ export default async function ReportsPage({
           {REPORT_TYPES.map((t) => <option key={t} value={t}>{reportTypeMeta[t]?.label ?? t}</option>)}
         </select>
         <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Cliente</option>
+          <option value="">Empresa</option>
           {companyRows.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select name="projectId" defaultValue={params.projectId ?? ""} className={cx(inputClass, "w-auto")}>
@@ -205,7 +205,7 @@ export default async function ReportsPage({
             <THead>
               <tr>
                 <Th>Nombre</Th>
-                <Th>Cliente</Th>
+                <Th>Empresa</Th>
                 <Th>Proyecto</Th>
                 <Th>Tipo</Th>
                 <Th>Periodo</Th>

@@ -79,7 +79,7 @@ const GROUPS = [
   ["priority", "Prioridad"],
   ["type", "Tipo"],
   ["assignee", "Responsable"],
-  ["client", "Cliente"],
+  ["client", "Empresa"],
   ["status", "Estado"],
   ["date", "Fecha"],
 ] as const;
@@ -813,7 +813,7 @@ function CompactTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-edge text-left text-[11px] font-semibold tracking-wider text-faint uppercase">
-            {["Tipo", "Título", "Cliente", "Responsable", "Estado", "Prioridad", "Fecha", "SLA", "Tiempo", "Actualizado"].map((h) => (
+            {["Tipo", "Título", "Empresa", "Responsable", "Estado", "Prioridad", "Fecha", "SLA", "Tiempo", "Actualizado"].map((h) => (
               <th key={h} className="px-4 py-2.5">{h}</th>
             ))}
           </tr>
@@ -1108,7 +1108,7 @@ async function QuickView({
             </Link>
           </div>
           <dl className="space-y-2 text-sm">
-            <QVRow label="Cliente" value={item.companyName ?? "—"} />
+            <QVRow label="Empresa" value={item.companyName ?? "—"} />
             <QVRow label="Responsable" value={item.assigneeName ?? "Sin responsable"} />
             <QVRow label="Estado" value={statusMetaFor(item)?.label ?? item.status} />
             <QVRow label="Prioridad" value={ticketPriorityMeta[item.priority]?.label ?? item.priority} />

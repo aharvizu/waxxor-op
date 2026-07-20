@@ -272,7 +272,7 @@ export function ProjectForm({
         <Field label="Nombre del proyecto" name="name" errors={errors}>
           <TextInput name="name" value={value} errors={errors} required />
         </Field>
-        <Field label="Cliente (vacío = proyecto interno)" name="companyId" errors={errors}>
+        <Field label="Empresa (vacío = proyecto interno)" name="companyId" errors={errors}>
           <SelectInput
             name="companyId"
             value={value}

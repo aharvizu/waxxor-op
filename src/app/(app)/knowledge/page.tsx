@@ -19,6 +19,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import { fmtDateTime } from "@/lib/format";
+import { AutoSubmitSelect } from "./knowledge-forms";
 
 export const metadata: Metadata = { title: "Base de conocimiento" };
 
@@ -70,27 +71,23 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
         }
       />
 
-      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-        <form method="get" className="md:col-span-2">
-          <input name="q" defaultValue={params.q ?? ""} placeholder="Buscar título, problema o solución…" className={inputClass} />
-        </form>
-        <form method="get">
-          <select name="status" defaultValue={params.status ?? ""} className={inputClass} onChange={(e) => e.currentTarget.form?.requestSubmit()}>
-            <option value="">Estado: todos</option>
-            {Object.entries(knowledgeStatusMeta).map(([k, m]) => (
-              <option key={k} value={k}>{m.label}</option>
-            ))}
-          </select>
-        </form>
-        <form method="get">
-          <select name="categoryId" defaultValue={params.categoryId ?? ""} className={inputClass} onChange={(e) => e.currentTarget.form?.requestSubmit()}>
-            <option value="">Categoría: todas</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </form>
-      </div>
+      <form method="get" className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+        {params.favorites ? <input type="hidden" name="favorites" value={params.favorites} /> : null}
+        {params.tag ? <input type="hidden" name="tag" value={params.tag} /> : null}
+        <input name="q" defaultValue={params.q ?? ""} placeholder="Buscar título, problema o solución…" className={cx(inputClass, "md:col-span-2")} />
+        <AutoSubmitSelect name="status" defaultValue={params.status ?? ""} className={inputClass}>
+          <option value="">Estado: todos</option>
+          {Object.entries(knowledgeStatusMeta).map(([k, m]) => (
+            <option key={k} value={k}>{m.label}</option>
+          ))}
+        </AutoSubmitSelect>
+        <AutoSubmitSelect name="categoryId" defaultValue={params.categoryId ?? ""} className={inputClass}>
+          <option value="">Categoría: todas</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </AutoSubmitSelect>
+      </form>
 
       <div className="mb-4 flex flex-wrap gap-1.5 text-xs">
         <Link href={href({ favorites: params.favorites === "1" ? undefined : "1" })} className={cx("rounded-full border px-2.5 py-1", params.favorites === "1" ? "border-primary bg-primary-soft text-primary" : "border-edge text-muted hover:text-fg")}>

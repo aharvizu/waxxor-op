@@ -148,7 +148,7 @@ function CreateMenu() {
         Ticket
       </Link>
       <Link href="/companies" className={menuItemClass}>
-        Cliente
+        Empresa
       </Link>
       <Link href="/today?filter=today" className={menuItemClass}>
         Registro de tiempo (desde el elemento)
