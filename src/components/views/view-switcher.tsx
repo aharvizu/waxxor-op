@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import * as Popover from "@radix-ui/react-popover";
 import { Copy, Download, Lock, LayoutGrid, List, Plus, Star, Table2, Trash2, UserCog, Users } from "lucide-react";
 import { DragList } from "@/components/drag-list";
 import { FormAlert } from "@/components/form-feedback";
@@ -25,9 +26,10 @@ import type { ViewSaveStatus } from "./use-view-config";
 
 /**
  * Shared view-switcher tab bar — the Views Engine's single implementation
- * (consolidated 2026-07-22), used identically by every module wired to it.
- * Calendar/Timeline are out of scope for creation but keep their icon slot
- * so pre-existing data of those types still renders correctly.
+ * (consolidated 2026-07-22, menu floated via Radix Popover 2026-07-23),
+ * used identically by every module wired to it. Calendar/Timeline are out
+ * of scope for creation but keep their icon slot so pre-existing data of
+ * those types still renders correctly.
  */
 const VIEW_ICONS: Partial<Record<ViewType, typeof List>> = {
   list: List,
@@ -72,6 +74,77 @@ function exportViewConfig(view: SavedView) {
   a.download = `${view.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "vista"}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Up/Down arrow roving focus across the popover's top-level action
+ * buttons ("navegación con flechas") — plain buttons and form submit
+ * buttons alike; Tab/Shift+Tab and Enter keep their native behavior. */
+function handleMenuArrowNav(e: React.KeyboardEvent<HTMLDivElement>) {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  const root = e.currentTarget;
+  const focusables = Array.from(root.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+  if (focusables.length === 0) return;
+  e.preventDefault();
+  const current = focusables.indexOf(document.activeElement as HTMLButtonElement);
+  const next = e.key === "ArrowDown" ? (current + 1) % focusables.length : (current - 1 + focusables.length) % focusables.length;
+  focusables[next]?.focus();
+}
+
+/** Shared visual style for every menu row — disabled rows stay in the DOM
+ * (never hidden) with a title/aria reason, per "las opciones no disponibles
+ * deberán mostrarse deshabilitadas con una explicación accesible". */
+function menuItemClass(disabled: boolean | undefined, danger: boolean | undefined) {
+  return cx(
+    "flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors",
+    disabled
+      ? "cursor-not-allowed text-faint opacity-50"
+      : danger
+        ? "text-danger hover:bg-danger-soft"
+        : "text-fg hover:bg-subtle",
+  );
+}
+
+/** A plain (type="button") menu row. */
+function MenuButton({
+  onClick,
+  disabled,
+  disabledReason,
+  danger,
+  icon,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  disabledReason?: string;
+  danger?: boolean;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled ? disabledReason : undefined}
+      aria-disabled={disabled}
+      className={menuItemClass(disabled, danger)}
+    >
+      {icon}
+      <span className="flex-1">{children}</span>
+    </button>
+  );
+}
+
+/** A form-submit menu row (Favorito/Predeterminada) — must be the form's
+ * only interactive element, so it can't be nested inside MenuButton's own
+ * <button> (buttons can't nest in valid HTML). */
+function MenuSubmitButton({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <button type="submit" className={menuItemClass(false, false)}>
+      {icon}
+      <span className="flex-1">{children}</span>
+    </button>
+  );
 }
 
 function ViewCreateForm({
@@ -136,6 +209,7 @@ function ViewTab({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [panel, setPanel] = useState<"none" | "edit" | "share" | "transfer">("none");
   const [renaming, setRenaming] = useState(false);
@@ -149,8 +223,10 @@ function ViewTab({
   const Icon = VIEW_ICONS[view.viewType] ?? Table2;
   const canEdit = canEditViewClient(view, currentUserId, currentUserRole);
   const canOrgScope = hasRole(currentUserRole, ["administrator"]);
+  const isSystem = view.scope === "system";
   const isShared = view.scope !== "personal";
-  const ownerLabel = view.scope === "system" ? "Sistema" : view.userId === currentUserId ? "Tú" : orgUsers.find((u) => u.id === view.userId)?.name ?? "—";
+  const ownerLabel = isSystem ? "Sistema" : view.userId === currentUserId ? "Tú" : orgUsers.find((u) => u.id === view.userId)?.name ?? "—";
+  const readOnlyReason = isSystem ? "Vista del Sistema · solo lectura" : "Solo el propietario o un administrador pueden editar esta vista";
 
   // Deleting the active view: drop ?view= so the server falls back to the
   // user's default/first view — "cambiar automáticamente a la Vista
@@ -164,6 +240,12 @@ function ViewTab({
 
   function selectView() {
     onRequestNavigate(view);
+  }
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setPanel("none");
+    setConfirmingDelete(false);
   }
 
   if (renaming) {
@@ -201,97 +283,140 @@ function ViewTab({
         {isShared ? <Users className="size-3 text-faint" /> : null}
         {isShared && !canEdit ? <Lock className="size-3 text-faint" /> : null}
       </button>
-      <button
-        type="button"
-        onClick={() => setMenuOpen((o) => !o)}
-        className="absolute -right-3 -top-1 hidden size-4 items-center justify-center rounded-full bg-subtle text-[10px] text-faint group-hover:flex"
+
+      <Popover.Root
+        open={menuOpen}
+        onOpenChange={(next) => {
+          setMenuOpen(next);
+          if (!next) {
+            setPanel("none");
+            setConfirmingDelete(false);
+          }
+        }}
       >
-        ⋯
-      </button>
-      {panel === "edit" ? (
-        <div className="absolute top-9 left-0 z-30">
-          <EditViewForm view={view} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setPanel("none")} />
-        </div>
-      ) : panel === "share" ? (
-        <div className="absolute top-9 left-0 z-30">
-          <ShareForm view={view} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setPanel("none")} />
-        </div>
-      ) : panel === "transfer" ? (
-        <div className="absolute top-9 left-0 z-30">
-          <TransferOwnerForm view={view} basePath={basePath} orgUsers={orgUsers} onClose={() => setPanel("none")} />
-        </div>
-      ) : null}
-      {menuOpen ? (
-        <div className="absolute top-9 left-0 z-20 w-52 space-y-0.5 rounded-lg border border-edge bg-surface p-1.5 text-xs shadow-overlay">
-          {isShared ? (
-            <div className="border-b border-edge px-2 py-1.5 text-[11px] text-faint">
-              {SCOPE_LABEL[view.scope]} · propietario {ownerLabel} · {canEdit ? "editable" : "solo lectura"}
-            </div>
-          ) : null}
-          <form action={favAction}>
-            <input type="hidden" name="id" value={view.id} />
-            <input type="hidden" name="path" value={basePath} />
-            <button type="submit" className="w-full rounded-md px-2 py-1.5 text-left hover:bg-subtle">{view.isFavorite ? "Quitar favorito" : "Marcar favorita"}</button>
-          </form>
-          <form action={defaultAction}>
-            <input type="hidden" name="id" value={view.id} />
-            <input type="hidden" name="path" value={basePath} />
-            <button type="submit" className="w-full rounded-md px-2 py-1.5 text-left hover:bg-subtle">Definir por defecto</button>
-          </form>
-          {canEdit ? (
-            <button type="button" onClick={() => { setPanel("edit"); setMenuOpen(false); }} className="w-full rounded-md px-2 py-1.5 text-left hover:bg-subtle">Editar vista</button>
-          ) : null}
-          {canEdit ? (
-            <button type="button" onClick={() => { setRenaming(true); setMenuOpen(false); }} className="w-full rounded-md px-2 py-1.5 text-left hover:bg-subtle">Renombrar</button>
-          ) : null}
-          <form action={dupAction}>
-            <input type="hidden" name="id" value={view.id} />
-            <input type="hidden" name="path" value={basePath} />
-            <button type="submit" className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left hover:bg-subtle"><Copy className="size-3" /> Duplicar</button>
-          </form>
-          {canEdit && view.scope !== "system" ? (
-            <button type="button" onClick={() => { setPanel("share"); setMenuOpen(false); }} className="w-full rounded-md px-2 py-1.5 text-left hover:bg-subtle">Compartir</button>
-          ) : null}
-          {canEdit && (view.scope === "personal" || view.scope === "team") ? (
-            <button type="button" onClick={() => { setPanel("transfer"); setMenuOpen(false); }} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left hover:bg-subtle">
-              <UserCog className="size-3" /> Cambiar propietario
-            </button>
-          ) : null}
-          <button type="button" onClick={() => { exportViewConfig(view); setMenuOpen(false); }} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left hover:bg-subtle">
-            <Download className="size-3" /> Exportar configuración
+        <Popover.Trigger asChild>
+          <button
+            ref={triggerRef}
+            type="button"
+            aria-label={`Más acciones para la vista ${view.name}`}
+            className="absolute -right-3 -top-1 hidden size-4 items-center justify-center rounded-full bg-subtle text-[10px] text-faint group-hover:flex data-[state=open]:flex"
+          >
+            ⋯
           </button>
-          {canEdit && view.scope !== "system" ? (
-            confirmingDelete ? (
-              <form
-                action={(fd) => {
-                  deleteAction(fd);
-                  setConfirmingDelete(false);
-                  setMenuOpen(false);
-                }}
-                className="space-y-1 rounded-md bg-danger-soft p-1.5"
-              >
-                <input type="hidden" name="id" value={view.id} />
-                <input type="hidden" name="path" value={basePath} />
-                <p className="px-1 text-[11px] text-danger">¿Eliminar &quot;{view.name}&quot;?</p>
-                <div className="flex gap-1">
-                  <button type="button" onClick={() => setConfirmingDelete(false)} className="flex-1 rounded px-1.5 py-1 text-muted hover:bg-subtle">Cancelar</button>
-                  <button type="submit" className="flex-1 rounded bg-danger px-1.5 py-1 text-white">Eliminar</button>
-                </div>
-              </form>
+        </Popover.Trigger>
+
+        {/* Portal renders into document.body — escapes the tab bar's
+            overflow-x-auto clipping and any stacking context entirely.
+            side="bottom" + collisionPadding lets Radix (built on
+            Floating UI) flip above / clamp to the viewport automatically. */}
+        <Popover.Portal>
+          <Popover.Content
+            side="bottom"
+            align="end"
+            sideOffset={6}
+            collisionPadding={8}
+            avoidCollisions
+            onKeyDown={handleMenuArrowNav}
+            onCloseAutoFocus={(e) => {
+              // Radix restores focus by default; we just make sure it lands
+              // back on the ⋯ trigger, not somewhere stale.
+              e.preventDefault();
+              triggerRef.current?.focus();
+            }}
+            className="z-[70] w-[290px] max-w-[340px] max-h-[min(28rem,80vh)] overflow-y-auto rounded-xl border border-edge bg-surface p-1.5 text-xs shadow-overlay outline-none"
+          >
+            {panel === "edit" ? (
+              <EditViewForm view={view} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setPanel("none")} />
+            ) : panel === "share" ? (
+              <ShareForm view={view} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setPanel("none")} />
+            ) : panel === "transfer" ? (
+              <TransferOwnerForm view={view} basePath={basePath} orgUsers={orgUsers} onClose={() => setPanel("none")} />
             ) : (
-              <button
-                type="button"
-                onClick={() => (isLastView ? null : setConfirmingDelete(true))}
-                disabled={isLastView}
-                title={isLastView ? "No puedes eliminar la última vista del módulo." : undefined}
-                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-danger hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Trash2 className="size-3" /> Eliminar
-              </button>
-            )
-          ) : null}
-        </div>
-      ) : null}
+              <div className="space-y-0.5">
+                {isShared ? (
+                  <div className="mb-1 border-b border-edge px-2.5 py-1.5 text-[11px] text-faint">
+                    {isSystem ? "Sistema · solo lectura" : `${SCOPE_LABEL[view.scope]} · propietario ${ownerLabel} · ${canEdit ? "editable" : "solo lectura"}`}
+                  </div>
+                ) : null}
+
+                <form action={favAction}>
+                  <input type="hidden" name="id" value={view.id} />
+                  <input type="hidden" name="path" value={basePath} />
+                  <MenuSubmitButton icon={<Star className={cx("size-3.5", view.isFavorite && "fill-amber-400 text-amber-400")} />}>
+                    {view.isFavorite ? "Quitar favorito" : "Marcar favorita"}
+                  </MenuSubmitButton>
+                </form>
+
+                <form action={defaultAction}>
+                  <input type="hidden" name="id" value={view.id} />
+                  <input type="hidden" name="path" value={basePath} />
+                  <MenuSubmitButton>Definir por defecto</MenuSubmitButton>
+                </form>
+
+                <MenuButton onClick={() => setPanel("edit")} disabled={!canEdit} disabledReason={readOnlyReason}>
+                  Editar vista
+                </MenuButton>
+                <MenuButton onClick={() => { setRenaming(true); closeMenu(); }} disabled={!canEdit} disabledReason={readOnlyReason}>
+                  Renombrar
+                </MenuButton>
+
+                <form action={dupAction}>
+                  <input type="hidden" name="id" value={view.id} />
+                  <input type="hidden" name="path" value={basePath} />
+                  <MenuSubmitButton icon={<Copy className="size-3.5" />}>Duplicar</MenuSubmitButton>
+                </form>
+
+                <MenuButton onClick={() => setPanel("share")} disabled={!canEdit || isSystem} disabledReason={readOnlyReason}>
+                  Compartir
+                </MenuButton>
+                <MenuButton
+                  onClick={() => setPanel("transfer")}
+                  disabled={!canEdit || isSystem || view.scope === "organization"}
+                  disabledReason={isSystem || view.scope === "organization" ? "Esta vista no tiene un propietario individual" : readOnlyReason}
+                  icon={<UserCog className="size-3.5" />}
+                >
+                  Cambiar propietario
+                </MenuButton>
+
+                <MenuButton onClick={() => { exportViewConfig(view); closeMenu(); }} icon={<Download className="size-3.5" />}>
+                  Exportar configuración
+                </MenuButton>
+
+                <div className="my-1 border-t border-edge" />
+
+                {confirmingDelete ? (
+                  <form
+                    action={(fd) => {
+                      deleteAction(fd);
+                      setConfirmingDelete(false);
+                      setMenuOpen(false);
+                    }}
+                    className="space-y-1.5 rounded-md bg-danger-soft p-2"
+                  >
+                    <input type="hidden" name="id" value={view.id} />
+                    <input type="hidden" name="path" value={basePath} />
+                    <p className="px-0.5 text-[11px] text-danger">¿Eliminar &quot;{view.name}&quot;? Esta acción no se puede deshacer.</p>
+                    <div className="flex gap-1.5">
+                      <button type="button" onClick={() => setConfirmingDelete(false)} className="flex-1 rounded-md px-2 py-1 text-muted hover:bg-subtle">Cancelar</button>
+                      <button type="submit" className="flex-1 rounded-md bg-danger px-2 py-1 font-medium text-white hover:bg-danger/90">Eliminar</button>
+                    </div>
+                  </form>
+                ) : (
+                  <MenuButton
+                    onClick={() => setConfirmingDelete(true)}
+                    disabled={!canEdit || isSystem || isLastView}
+                    disabledReason={isSystem ? readOnlyReason : isLastView ? "No puedes eliminar la última vista del módulo" : readOnlyReason}
+                    danger
+                    icon={<Trash2 className="size-3.5" />}
+                  >
+                    Eliminar
+                  </MenuButton>
+                )}
+              </div>
+            )}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
 }

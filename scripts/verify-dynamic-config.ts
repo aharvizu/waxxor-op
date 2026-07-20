@@ -64,10 +64,16 @@ async function main() {
   const [u] = await sqlHttp`select id from users where organization_id = ${orgId} limit 1`;
   const userId = u.id as number;
 
+  // 2026-07-23: an earlier run left 3 of these orgs behind in the real
+  // database because a check failure partway through skipped the cleanup
+  // section entirely. try/finally below guarantees this row is always
+  // removed, even if a later assertion throws.
   const [otherOrg] = await db
     .insert(organizations)
     .values({ name: "DynConfig Verify Other Org", slug: `dynconfig-verify-other-${Date.now()}` })
     .returning({ id: organizations.id });
+
+  try {
 
   // ------------------------------------------------------- custom fields
   const field = await createFieldDefinition(orgId, userId, {
@@ -283,6 +289,13 @@ async function main() {
   await sqlHttp`delete from custom_field_definitions where id = ${field.id}`;
   await db.delete(catalogItems).where(and(eq(catalogItems.id, styleRow.id)));
   await db.delete(organizations).where(eq(organizations.id, otherOrg.id));
+  } catch (err) {
+    // Best-effort: whatever else was mid-flight, this stray org must never
+    // survive the run — it has no other rows attached to it, so a plain
+    // delete is always safe.
+    await db.delete(organizations).where(eq(organizations.id, otherOrg.id)).catch(() => {});
+    throw err;
+  }
 
   if (failures > 0) process.exit(1);
   console.log("\nAll checks passed.");

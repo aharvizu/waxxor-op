@@ -39,8 +39,6 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   await ensureInitialViews(user.organizationId, "tickets", [
     { name: "Todos", viewType: "table" },
     { name: "Mis tickets", viewType: "table", quick: "mine" },
-    { name: "Sin asignar", viewType: "table", quick: "unassigned" },
-    { name: "Vencidos", viewType: "table", quick: "overdue" },
     { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
   ]);
   const views = await listViews(user.organizationId, userId, "tickets");

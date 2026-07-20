@@ -32,7 +32,7 @@ export function ShareForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(setSharedViewScope, null);
   return (
-    <form action={(fd) => { formAction(fd); onClose(); }} className="w-56 space-y-2 rounded-lg border border-edge bg-surface p-3 shadow-overlay">
+    <form action={(fd) => { formAction(fd); onClose(); }} className="space-y-2 p-1">
       <input type="hidden" name="id" value={view.id} />
       <input type="hidden" name="path" value={basePath} />
       <FormAlert state={state} />
@@ -72,7 +72,7 @@ export function TransferOwnerForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(transferSharedViewOwner, null);
   return (
-    <form action={(fd) => { formAction(fd); onClose(); }} className="w-56 space-y-2 rounded-lg border border-edge bg-surface p-3 shadow-overlay">
+    <form action={(fd) => { formAction(fd); onClose(); }} className="space-y-2 p-1">
       <input type="hidden" name="id" value={view.id} />
       <input type="hidden" name="path" value={basePath} />
       <FormAlert state={state} />
@@ -136,7 +136,7 @@ export function EditViewForm({
   }
 
   return (
-    <div className="w-64 space-y-2 rounded-lg border border-edge bg-surface p-3 shadow-overlay">
+    <div className="space-y-2 p-1">
       {error ? (
         <p className="flex items-center gap-1 text-xs text-danger">
           <AlertCircle className="size-3.5" /> {error}

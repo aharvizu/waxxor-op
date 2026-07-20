@@ -37,8 +37,6 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   await ensureInitialViews(user.organizationId, "activities", [
     { name: "Todos", viewType: "table" },
     { name: "Mis actividades", viewType: "table", quick: "mine" },
-    { name: "Sin asignar", viewType: "table", quick: "unassigned" },
-    { name: "Vencidas", viewType: "table", quick: "overdue" },
     { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
   ]);
   const views = await listViews(user.organizationId, userId, "activities");

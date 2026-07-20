@@ -37,8 +37,6 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   await ensureInitialViews(user.organizationId, "projects", [
     { name: "Todos", viewType: "table" },
     { name: "Mis proyectos", viewType: "table", quick: "mine" },
-    { name: "Activos", viewType: "table", quick: "active" },
-    { name: "En riesgo", viewType: "table", quick: "at_risk" },
     { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
   ]);
   const views = await listViews(user.organizationId, userId, "projects");

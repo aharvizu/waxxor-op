@@ -38,8 +38,6 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
   await ensureInitialViews(user.organizationId, "recurring", [
     { name: "Todas", viewType: "table" },
     { name: "Mis recurrencias", viewType: "table", quick: "mine" },
-    { name: "Próximas", viewType: "table", quick: "upcoming" },
-    { name: "Con errores", viewType: "table", quick: "errors" },
     { name: "Por estado", viewType: "kanban", kanbanGroupField: "status" },
   ]);
   const views = await listViews(user.organizationId, userId, "recurring");
