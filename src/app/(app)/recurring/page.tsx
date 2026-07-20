@@ -18,7 +18,7 @@ import {
   type RecurrenceQuickFilterKey,
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
-import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
 import type { RecurrenceRow } from "./recurrence-views";
 import { RecurringViewContent } from "./recurring-view-content";
 
@@ -50,7 +50,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
     views.find((v) => v.isDefault) ??
     views[0];
 
-  const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
+  const viewConfig = savedViewConfigSchema.parse(activeView.config);
   const quick = (params.quick as RecurrenceQuickFilterKey | undefined) ?? (viewConfig.quick as RecurrenceQuickFilterKey | null) ?? null;
   const search = params.q ?? viewConfig.search ?? "";
   let filters: FilterGroup | null = viewConfig.filters ?? null;

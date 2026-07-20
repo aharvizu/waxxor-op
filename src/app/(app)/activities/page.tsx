@@ -19,7 +19,7 @@ import {
   type FilterGroup,
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
-import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
 import { ACTIVITY_COLUMN_OPTIONS, ACTIVITY_KANBAN_GROUP_OPTIONS, type ActivityRow } from "./activity-views";
 import { ActivitiesViewContent } from "./activities-view-content";
 
@@ -49,7 +49,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     views.find((v) => v.isDefault) ??
     views[0];
 
-  const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
+  const viewConfig = savedViewConfigSchema.parse(activeView.config);
   const quick = (params.quick as ActivityQuickFilterKey | undefined) ?? (viewConfig.quick as ActivityQuickFilterKey | null) ?? null;
   const search = params.q ?? viewConfig.search ?? "";
   let filters: FilterGroup | null = viewConfig.filters ?? null;

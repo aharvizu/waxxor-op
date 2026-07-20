@@ -19,7 +19,7 @@ import {
   type ProjectQuickFilterKey,
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
-import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
 import { PROJECT_COLUMN_OPTIONS, PROJECT_KANBAN_GROUP_OPTIONS, type ProjectRow } from "./project-views";
 import { ProjectsViewContent } from "./projects-view-content";
 
@@ -49,7 +49,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     views.find((v) => v.isDefault) ??
     views[0];
 
-  const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
+  const viewConfig = savedViewConfigSchema.parse(activeView.config);
   const quick = (params.quick as ProjectQuickFilterKey | undefined) ?? (viewConfig.quick as ProjectQuickFilterKey | null) ?? null;
   const search = params.q ?? viewConfig.search ?? "";
   let filters: FilterGroup | null = viewConfig.filters ?? null;

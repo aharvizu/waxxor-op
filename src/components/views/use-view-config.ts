@@ -2,8 +2,16 @@
 
 import { useActionState, useState } from "react";
 import type { ActionState } from "@/lib/action-result";
-import type { SavedView, SavedViewConfig } from "@/lib/views";
+import { savedViewConfigSchema, type SavedView, type SavedViewConfig } from "@/lib/views";
 import { duplicateSharedView, updateSharedViewConfig } from "./actions";
+
+/** Parses (never a raw cast) so a view saved before a config field existed
+ * (e.g. `kanban`/`quick`, added after some rows were already created) gets
+ * that field's default instead of `undefined` — reading `config.kanban.x`
+ * on a legacy row without it used to crash the whole page render. */
+function readConfig(view: SavedView): SavedViewConfig {
+  return savedViewConfigSchema.parse(view.config);
+}
 
 /**
  * The Views Engine's save-state machine — belongs to the Motor, never to a
@@ -22,7 +30,7 @@ import { duplicateSharedView, updateSharedViewConfig } from "./actions";
 export type ViewSaveStatus = "clean" | "dirty" | "saving" | "error";
 
 export function useViewConfig(view: SavedView, basePath: string) {
-  const initial = view.config as SavedViewConfig;
+  const initial = readConfig(view);
   const [baseline, setBaseline] = useState<SavedViewConfig>(initial);
   const [config, setConfig] = useState<SavedViewConfig>(initial);
   const [prevViewId, setPrevViewId] = useState(view.id);
@@ -36,7 +44,7 @@ export function useViewConfig(view: SavedView, basePath: string) {
   // render, not in an effect, to avoid a stale-frame flash.
   if (view.id !== prevViewId) {
     setPrevViewId(view.id);
-    const next = view.config as SavedViewConfig;
+    const next = readConfig(view);
     setBaseline(next);
     setConfig(next);
     setErrorMessage(null);

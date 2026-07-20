@@ -21,7 +21,7 @@ import {
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
 import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
-import { defaultViewConfig, ensureInitialViews, getFavoriteIds, listViews } from "@/lib/views";
+import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
 import { TICKET_COLUMN_OPTIONS, TICKET_KANBAN_GROUP_OPTIONS, type TicketRow } from "./ticket-views";
 import { TicketsViewContent } from "./tickets-view-content";
 
@@ -51,7 +51,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     views.find((v) => v.isDefault) ??
     views[0];
 
-  const viewConfig = { ...defaultViewConfig(), ...(activeView.config as object) };
+  const viewConfig = savedViewConfigSchema.parse(activeView.config);
   const quick = (params.quick as TicketQuickFilterKey | undefined) ?? (viewConfig.quick as TicketQuickFilterKey | null) ?? null;
   const search = params.q ?? viewConfig.search ?? "";
   let filters: FilterGroup | null = viewConfig.filters ?? null;
