@@ -248,13 +248,23 @@ export function Table({
   );
 }
 
-/** Sticky table head — offset matches the h-16 topbar. */
+/**
+ * NOT sticky — on purpose. It used to be (`sticky top-16`), but per the CSS
+ * spec, a wrapper with `overflow-x: auto` and no explicit `overflow-y`
+ * computes `overflow-y` to `auto` too (you cannot override this back to
+ * `visible`; the browser recomputes it regardless of what's declared).
+ * That silently turned Table's horizontal-scroll wrapper into this
+ * element's sticky containing block instead of the page viewport, so it
+ * never actually tracked scroll — it just sat at a permanent `top: 4rem`
+ * offset *inside that wrapper*, which is exactly what overlapped the first
+ * row by 64px. A table wide enough to need horizontal scroll can't have a
+ * page-sticky <thead> without restructuring the scroll container itself
+ * (out of scope for a header/row overlap fix) — a static header that's
+ * always correctly positioned beats a "sticky" one that was silently
+ * broken.
+ */
 export function THead({ children }: { children: ReactNode }) {
-  return (
-    <thead className="sticky top-16 z-10 bg-subtle/95 backdrop-blur-sm print:static">
-      {children}
-    </thead>
-  );
+  return <thead className="bg-subtle shadow-sm print:static">{children}</thead>;
 }
 
 export function Th({
@@ -267,7 +277,7 @@ export function Th({
   return (
     <th
       className={cx(
-        "border-b border-edge px-5 py-3 text-left text-[11px] font-semibold tracking-wider text-faint uppercase first:rounded-tl-xl last:rounded-tr-xl",
+        "border-b border-edge-strong px-5 py-3 text-left text-[11px] font-semibold tracking-wider text-muted uppercase first:rounded-tl-xl last:rounded-tr-xl",
         className,
       )}
     >
