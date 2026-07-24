@@ -1,6 +1,6 @@
-# Servicios y Licenciamientos
+# Servicios
 
-> Status: shipped 2026-07-17, parte de Cliente 360 (E-13 / E-04). Tablas: `services` (catálogo), `client_services` (contratación por cliente).
+> Status: shipped 2026-07-17, parte de Cliente 360 (E-13 / E-04); pestañas Servicios/Licenciamientos fusionadas en una sola ("Servicios") el 2026-07-24 — ver más abajo. Tablas: `services` (catálogo), `client_services` (contratación por cliente).
 
 ## Dos capas
 
@@ -9,9 +9,9 @@
 
 Un mismo servicio del catálogo puede aparecer varias veces para el mismo cliente con condiciones distintas (p. ej. M365 con y sin política de soporte) — no hay restricción de unicidad.
 
-## Licenciamientos = un tipo de servicio, no una entidad aparte
+## Licenciamiento = un tipo de servicio, no una entidad aparte
 
-`client_services.serviceType` incluye `license` junto con `recurring_service`, `support_contract`, `one_time_service`, `managed_service`. La pestaña **Licenciamientos** de Client 360 es la misma tabla `client_services` filtrada por `serviceType = "license"` — mismo modelo, misma validación, mismo formulario (con el tipo preseleccionado). Esto evita duplicar CRUD/auditoría para "licencias" como si fueran otra cosa.
+`client_services.serviceType` incluye `license` junto con `recurring_service`, `support_contract`, `one_time_service`, `managed_service`. Hasta el 2026-07-23, Client 360 tenía una pestaña **Licenciamientos** separada (misma tabla `client_services`, filtrada por `serviceType = "license"`). Se fusionó de vuelta en la pestaña **Servicios** (2026-07-24) porque la separación confundía más de lo que aclaraba — servicios administrados, licencias y contratos de soporte conviven en la misma tabla, distinguidos únicamente por la columna/badge "Tipo" de cada fila. Sigue siendo el mismo modelo, misma validación, mismo formulario — el campo "Tipo" (`serviceType`) sencillamente ya no dicta qué pestaña usar.
 
 ## Estado derivado
 
@@ -19,8 +19,8 @@ Un mismo servicio del catálogo puede aparecer varias veces para el mismo client
 
 ## Dónde vive la UI
 
-- Pestañas **Servicios** y **Licenciamientos** de Client 360 (`/clients/[id]?tab=servicios|licenciamientos`): tabla con servicio, tipo, estado (derivado), cobertura de soporte, proveedor, precio, fecha de renovación.
-- Si el catálogo de la organización está vacío, el formulario de "+ Contratar servicio" muestra primero el alta de catálogo (`ServiceCatalogForm`) — no se puede contratar un servicio que no existe en el catálogo.
+- Pestaña **Servicios** de Client 360 (`/companies/[id]?tab=servicios`): tabla con servicio, tipo, estado (derivado), cobertura de soporte, proveedor, precio, fecha de renovación — incluye todo `serviceType`, licencias inclusive.
+- Si el catálogo de la organización está vacío, el formulario de "+ Contratar servicio" muestra primero el alta de catálogo (`ServiceCatalogForm`) — no se puede contratar un servicio que no existe en el catálogo. Si el catálogo ya tiene elementos, un acordeón "+ Nuevo servicio en catálogo" (2026-07-24) permite seguir agregando entradas sin depender de que esté vacío.
 
 ## Limitaciones conocidas
 

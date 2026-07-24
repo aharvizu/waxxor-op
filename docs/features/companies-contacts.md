@@ -48,7 +48,7 @@ Se agrega `department` (texto libre, opcional). Todo lo demás (`contactType`, `
 
 ## Empresa 360 (Company360)
 
-Mismo contenido que Cliente 360 (`docs/features/client-360.md`): resumen, contactos, servicios, licenciamientos, contratos, renovaciones, tickets, actividades, proyectos, recurrentes, conversaciones, tiempo, cobros, reportes, conocimiento, notas, historial. Sin cambios de comportamiento — solo terminología (`Company`/`Empresa` en vez de `Client`/`Cliente`).
+Mismo contenido que Cliente 360 (`docs/features/client-360.md`): resumen, contactos, servicios (incluye licenciamiento — pestañas fusionadas 2026-07-24, ver `docs/features/services.md`), contratos, renovaciones, tickets, actividades, proyectos, recurrentes, conversaciones, tiempo, cobros, reportes, conocimiento, notas, historial. Sin cambios de comportamiento — solo terminología (`Company`/`Empresa` en vez de `Client`/`Cliente`).
 
 ## Contacto 360 (Contact360) — nuevo
 

@@ -106,7 +106,6 @@ const TABS = [
   ["resumen", "Resumen"],
   ["contactos", "Contactos"],
   ["servicios", "Servicios"],
-  ["licenciamientos", "Licenciamientos"],
   ["contratos", "Contratos"],
   ["renovaciones", "Renovaciones"],
   ["tickets", "Tickets"],
@@ -318,22 +317,7 @@ export default async function ClientDetailPage({
       {tab === "contactos" ? <ContactosTab companyId={companyId} orgId={user.organizationId} /> : null}
 
       {tab === "servicios" ? (
-        <ServiciosTab
-          companyId={companyId}
-          orgId={user.organizationId}
-          servicesList={servicesList.filter((s) => s.cs.serviceType !== "license")}
-          now={now}
-        />
-      ) : null}
-
-      {tab === "licenciamientos" ? (
-        <ServiciosTab
-          companyId={companyId}
-          orgId={user.organizationId}
-          servicesList={servicesList.filter((s) => s.cs.serviceType === "license")}
-          now={now}
-          licenseMode
-        />
+        <ServiciosTab companyId={companyId} orgId={user.organizationId} servicesList={servicesList} now={now} />
       ) : null}
 
       {tab === "contratos" ? (
@@ -545,20 +529,18 @@ async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: nu
   );
 }
 
-/* ---------------------------------------------------- Services/Licenses */
+/* ------------------------------------------------------------- Services */
 
 async function ServiciosTab({
   companyId,
   orgId,
   servicesList,
   now,
-  licenseMode,
 }: {
   companyId: number;
   orgId: number;
   servicesList: Awaited<ReturnType<typeof getClientServicesList>>;
   now: Date;
-  licenseMode?: boolean;
 }) {
   const catalog = await db
     .select({ id: services.id, name: services.name })
@@ -568,7 +550,7 @@ async function ServiciosTab({
 
   return (
     <div className="space-y-6">
-      <Disclosure label={licenseMode ? "+ Agregar licenciamiento" : "+ Contratar servicio"}>
+      <Disclosure label="+ Contratar servicio">
         {catalog.length === 0 ? (
           <div className="space-y-4">
             <p className="text-sm text-muted">
@@ -577,13 +559,19 @@ async function ServiciosTab({
             <ServiceCatalogForm />
           </div>
         ) : (
-          <ClientServiceForm companyId={companyId} servicesCatalog={catalog} license={licenseMode} />
+          <div className="space-y-4">
+            <Disclosure label="+ Nuevo servicio en catálogo">
+              <ServiceCatalogForm companyId={companyId} />
+            </Disclosure>
+            <ClientServiceForm companyId={companyId} servicesCatalog={catalog} />
+          </div>
         )}
       </Disclosure>
 
       {servicesList.length === 0 ? (
-        <EmptyState icon={<Building2 />} title={licenseMode ? "Sin licenciamientos" : "Sin servicios contratados"}>
-          {licenseMode ? "Registra la primera licencia de este cliente." : "Registra el primer servicio contratado."}
+        <EmptyState icon={<Building2 />} title="Sin servicios contratados">
+          Registra el primer servicio contratado — recurrente, licenciamiento, contrato de soporte, único o
+          administrado. El tipo se distingue con la etiqueta &quot;Tipo&quot; de cada fila.
         </EmptyState>
       ) : (
         <Card className="overflow-visible">

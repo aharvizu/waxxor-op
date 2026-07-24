@@ -463,6 +463,10 @@ const serviceSchema = z.object({
   defaultFixedPrice: optionalMoney,
   isRenewable: z.preprocess((v) => v === "on" || v === "true", z.boolean()).default(false),
   status: serviceStatusSchema.default("active"),
+  // Not stored — the catalog is org-wide, not per-company. Only present when
+  // this form is opened from inside a company's Servicios/Licenciamientos
+  // tab, so the response revalidates that page too (not just /companies).
+  companyId: optionalId,
 });
 
 export async function createService(
@@ -472,11 +476,12 @@ export async function createService(
   const user = await requireUser();
   const { data, error } = parseForm(serviceSchema, formData);
   if (error) return error;
+  const { companyId, ...values } = data;
   try {
     await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(services)
-        .values({ ...data, organizationId: user.organizationId })
+        .values({ ...values, organizationId: user.organizationId })
         .returning({ id: services.id });
       await recordAudit(tx, {
         organizationId: user.organizationId,
@@ -484,13 +489,13 @@ export async function createService(
         entityType: "service",
         entityId: created.id,
         action: "create",
-        metadata: { values: data },
+        metadata: { values },
       });
     });
   } catch (err) {
     return fail(err);
   }
-  refresh();
+  refresh(companyId ?? undefined);
   return success("Servicio agregado al catálogo.");
 }
 

@@ -361,10 +361,11 @@ export function ContactForm({
 
 /* -------------------------------------------------------- service catalog */
 
-export function ServiceCatalogForm() {
+export function ServiceCatalogForm({ companyId }: { companyId?: number } = {}) {
   const { state, formAction, errors, value } = useForm(createService);
   return (
     <form action={formAction} className="space-y-4">
+      {companyId ? <input type="hidden" name="companyId" value={companyId} /> : null}
       <FormAlert state={state} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Nombre del servicio" name="name" errors={errors}>
@@ -422,17 +423,14 @@ export function ClientServiceForm({
   companyId,
   servicesCatalog,
   clientService,
-  license,
 }: {
   companyId: number;
   servicesCatalog: Option[];
   clientService?: ClientServiceDefaults;
-  /** Preselect the license type for the "Agregar licenciamiento" entry point. */
-  license?: boolean;
 }) {
   const { state, formAction, errors, value } = useForm(
     clientService ? updateClientService : addClientService,
-    clientService ?? (license ? { serviceType: "license" } : undefined),
+    clientService,
   );
   return (
     <form action={formAction} className="space-y-4">
