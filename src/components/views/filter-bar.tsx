@@ -132,7 +132,7 @@ export function FilterBar({
             sideOffset={6}
             collisionPadding={8}
             avoidCollisions
-            className="z-20 w-[28rem] max-h-[min(34rem,80vh)] overflow-y-auto rounded-xl border border-edge bg-surface p-4 shadow-overlay outline-none"
+            className="z-20 w-[28rem] max-w-[calc(100vw-2rem)] max-h-[min(34rem,80vh)] overflow-y-auto rounded-xl border border-edge bg-surface p-4 shadow-overlay outline-none"
           >
             {/* Quick filters — one-click presets, concentrated here instead of their own always-visible row (ClickUp-style single "Filtros" entry point). */}
             {quickFilters.length > 0 ? (

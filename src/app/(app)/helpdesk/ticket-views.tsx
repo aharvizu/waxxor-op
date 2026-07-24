@@ -221,21 +221,21 @@ export function ListView({
     <Card className="overflow-hidden">
       <ul className="divide-y divide-edge">
         {rows.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+          <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 text-sm">
             <FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
             <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">
               {r.folio} · {r.title}
             </Link>
             {r.companyName && r.companyId ? (
-              <Link href={`/companies/${r.companyId}`} className="shrink-0 text-xs text-muted hover:text-primary hover:underline">
+              <Link href={`/companies/${r.companyId}`} className="hidden shrink-0 text-xs text-muted hover:text-primary hover:underline sm:inline">
                 {r.companyName}
               </Link>
             ) : (
-              <span className="shrink-0 text-xs text-muted">—</span>
+              <span className="hidden shrink-0 text-xs text-muted sm:inline">—</span>
             )}
             <CatalogChip entry={priorities.get(r.priorityId)} fallback={r.priority} />
-            <span className="w-28 shrink-0 truncate text-xs text-muted">{r.assigneeName ?? "Sin asignar"}</span>
+            <span className="hidden w-28 shrink-0 truncate text-xs text-muted md:inline">{r.assigneeName ?? "Sin asignar"}</span>
           </li>
         ))}
       </ul>
@@ -284,15 +284,15 @@ export function CalendarView({ rows, statuses }: { rows: TicketRow[]; statuses: 
           <div className="border-b border-edge bg-subtle px-4 py-2 text-xs font-semibold tracking-wide text-muted uppercase">{day}</div>
           <ul className="divide-y divide-edge">
             {byDay.get(day)!.map((r) => (
-              <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+              <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                 <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
                 <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">{r.folio} · {r.title}</Link>
                 {r.companyName && r.companyId ? (
-                  <Link href={`/companies/${r.companyId}`} className="shrink-0 text-xs text-muted hover:text-primary hover:underline">
+                  <Link href={`/companies/${r.companyId}`} className="hidden shrink-0 text-xs text-muted hover:text-primary hover:underline sm:inline">
                     {r.companyName}
                   </Link>
                 ) : (
-                  <span className="shrink-0 text-xs text-muted">—</span>
+                  <span className="hidden shrink-0 text-xs text-muted sm:inline">—</span>
                 )}
               </li>
             ))}
@@ -325,12 +325,12 @@ export function TimelineView({ rows, statuses }: { rows: TicketRow[]; statuses: 
     <Card className="overflow-hidden">
       <ul className="divide-y divide-edge">
         {sorted.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+          <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
             <div className="w-24 shrink-0 text-xs text-faint tabular-nums">{fmtDate(r.createdAt)}</div>
-            <div className="h-full w-px shrink-0 self-stretch bg-edge" aria-hidden />
+            <div className="hidden h-full w-px shrink-0 self-stretch bg-edge sm:block" aria-hidden />
             <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">{r.folio} · {r.title}</Link>
-            <div className="w-28 shrink-0 text-right text-xs text-muted">
+            <div className="hidden w-28 shrink-0 text-right text-xs text-muted sm:block">
               {r.resolutionTargetAt ? `vence ${fmtDate(r.resolutionTargetAt)}` : "sin vencimiento"}
             </div>
           </li>
