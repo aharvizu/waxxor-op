@@ -1,29 +1,23 @@
 import type { Metadata } from "next";
-import { getStyledMeta } from "@/lib/catalog-styles";
 import { getFieldDefinitions } from "@/lib/custom-fields";
-import { ticketBillingMeta, ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
+import {
+  countTicketsByBillingStatus,
+  countTicketsByPriority,
+  countTicketsByStatus,
+  listTicketBillingStatuses,
+  listTicketPriorities,
+  listTicketStatuses,
+} from "@/lib/ticket-catalogs";
 import { Card, CardHeader, PageHeader } from "@/components/ui";
-import { CatalogManager, SettingSectionForm } from "../settings-forms";
-import { EnumStyleManager } from "../enum-style-manager";
+import { CatalogManager } from "../settings-forms";
+import { TicketCatalogManager, type TicketCatalogRow } from "./catalog-manager";
 import { FormConfigEditor, type AvailableField } from "./form-config-editor";
 import { ViewSettingsEditor } from "./view-settings-editor";
 
 export const metadata: Metadata = { title: "Configuración · Tickets" };
-
-/** Official ticket lifecycle statuses (docs/features/tickets.md). Cosmetic
- * style only — the workflow itself is unchanged, see enum-style-manager.tsx. */
-const TICKET_STATUSES = [
-  "new", "assigned", "in_progress", "waiting_customer", "waiting_third_party",
-  "scheduled", "resolved", "pending_confirmation", "closed", "reopened", "cancelled",
-] as const;
-const TICKET_PRIORITIES = ["low", "medium", "high", "critical"] as const;
-const TICKET_BILLING_STATUSES = [
-  "pending_review", "included_in_contract", "billable", "contract_overage",
-  "fixed_price", "no_charge", "included_in_monthly_charge", "charged",
-] as const;
 
 const STANDARD_TICKET_FIELDS: AvailableField[] = [
   { key: "subject", label: "Asunto", isCustomField: false },
@@ -41,31 +35,25 @@ const STANDARD_TICKET_FIELDS: AvailableField[] = [
 
 export default async function TicketsSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
-  const [
-    categories,
-    statusStyles,
-    priorityStyles,
-    billingStyles,
-    statusRows,
-    priorityRows,
-    billingRows,
-    customFields,
-    formConfig,
-    viewSettings,
-    defaults,
-  ] = await Promise.all([
+  const [categories, statuses, priorities, billingStatuses, customFields, formConfig, viewSettings] = await Promise.all([
     getCatalog(user.organizationId, "ticket_category", { includeInactive: true }),
-    getStyledMeta(user.organizationId, "ticket_status_style", ticketStatusMeta),
-    getStyledMeta(user.organizationId, "ticket_priority_style", ticketPriorityMeta),
-    getStyledMeta(user.organizationId, "ticket_billing_status_style", ticketBillingMeta),
-    getCatalog(user.organizationId, "ticket_status_style", { includeInactive: true }),
-    getCatalog(user.organizationId, "ticket_priority_style", { includeInactive: true }),
-    getCatalog(user.organizationId, "ticket_billing_status_style", { includeInactive: true }),
+    listTicketStatuses(user.organizationId, { includeInactive: true }),
+    listTicketPriorities(user.organizationId, { includeInactive: true }),
+    listTicketBillingStatuses(user.organizationId, { includeInactive: true }),
     getFieldDefinitions(user.organizationId, "tickets", { activeOnly: true }),
     getSetting(user.organizationId, "tickets.formConfig"),
     getSetting(user.organizationId, "tickets.viewSettings"),
-    getSetting(user.organizationId, "tickets.defaults"),
   ]);
+
+  const [statusUsage, priorityUsage, billingUsage] = await Promise.all([
+    Promise.all(statuses.map((s) => countTicketsByStatus(user.organizationId, s.id))),
+    Promise.all(priorities.map((p) => countTicketsByPriority(user.organizationId, p.id))),
+    Promise.all(billingStatuses.map((b) => countTicketsByBillingStatus(user.organizationId, b.id))),
+  ]);
+
+  const statusRows: TicketCatalogRow[] = statuses.map((s, i) => ({ ...s, usageCount: statusUsage[i] }));
+  const priorityRows: TicketCatalogRow[] = priorities.map((p, i) => ({ ...p, usageCount: priorityUsage[i] }));
+  const billingRows: TicketCatalogRow[] = billingStatuses.map((b, i) => ({ ...b, usageCount: billingUsage[i] }));
 
   const availableFields: AvailableField[] = [
     ...STANDARD_TICKET_FIELDS,
@@ -77,7 +65,7 @@ export default async function TicketsSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Tickets"
-        subtitle="Categorías, estilos, valores por defecto, formularios y vistas — todo configurable sin código."
+        subtitle="Catálogos, valores por defecto, formularios y vistas — todo configurable sin código."
       />
 
       <Card className="p-5">
@@ -97,56 +85,27 @@ export default async function TicketsSettingsPage() {
       </Card>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-fg">Estilos (etiqueta, color, ícono, orden)</h2>
+        <h2 className="mb-1 text-sm font-semibold text-fg">Catálogos dinámicos</h2>
+        <p className="mb-3 text-sm text-muted">
+          Estados, prioridades y estatus de cobro administrables — crea valores personalizados, cámbialos de orden,
+          define el predeterminado y reasigna tickets antes de eliminar uno. Los valores de sistema (marcados
+          &quot;Sistema&quot;) no se pueden eliminar, solo desactivar.
+        </p>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <EnumStyleManager
-            kind="ticket_status_style"
-            title="Estados"
-            description="El flujo de trabajo no cambia — solo su presentación."
-            values={TICKET_STATUSES}
-            styled={statusStyles}
-            existingRows={statusRows}
-          />
-          <EnumStyleManager
-            kind="ticket_priority_style"
-            title="Prioridades"
-            description="Usadas también por la asignación automática de SLA."
-            values={TICKET_PRIORITIES}
-            styled={priorityStyles}
-            existingRows={priorityRows}
-          />
-          <EnumStyleManager
-            kind="ticket_billing_status_style"
-            title="Estatus de cobro"
-            description="Determinan el color/etiqueta mostrados, no el cálculo del monto."
-            values={TICKET_BILLING_STATUSES}
-            styled={billingStyles}
-            existingRows={billingRows}
-          />
+          <Card className="p-5">
+            <CardHeader title="Estados" description="Workflows y SLA operan sobre la categoría semántica, no el nombre." className="mb-3 px-0 pt-0" />
+            <TicketCatalogManager kind="status" items={statusRows} addPlaceholder="Nuevo estado…" />
+          </Card>
+          <Card className="p-5">
+            <CardHeader title="Prioridades" description="Asocia una regla de SLA en Configuración → SLA si aplica." className="mb-3 px-0 pt-0" />
+            <TicketCatalogManager kind="priority" items={priorityRows} addPlaceholder="Nueva prioridad…" />
+          </Card>
+          <Card className="p-5">
+            <CardHeader title="Estatus de cobro" description="Clasificación administrativa — no modifica importes ni tarifas." className="mb-3 px-0 pt-0" />
+            <TicketCatalogManager kind="billing" items={billingRows} addPlaceholder="Nuevo estatus de cobro…" />
+          </Card>
         </div>
       </div>
-
-      <Card className="p-5">
-        <CardHeader
-          title="Valores por defecto"
-          description="Prioridad preseleccionada al crear un ticket nuevo."
-          className="mb-3 px-0 pt-0"
-        />
-        <SettingSectionForm settingKey="tickets.defaults">
-          <div className="max-w-xs">
-            <label className="mb-1.5 block text-sm font-medium text-fg">Prioridad por defecto</label>
-            <select
-              name="defaultPriority"
-              defaultValue={defaults.defaultPriority}
-              className="w-full rounded-lg border border-edge bg-surface px-3 py-2 text-sm"
-            >
-              {TICKET_PRIORITIES.map((p) => (
-                <option key={p} value={p}>{ticketPriorityMeta[p]?.label ?? p}</option>
-              ))}
-            </select>
-          </div>
-        </SettingSectionForm>
-      </Card>
 
       <Card className="p-5">
         <CardHeader

@@ -19,6 +19,9 @@ async function main() {
   const { db } = await import("../src/db");
   const { tickets, workItems } = await import("../src/db/schema");
   const { recordAudit } = await import("../src/lib/audit");
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -56,6 +59,15 @@ async function main() {
   };
   const { createWorkItem } = await import("../src/lib/work-items");
 
+  const [wiDefaultStatus, wiDefaultPriority, wiDefaultBillingStatus] = await Promise.all([
+    getDefaultTicketStatus(db, orgRow.id),
+    getDefaultTicketPriority(db, orgRow.id),
+    getDefaultTicketBillingStatus(db, orgRow.id),
+  ]);
+  if (!wiDefaultStatus || !wiDefaultPriority || !wiDefaultBillingStatus) {
+    throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+  }
+
   let createdIds: { wi: number; t: number } | null = null;
   await db.transaction(async (tx) => {
     const item = await createWorkItem(tx, fakeUser, {
@@ -68,6 +80,9 @@ async function main() {
         organizationId: orgRow.id,
         workItemId: item.id,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: wiDefaultStatus.id,
+        priorityId: wiDefaultPriority.id,
+        billingStatusId: wiDefaultBillingStatus.id,
       })
       .returning({ id: tickets.id });
     createdIds = { wi: item.id, t: t.id };
@@ -92,6 +107,9 @@ async function main() {
         organizationId: orgRow.id,
         workItemId: item.id,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: wiDefaultStatus.id,
+        priorityId: wiDefaultPriority.id,
+        billingStatusId: wiDefaultBillingStatus.id,
       });
       await recordAudit(tx, {
         organizationId: orgRow.id,

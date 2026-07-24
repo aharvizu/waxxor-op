@@ -12,12 +12,16 @@
 **Ticket snapshot columns** — the assignment freezes everything the ticket needs:
 `sla_definition_id` (stable reference), `sla_name`, `sla_first_response_minutes`, `sla_resolution_minutes`, `sla_business_hours_only`, `sla_timezone`, `sla_calendar` (jsonb copy of the calendar), `first_response_target_at` + `resolution_target_at` (both indexed), `sla_paused_minutes` (accumulated), `sla_paused_at` (open pause). **Editing a definition or the calendar never changes existing tickets** — verified.
 
-SLA-pausing statuses (official lifecycle since `drizzle/0011`): `waiting_customer` and `waiting_third_party`. At **close**, final compliance freezes into `sla_first_response_met` / `sla_resolution_met` (see `docs/features/tickets.md`); reopening clears them for the new cycle.
+SLA-pausing statuses (official lifecycle since `drizzle/0011`): `waiting_customer` and `waiting_third_party` — since 2026-07-22 this is `isSlaPauseStatus(category)`, so any custom Status in the "en espera" category pauses the clock the same way. At **close**, final compliance freezes into `sla_first_response_met` / `sla_resolution_met` (see `docs/features/tickets.md`); reopening clears them for the new cycle.
+
+## Priority is now a dynamic catalog (2026-07-22)
+
+`sla_definitions.priority_id` (FK to `ticket_priorities`) is the authoritative match, not the legacy `priority` enum column (kept as an in-sync internal mirror only). `resolveSlaDefinition` matches by `priorityId`. **A brand-new custom priority never inherits an SLA automatically** — it resolves to "no SLA" until an Administrator/SuperAdmin explicitly creates an `sla_definitions` row targeting that `priorityId` (Configuración → SLA's priority picker is sourced from the live Ticket Priorities catalog). See `docs/features/tickets.md` for the full catalog model.
 
 ## Assignment cascade (create and convert)
 
 1. Explicit definition selected by a **SuperAdmin** (select on the new-ticket form; also honored by the conversion action).
-2. Active **default for the ticket's priority**.
+2. Active **default for the ticket's priority** (matched by `priorityId`).
 3. None — the ticket simply has no SLA (panel says so).
 
 Assignment happens inside the ticket-creating transaction; targets are computed from the assignment instant.

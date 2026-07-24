@@ -4,26 +4,34 @@ import { useActionState } from "react";
 import { cx, inputClass } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
 import type { ActionState } from "@/lib/action-result";
-import { TICKET_WORKFLOW_STATUSES } from "@/lib/tickets";
-import { ticketStatusMeta } from "@/lib/labels";
+import { isWorkflowDropdownCategory } from "@/lib/tickets";
+import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 import { assignTicket, changeTicketStatus, setTicketPriority } from "./actions";
 
 type Option = { id: number; name: string };
+type StatusOption = Option & { category: TicketStatusCategoryValue; isActive: boolean };
+type PriorityOption = Option & { isActive: boolean };
 const smallSelect = cx(inputClass, "h-7 w-auto max-w-28 px-1.5 text-xs");
 
 /** Inline row controls: assign, status, priority — submit on change. */
 export function TicketRowActions({
   ticketId,
-  status,
-  priority,
+  statusId,
+  priorityId,
   assigneeId,
   users,
+  statuses,
+  priorities,
 }: {
   ticketId: number;
-  status: string;
-  priority: string;
+  statusId: number;
+  priorityId: number;
   assigneeId: number | null;
   users: Option[];
+  /** Org's ticket statuses (active + inactive) — filtered to the workflow-eligible subset below. */
+  statuses: StatusOption[];
+  /** Org's ticket priorities (active + inactive) — filtered to active for the dropdown. */
+  priorities: PriorityOption[];
 }) {
   const [assignState, assignAction] = useActionState<ActionState, FormData>(
     assignTicket,
@@ -37,7 +45,12 @@ export function TicketRowActions({
     setTicketPriority,
     null,
   );
-  const editableStatus = TICKET_WORKFLOW_STATUSES.includes(status as never);
+
+  const currentStatus = statuses.find((s) => s.id === statusId);
+  const workflowStatuses = statuses.filter((s) => s.isActive && isWorkflowDropdownCategory(s.category));
+  const editableStatus = currentStatus ? currentStatus.isActive && isWorkflowDropdownCategory(currentStatus.category) : false;
+
+  const priorityOptions = priorities.filter((p) => p.isActive || p.id === priorityId);
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -62,9 +75,9 @@ export function TicketRowActions({
       <form action={statusAction}>
         <input type="hidden" name="id" value={ticketId} />
         <select
-          name="status"
-          key={status}
-          defaultValue={editableStatus ? status : ""}
+          name="statusId"
+          key={statusId}
+          defaultValue={editableStatus ? statusId : ""}
           aria-label="Status"
           disabled={!editableStatus}
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
@@ -72,12 +85,12 @@ export function TicketRowActions({
         >
           {!editableStatus ? (
             <option value="" disabled>
-              {ticketStatusMeta[status]?.label ?? status}
+              {currentStatus?.name ?? statusId}
             </option>
           ) : null}
-          {TICKET_WORKFLOW_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {ticketStatusMeta[s]?.label ?? s}
+          {workflowStatuses.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
             </option>
           ))}
         </select>
@@ -85,16 +98,16 @@ export function TicketRowActions({
       <form action={priorityAction}>
         <input type="hidden" name="id" value={ticketId} />
         <select
-          name="priority"
-          key={priority}
-          defaultValue={priority}
+          name="priorityId"
+          key={priorityId}
+          defaultValue={priorityId}
           aria-label="Priority"
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
           className={smallSelect}
         >
-          {["low", "medium", "high", "critical"].map((p) => (
-            <option key={p} value={p}>
-              {p}
+          {priorityOptions.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </select>

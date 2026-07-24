@@ -26,6 +26,9 @@ async function main() {
   const { ConversionError, convertActivityToTicket } = await import(
     "../src/lib/convert-activity"
   );
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -189,10 +192,21 @@ async function main() {
         .update(workItems)
         .set({ type: "ticket", status: "open" })
         .where(eq(workItems.id, roll2.workItemId));
+      const [roll2Status, roll2Priority, roll2BillingStatus] = await Promise.all([
+        getDefaultTicketStatus(tx, org.id as number),
+        getDefaultTicketPriority(tx, org.id as number),
+        getDefaultTicketBillingStatus(tx, org.id as number),
+      ]);
+      if (!roll2Status || !roll2Priority || !roll2BillingStatus) {
+        throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+      }
       await tx.insert(tickets).values({
         organizationId: org.id,
         workItemId: roll2.workItemId,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: roll2Status.id,
+        priorityId: roll2Priority.id,
+        billingStatusId: roll2BillingStatus.id,
       });
       await tx
         .update(activities)

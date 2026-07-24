@@ -30,21 +30,18 @@ import { getCatalog } from "@/lib/settings-data";
 import { getArticleForTicket } from "@/lib/knowledge-data";
 import { knowledgeStatusMeta } from "@/lib/labels";
 import { canCreateDraft } from "@/lib/knowledge";
+import { isWorkflowDropdownCategory } from "@/lib/tickets";
+import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { CreateKbArticleForm } from "./kb-from-ticket-form";
 import { Badge, Card, CardHeader, buttonSecondaryClass } from "@/components/ui";
 import { SlaPanel } from "@/components/sla-panel";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
-import {
-  activityStatusMeta,
-  confirmationTypeMeta,
-  ticketBillingMeta,
-  ticketPriorityMeta,
-  ticketStatusMeta,
-} from "@/lib/labels";
+import { activityStatusMeta, confirmationTypeMeta } from "@/lib/labels";
 import { formatMinutes } from "@/lib/time-entries";
 import {
   BillingForm,
+  CatalogChip,
   CloseForm,
   Composer,
   DeleteAttachmentButton,
@@ -65,6 +62,8 @@ import {
 export const metadata: Metadata = { title: "Ticket" };
 
 const TABS = [
+  ["details", "Details"],
+  ["billing", "Billing"],
   ["conversation", "Conversation"],
   ["activities", "Activities"],
   ["time", "Time"],
@@ -84,7 +83,7 @@ export default async function TicketPage({
   const [{ id }, { tab: rawTab }] = await Promise.all([params, searchParams]);
   const ticketId = Number(id);
   if (!Number.isInteger(ticketId)) notFound();
-  const tab = TABS.some(([t]) => t === rawTab) ? rawTab! : "conversation";
+  const tab = TABS.some(([t]) => t === rawTab) ? rawTab! : "details";
 
   const [row] = await db
     .select({
@@ -272,11 +271,18 @@ export default async function TicketPage({
     ).length,
   };
 
-  const isClosed = w.status === "closed" || w.status === "cancelled";
-  const canReopen = ["resolved", "pending_confirmation", "closed", "cancelled"].includes(
-    w.status,
-  );
-  const billingPending = t.billingStatus === "pending_review";
+  const [statuses, priorities, billingStatuses] = await Promise.all([
+    listTicketStatuses(user.organizationId, { includeInactive: true }),
+    listTicketPriorities(user.organizationId, { includeInactive: true }),
+    listTicketBillingStatuses(user.organizationId, { includeInactive: true }),
+  ]);
+  const currentStatus = statuses.find((s) => s.id === t.statusId);
+  const currentPriority = priorities.find((p) => p.id === t.priorityId);
+  const currentBilling = billingStatuses.find((b) => b.id === t.billingStatusId);
+
+  const isClosed = currentStatus?.category === "closed" || currentStatus?.category === "cancelled";
+  const canReopen = currentStatus?.category === "resolved" || currentStatus?.category === "closed" || currentStatus?.category === "cancelled";
+  const billingPending = currentBilling?.category === "pending";
   const iconFor = {
     in: <ArrowDownLeft className="size-3.5" />,
     out: <ArrowUpRight className="size-3.5" />,
@@ -290,6 +296,19 @@ export default async function TicketPage({
   const categoryNames = categoryItems.filter((c) => c.parentId === null).map((c) => c.name);
   const subcategoryNames = [...new Set(categoryItems.filter((c) => c.parentId !== null).map((c) => c.name))];
   const kbArticle = t.resolution ? await getArticleForTicket(user.organizationId, t.id) : null;
+
+  const dropdownStatuses = statuses
+    .filter((s) => s.isActive && isWorkflowDropdownCategory(s.category))
+    .map((s) => ({ id: s.id, name: s.name }));
+  const priorityOptions = priorities
+    .filter((p) => p.isActive || p.id === t.priorityId)
+    .map((p) => ({ id: p.id, name: p.name }));
+  const billingOptions = billingStatuses
+    .filter((b) => b.isActive || b.id === t.billingStatusId)
+    .map((b) => ({ id: b.id, name: b.name }));
+  const closeBillingOptions = billingStatuses
+    .filter((b) => b.isActive && b.category !== "pending")
+    .map((b) => ({ id: b.id, name: b.name }));
 
   return (
     <div>
@@ -313,7 +332,13 @@ export default async function TicketPage({
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
           <span className="font-mono text-xs text-faint">{t.folio}</span>
           <span aria-hidden>·</span>
-          <span>{row.companyName ?? "No client"}</span>
+          {row.companyName && w.companyId ? (
+            <Link href={`/companies/${w.companyId}`} className="font-medium text-primary hover:underline">
+              {row.companyName}
+            </Link>
+          ) : (
+            <span>No client</span>
+          )}
           <span aria-hidden>·</span>
           <span>{row.assigneeName ?? "Unassigned"}</span>
           <span aria-hidden>·</span>
@@ -323,22 +348,22 @@ export default async function TicketPage({
           <TitleEditor ticketId={t.id} title={w.title} />
         </h1>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={ticketStatusMeta[w.status]?.tone ?? "slate"}>
-            {ticketStatusMeta[w.status]?.label ?? w.status}
-          </Badge>
-          <Badge tone={ticketPriorityMeta[w.priority]?.tone ?? "slate"}>
-            {ticketPriorityMeta[w.priority]?.label ?? w.priority}
-          </Badge>
-          <Badge tone={ticketBillingMeta[t.billingStatus]?.tone ?? "slate"}>
-            {ticketBillingMeta[t.billingStatus]?.label ?? t.billingStatus}
-          </Badge>
+          <CatalogChip option={currentStatus} />
+          <CatalogChip option={currentPriority} />
+          <CatalogChip option={currentBilling} />
           {t.slaName ? <Badge tone="blue">SLA · {t.slaName}</Badge> : null}
           {t.reopenCount > 0 ? <Badge tone="red">Reopened ×{t.reopenCount}</Badge> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <PrimaryActions ticketId={t.id} isClosed={isClosed} />
-          {!isClosed && w.status !== "resolved" && w.status !== "pending_confirmation" ? (
-            <StatusSelect ticketId={t.id} status={w.status} disabled={false} />
+          {!isClosed && currentStatus && isWorkflowDropdownCategory(currentStatus.category) ? (
+            <StatusSelect
+              ticketId={t.id}
+              statusId={t.statusId}
+              statuses={dropdownStatuses}
+              currentStatusName={currentStatus?.name ?? "—"}
+              disabled={false}
+            />
           ) : null}
           {canReopen ? <ReopenControl ticketId={t.id} /> : null}
           {user.role === "superadmin" ? <DeleteTicketControl ticketId={t.id} /> : null}
@@ -359,6 +384,65 @@ export default async function TicketPage({
               </TabLink>
             ))}
           </div>
+
+          {tab === "details" ? (
+            <Card className="overflow-hidden">
+              <CardHeader title="Details" description="Inline editable." />
+              <div className="p-5">
+                <SidePanelForm
+                  ticketId={t.id}
+                  defaults={{
+                    title: w.title,
+                    description: w.description,
+                    companyId: w.companyId,
+                    contactId: w.contactId,
+                    assigneeId: w.assigneeId,
+                    priorityId: t.priorityId,
+                    category: t.category,
+                    subcategory: t.subcategory,
+                    channel: t.channel,
+                    modality: t.modality,
+                    contact: t.contact,
+                  }}
+                  companies={companyRows}
+                  contacts={contactRows.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, companyId: c.companyId }))}
+                  users={userRows}
+                  priorities={priorityOptions}
+                  categoryOptions={categoryNames}
+                />
+              </div>
+            </Card>
+          ) : null}
+
+          {tab === "billing" ? (
+            <Card className="overflow-hidden">
+              <CardHeader title="Billing" description="Operational classification — no invoicing." />
+              <div className="p-5">
+                {t.calculatedAmount ? (
+                  <p className="mb-3 text-sm text-muted">
+                    Calculated amount:{" "}
+                    <span className="font-semibold text-fg tabular-nums">
+                      {fmtMoney(t.calculatedAmount)}
+                    </span>
+                  </p>
+                ) : null}
+                <BillingForm
+                  ticketId={t.id}
+                  defaults={{
+                    billingStatusId: t.billingStatusId,
+                    billingModality: t.billingModality,
+                    hourlyRate: t.hourlyRate,
+                    fixedAmount: t.fixedAmount,
+                    billingPeriod: t.billingPeriod,
+                    externalReference: t.externalReference,
+                    billingNotes: t.billingNotes,
+                  }}
+                  billableMinutes={timeTotal.billable}
+                  billingStatuses={billingOptions}
+                />
+              </div>
+            </Card>
+          ) : null}
 
           {tab === "conversation" ? (
             <Card className="overflow-hidden">
@@ -610,7 +694,7 @@ export default async function TicketPage({
               {isClosed ? (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title={w.status === "cancelled" ? "Cancelled" : "Closed"}
+                    title={currentStatus?.category === "cancelled" ? "Cancelled" : "Closed"}
                     description={`${t.closedAt ? fmtDateTime(t.closedAt) : "—"} · SLA first response ${
                       t.slaFirstResponseMet === null
                         ? "n/a"
@@ -622,7 +706,7 @@ export default async function TicketPage({
                     }${t.timeExceptionReason ? ` · time exception: ${t.timeExceptionReason}` : ""}`}
                   />
                 </Card>
-              ) : w.status === "resolved" || w.status === "pending_confirmation" ? (
+              ) : currentStatus?.category === "resolved" ? (
                 <Card className="overflow-hidden">
                   <CardHeader
                     title="Close ticket"
@@ -633,6 +717,7 @@ export default async function TicketPage({
                       ticketId={t.id}
                       hasTime={timeTotal.total > 0}
                       billingPending={billingPending}
+                      billingStatuses={closeBillingOptions}
                     />
                   </div>
                 </Card>
@@ -649,6 +734,7 @@ export default async function TicketPage({
                       subcategory={t.subcategory}
                       hasTime={timeTotal.total > 0}
                       billingPending={billingPending}
+                      billingStatuses={closeBillingOptions}
                     />
                   </div>
                 </Card>
@@ -660,56 +746,6 @@ export default async function TicketPage({
         {/* right panel */}
         <div className="space-y-6">
           <SlaPanel ticket={t} />
-          <Card className="overflow-hidden">
-            <CardHeader title="Billing" description="Operational classification — no invoicing." />
-            <div className="p-5">
-              {t.calculatedAmount ? (
-                <p className="mb-3 text-sm text-muted">
-                  Calculated amount:{" "}
-                  <span className="font-semibold text-fg tabular-nums">
-                    {fmtMoney(t.calculatedAmount)}
-                  </span>
-                </p>
-              ) : null}
-              <BillingForm
-                ticketId={t.id}
-                defaults={{
-                  billingStatus: t.billingStatus,
-                  billingModality: t.billingModality,
-                  hourlyRate: t.hourlyRate,
-                  fixedAmount: t.fixedAmount,
-                  billingPeriod: t.billingPeriod,
-                  externalReference: t.externalReference,
-                  billingNotes: t.billingNotes,
-                }}
-                billableMinutes={timeTotal.billable}
-              />
-            </div>
-          </Card>
-          <Card className="overflow-hidden">
-            <CardHeader title="Details" description="Inline editable." />
-            <div className="p-5">
-              <SidePanelForm
-                ticketId={t.id}
-                defaults={{
-                  title: w.title,
-                  description: w.description,
-                  companyId: w.companyId,
-                  contactId: w.contactId,
-                  assigneeId: w.assigneeId,
-                  priority: w.priority,
-                  category: t.category,
-                  subcategory: t.subcategory,
-                  channel: t.channel,
-                  modality: t.modality,
-                  contact: t.contact,
-                }}
-                companies={companyRows}
-                contacts={contactRows.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, companyId: c.companyId }))}
-                users={userRows}
-              />
-            </div>
-          </Card>
         </div>
       </div>
     </div>

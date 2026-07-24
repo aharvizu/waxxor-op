@@ -217,17 +217,7 @@ const catalogItemSchema = z.object({
   styleLabel: z.string().trim().max(120).optional(),
 });
 
-const STYLE_KINDS = ["ticket_status_style", "ticket_priority_style", "ticket_billing_status_style"];
-
-function parseTemplateConfig(
-  kind: string,
-  templateLists: string | undefined,
-  style?: { icon?: string; styleLabel?: string },
-) {
-  if (STYLE_KINDS.includes(kind)) {
-    if (!style?.icon && !style?.styleLabel) return null;
-    return { icon: style.icon || undefined, label: style.styleLabel || undefined };
-  }
+function parseTemplateConfig(kind: string, templateLists: string | undefined) {
   if (kind !== "project_template") return null;
   const lists = (templateLists ?? "")
     .split("\n")
@@ -259,7 +249,7 @@ export async function createCatalogItem(
     if (data.parentId && !kindMeta.hasChildren) {
       return businessError("Este catálogo no admite subelementos.");
     }
-    const config = parseTemplateConfig(data.kind, data.templateLists, { icon: data.icon, styleLabel: data.styleLabel });
+    const config = parseTemplateConfig(data.kind, data.templateLists);
 
     await db.transaction(async (tx) => {
       if (data.parentId) {
@@ -325,7 +315,7 @@ export async function updateCatalogItem(
 
     await db.transaction(async (tx) => {
       const before = await loadCatalogItem(tx, user, data.id);
-      const config = parseTemplateConfig(before.kind, data.templateLists, { icon: data.icon, styleLabel: data.styleLabel }) ?? before.config;
+      const config = parseTemplateConfig(before.kind, data.templateLists) ?? before.config;
       await tx
         .update(catalogItems)
         .set({

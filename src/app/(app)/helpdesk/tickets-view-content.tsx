@@ -7,8 +7,19 @@ import { useViewConfig } from "@/components/views/use-view-config";
 import type { PublicFieldDefinition, FilterGroup } from "@/lib/filters";
 import type { SavedView } from "@/lib/views";
 import type { Role } from "@/lib/roles";
-import { buildColumnRegistry, CalendarView, KanbanView, ListView, TableView, TimelineView, type TicketRow } from "./ticket-views";
-import type { StyledMeta } from "@/lib/catalog-styles";
+import {
+  buildColumnRegistry,
+  CalendarView,
+  KanbanView,
+  ListView,
+  TableView,
+  TimelineView,
+  toCatalogMap,
+  type TicketBillingOption,
+  type TicketPriorityOption,
+  type TicketRow,
+  type TicketStatusOption,
+} from "./ticket-views";
 
 /**
  * Client-side owner of the Views Engine experience for Tickets: renders the
@@ -27,8 +38,9 @@ export function TicketsViewContent({
   rows,
   users,
   customFieldDefs,
-  statusStyles,
-  priorityStyles,
+  statuses,
+  priorities,
+  billingStatuses,
   fields,
   quickFilters,
   activeQuick,
@@ -46,8 +58,9 @@ export function TicketsViewContent({
   rows: TicketRow[];
   users: { id: number; name: string }[];
   customFieldDefs: { key: string; name: string }[];
-  statusStyles: Record<string, StyledMeta>;
-  priorityStyles: Record<string, StyledMeta>;
+  statuses: TicketStatusOption[];
+  priorities: TicketPriorityOption[];
+  billingStatuses: TicketBillingOption[];
   fields: Record<string, PublicFieldDefinition>;
   quickFilters: { key: string; label: string }[];
   activeQuick: string | null;
@@ -59,7 +72,10 @@ export function TicketsViewContent({
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
   const canEditDirectly = canEditViewClient(view, currentUserId, currentUserRole);
-  const registry = buildColumnRegistry(customFieldDefs);
+  const statusMap = toCatalogMap(statuses);
+  const priorityMap = toCatalogMap(priorities);
+  const billingMap = toCatalogMap(billingStatuses);
+  const registry = buildColumnRegistry(customFieldDefs, statusMap, priorityMap, billingMap);
 
   async function saveFilters(nextFilters: FilterGroup | null) {
     setConfig((prev) => ({ ...prev, filters: nextFilters }));
@@ -101,20 +117,28 @@ export function TicketsViewContent({
       />
 
       {view.viewType === "table" ? (
-        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} registry={registry} users={users} basePath={basePath} />
+        <TableView
+          rows={rows}
+          columns={config.columns.filter((c) => c.visible).map((c) => c.key)}
+          registry={registry}
+          users={users}
+          basePath={basePath}
+          statusOptions={statuses}
+          priorityOptions={priorities}
+        />
       ) : view.viewType === "list" ? (
-        <ListView rows={rows} basePath={basePath} />
+        <ListView rows={rows} basePath={basePath} statuses={statusMap} priorities={priorityMap} />
       ) : view.viewType === "kanban" ? (
         <KanbanView
           rows={rows}
           groupField={config.kanban.groupField === "priority" ? "priority" : "status"}
-          statusStyles={statusStyles}
-          priorityStyles={priorityStyles}
+          statuses={statuses}
+          priorities={priorities}
         />
       ) : view.viewType === "calendar" ? (
-        <CalendarView rows={rows} />
+        <CalendarView rows={rows} statuses={statusMap} />
       ) : (
-        <TimelineView rows={rows} />
+        <TimelineView rows={rows} statuses={statusMap} />
       )}
     </>
   );

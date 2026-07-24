@@ -43,6 +43,10 @@ Ticket detail → right panel **Billing** card: status, modality, rates, period,
 - **Indicators → Billing Operations** (`/indicators?view=billing`): pendientes de revisión, monto potencial (tickets clasificados cobrables con tarifa), monto del periodo (`charged`), horas facturables vs no facturables, distribución por estado de cobro, cerrados con cobro sin resolver — todo desde `billingMetrics` de la capa central (`src/lib/report-metrics.ts`), con drill-down a la vista "Billable" de tickets. El panel deja explícito que Watson **no emite facturas**.
 - **Reportes**: el tipo `billing_support` (uso interno) y la sección `billing` de los snapshots congelan estos mismos agregados por periodo como soporte de cobro. La sección billing **nunca aparece en la salida externa** (PDF marca "Uso interno"). Ver `docs/features/reports.md`.
 
+## Catálogo dinámico de Estatus de cobro (2026-07-22)
+
+`billing_status` dejó de ser un enum fijo: ahora es un catálogo dinámico por organización (`ticket_billing_statuses`, Configuración → Tickets), con `tickets.billing_status_id` como campo autoritativo. Los 8 valores originales se conservan como filas de sistema (no eliminables) con una categoría semántica (`not_billable/included/pending/approved/billed/rejected`); se pueden crear estatus personalizados (ej. "Rechazado por el cliente", categoría `rejected`). El enum Postgres original se conserva como espejo interno — nunca se muestra ni se edita — para no romper reportes/indicadores que aún lo leen. El estatus de cobro sigue sin modificar por sí solo importe, tarifa, horas o reglas contractuales: es puramente administrativo (`computeTicketAmount` solo depende de `billing_modality`). Ver `src/lib/ticket-catalogs.ts`.
+
 ## Future
 
 Contract-driven rates and automatic overage detection (E-04/OQ-03) · fiscal invoicing (explicitly out of scope, PRD §10). Monthly billing runs shipped as reporting support (E-14, ver arriba) — invoice emission remains out of scope.

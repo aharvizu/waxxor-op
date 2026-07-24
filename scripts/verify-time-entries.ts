@@ -23,6 +23,9 @@ async function main() {
   const { recordAudit } = await import("../src/lib/audit");
   const { createWorkItem } = await import("../src/lib/work-items");
   const { calculateAmount } = await import("../src/lib/time-entries");
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -48,10 +51,21 @@ async function main() {
     await tx.insert(activities).values({ organizationId: org.id, workItemId: a.id });
     activityWi = a.id;
     const t = await createWorkItem(tx, user, { type: "ticket", title: "TIME-VERIFY tk" });
+    const [teStatus, tePriority, teBillingStatus] = await Promise.all([
+      getDefaultTicketStatus(tx, org.id),
+      getDefaultTicketPriority(tx, org.id),
+      getDefaultTicketBillingStatus(tx, org.id),
+    ]);
+    if (!teStatus || !tePriority || !teBillingStatus) {
+      throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+    }
     await tx.insert(tickets).values({
       organizationId: org.id,
       workItemId: t.id,
       folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+      statusId: teStatus.id,
+      priorityId: tePriority.id,
+      billingStatusId: teBillingStatus.id,
     });
     ticketWi = t.id;
   });

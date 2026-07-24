@@ -35,6 +35,9 @@ async function main() {
   const { recordAudit } = await import("../src/lib/audit");
   const { generateReport } = await import("../src/lib/report-generation");
   const { executeOccurrence } = await import("../src/lib/recurrence-engine");
+  const { getTicketStatusBySemanticKey, getDefaultTicketPriority, listTicketBillingStatuses } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -73,12 +76,24 @@ async function main() {
       createdAt: inPeriod,
     })
     .returning({ id: workItems.id });
+  const [rptStatus, rptPriority, rptBillingStatuses] = await Promise.all([
+    getTicketStatusBySemanticKey(db, orgId, "CLOSED"),
+    getDefaultTicketPriority(db, orgId),
+    listTicketBillingStatuses(orgId, { includeInactive: true }),
+  ]);
+  const rptBillingStatus = rptBillingStatuses.find((b) => b.semanticKey === "BILLABLE");
+  if (!rptStatus || !rptPriority || !rptBillingStatus) {
+    throw new Error("Missing system ticket status/priority/billing status catalog rows.");
+  }
   const [ticket] = await db
     .insert(tickets)
     .values({
       organizationId: orgId,
       workItemId: wi.id,
       folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+      statusId: rptStatus.id,
+      priorityId: rptPriority.id,
+      billingStatusId: rptBillingStatus.id,
       closedAt,
       resolvedAt: closedAt,
       firstResponseAt: new Date("2026-06-10T16:00:00Z"),

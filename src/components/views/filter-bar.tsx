@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Filter, Plus, Search, Trash2, X } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { Filter, Plus, Search, Trash2 } from "lucide-react";
 import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
 import { FILTER_OPERATORS, type PublicFieldDefinition, type FilterCondition, type FilterGroup } from "@/lib/filters";
 
@@ -59,6 +60,7 @@ export function FilterBar({
   const [builderOpen, setBuilderOpen] = useState(false);
   const [draft, setDraft] = useState<FilterGroup>(activeFilters ?? emptyGroup());
   const [search, setSearch] = useState(activeSearch);
+  const activeCount = (activeQuick ? 1 : 0) + (activeFilters?.conditions.length ?? 0);
 
   function setUrlParam(key: string, value: string | null) {
     const url = new URL(window.location.href);
@@ -101,143 +103,151 @@ export function FilterBar({
   }
 
   return (
-    <div className="mb-4 space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <form onSubmit={handleSearchSubmit} className="flex h-9 items-center gap-1.5 rounded-lg border border-edge bg-surface px-2.5">
-          <Search className="size-4 shrink-0 text-faint" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar…"
-            className="w-40 bg-transparent text-sm outline-none placeholder:text-faint"
-          />
-        </form>
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <form onSubmit={handleSearchSubmit} className="flex h-9 items-center gap-1.5 rounded-lg border border-edge bg-surface px-2.5">
+        <Search className="size-4 shrink-0 text-faint" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar…"
+          className="w-40 bg-transparent text-sm outline-none placeholder:text-faint"
+        />
+      </form>
 
-        {quickFilters.map((qf) => (
-          <button
-            key={qf.key}
-            type="button"
-            onClick={() => selectQuick(qf.key)}
-            className={cx(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              activeQuick === qf.key ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle hover:text-fg",
-            )}
-          >
-            {qf.label}
-          </button>
-        ))}
-
-        <div className="relative">
+      <Popover.Root open={builderOpen} onOpenChange={setBuilderOpen}>
+        <Popover.Trigger asChild>
           <button
             type="button"
-            onClick={() => setBuilderOpen((o) => !o)}
-            className={cx(buttonSecondaryClass, "h-9 gap-1.5", activeFilters && activeFilters.conditions.length > 0 && "border-primary text-primary")}
+            className={cx(buttonSecondaryClass, "h-9 gap-1.5", activeCount > 0 && "border-primary text-primary")}
           >
             <Filter className="size-4" />
             Filtros
-            {activeFilters && activeFilters.conditions.length > 0 ? (
-              <span className="rounded-full bg-primary px-1.5 text-[10px] text-white">{activeFilters.conditions.length}</span>
-            ) : null}
+            {activeCount > 0 ? <span className="rounded-full bg-primary px-1.5 text-[10px] text-white">{activeCount}</span> : null}
           </button>
-
-          {builderOpen ? (
-            <div className="absolute top-11 left-0 z-20 w-[28rem] rounded-xl border border-edge bg-surface p-4 shadow-overlay">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium text-fg">
-                  Coincidir
-                  <select
-                    value={draft.logic}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, logic: e.target.value as "AND" | "OR" }))}
-                    className={cx(inputClass, "h-7 w-auto text-xs")}
-                  >
-                    <option value="AND">Todas (AND)</option>
-                    <option value="OR">Cualquiera (OR)</option>
-                  </select>
-                </div>
-                <button type="button" onClick={() => setBuilderOpen(false)} className="text-muted hover:text-fg">
-                  <X className="size-4" />
-                </button>
-              </div>
-
-              <div className="max-h-72 space-y-2 overflow-y-auto">
-                {draft.conditions.map((c, i) => {
-                  if (isGroup(c)) return null; // nested groups: builder UI kept to one level (fuera de alcance el constructor avanzado)
-                  const field = fields[c.field];
-                  return (
-                    <div key={i} className="flex flex-wrap items-center gap-1.5">
-                      <select
-                        value={c.field}
-                        onChange={(e) => patchCondition(i, { field: e.target.value })}
-                        className={cx(inputClass, "h-8 w-auto min-w-28 text-xs")}
-                      >
-                        {Object.values(fields).map((f) => (
-                          <option key={f.key} value={f.key}>{f.label}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={c.operator}
-                        onChange={(e) => patchCondition(i, { operator: e.target.value as FilterCondition["operator"] })}
-                        className={cx(inputClass, "h-8 w-auto text-xs")}
-                      >
-                        {FILTER_OPERATORS.map((op) => (
-                          <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
-                        ))}
-                      </select>
-                      {c.operator !== "is_empty" && c.operator !== "is_not_empty" ? (
-                        field?.type === "select" && field.options ? (
-                          <select
-                            value={typeof c.value === "string" ? c.value : ""}
-                            onChange={(e) => patchCondition(i, { value: e.target.value })}
-                            className={cx(inputClass, "h-8 w-auto text-xs")}
-                          >
-                            <option value="">—</option>
-                            {field.options.map((o) => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            value={typeof c.value === "string" || typeof c.value === "number" ? String(c.value) : ""}
-                            onChange={(e) => patchCondition(i, { value: e.target.value })}
-                            className={cx(inputClass, "h-8 w-24 text-xs")}
-                          />
-                        )
-                      ) : null}
-                      <button type="button" onClick={() => removeCondition(i)} className="text-muted hover:text-danger">
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button type="button" onClick={addCondition} className={cx(buttonSecondaryClass, "mt-3 inline-flex h-7 items-center gap-1 text-xs")}>
-                <Plus className="size-3.5" /> Agregar condición
-              </button>
-
-              <div className="mt-4 flex items-center justify-between gap-2 border-t border-edge pt-3">
-                <button type="button" onClick={clearFilters} className="text-xs text-muted hover:text-danger">
-                  Limpiar
-                </button>
-                <div className="flex gap-2">
-                  {onSaveToView ? (
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            collisionPadding={8}
+            avoidCollisions
+            className="z-20 w-[28rem] max-h-[min(34rem,80vh)] overflow-y-auto rounded-xl border border-edge bg-surface p-4 shadow-overlay outline-none"
+          >
+            {/* Quick filters — one-click presets, concentrated here instead of their own always-visible row (ClickUp-style single "Filtros" entry point). */}
+            {quickFilters.length > 0 ? (
+              <div className="mb-3 border-b border-edge pb-3">
+                <div className="mb-1.5 text-[11px] font-medium text-faint">Filtros rápidos</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {quickFilters.map((qf) => (
                     <button
+                      key={qf.key}
                       type="button"
-                      onClick={() => onSaveToView(draft.conditions.length > 0 ? draft : null)}
-                      className={cx(buttonSecondaryClass, "h-8 text-xs")}
+                      onClick={() => selectQuick(qf.key)}
+                      className={cx(
+                        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                        activeQuick === qf.key ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle hover:text-fg",
+                      )}
                     >
-                      Guardar en vista
+                      {qf.label}
                     </button>
-                  ) : null}
-                  <button type="button" onClick={applyFilters} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover">
-                    Aplicar
-                  </button>
+                  ))}
                 </div>
+              </div>
+            ) : null}
+
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-fg">
+                Coincidir
+                <select
+                  value={draft.logic}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, logic: e.target.value as "AND" | "OR" }))}
+                  className={cx(inputClass, "h-7 w-auto text-xs")}
+                >
+                  <option value="AND">Todas (AND)</option>
+                  <option value="OR">Cualquiera (OR)</option>
+                </select>
               </div>
             </div>
-          ) : null}
-        </div>
-      </div>
+
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {draft.conditions.map((c, i) => {
+                if (isGroup(c)) return null; // nested groups: builder UI kept to one level (fuera de alcance el constructor avanzado)
+                const field = fields[c.field];
+                return (
+                  <div key={i} className="flex flex-wrap items-center gap-1.5">
+                    <select
+                      value={c.field}
+                      onChange={(e) => patchCondition(i, { field: e.target.value })}
+                      className={cx(inputClass, "h-8 w-auto min-w-28 text-xs")}
+                    >
+                      {Object.values(fields).map((f) => (
+                        <option key={f.key} value={f.key}>{f.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={c.operator}
+                      onChange={(e) => patchCondition(i, { operator: e.target.value as FilterCondition["operator"] })}
+                      className={cx(inputClass, "h-8 w-auto text-xs")}
+                    >
+                      {FILTER_OPERATORS.map((op) => (
+                        <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
+                      ))}
+                    </select>
+                    {c.operator !== "is_empty" && c.operator !== "is_not_empty" ? (
+                      field?.type === "select" && field.options ? (
+                        <select
+                          value={typeof c.value === "string" ? c.value : ""}
+                          onChange={(e) => patchCondition(i, { value: e.target.value })}
+                          className={cx(inputClass, "h-8 w-auto text-xs")}
+                        >
+                          <option value="">—</option>
+                          {field.options.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={typeof c.value === "string" || typeof c.value === "number" ? String(c.value) : ""}
+                          onChange={(e) => patchCondition(i, { value: e.target.value })}
+                          className={cx(inputClass, "h-8 w-24 text-xs")}
+                        />
+                      )
+                    ) : null}
+                    <button type="button" onClick={() => removeCondition(i)} className="text-muted hover:text-danger">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button type="button" onClick={addCondition} className={cx(buttonSecondaryClass, "mt-3 inline-flex h-7 items-center gap-1 text-xs")}>
+              <Plus className="size-3.5" /> Agregar condición
+            </button>
+
+            <div className="mt-4 flex items-center justify-between gap-2 border-t border-edge pt-3">
+              <button type="button" onClick={clearFilters} className="text-xs text-muted hover:text-danger">
+                Limpiar
+              </button>
+              <div className="flex gap-2">
+                {onSaveToView ? (
+                  <button
+                    type="button"
+                    onClick={() => onSaveToView(draft.conditions.length > 0 ? draft : null)}
+                    className={cx(buttonSecondaryClass, "h-8 text-xs")}
+                  >
+                    Guardar en vista
+                  </button>
+                ) : null}
+                <button type="button" onClick={applyFilters} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover">
+                  Aplicar
+                </button>
+              </div>
+            </div>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
 }

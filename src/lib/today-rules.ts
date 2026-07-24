@@ -23,6 +23,13 @@ export type TodayItem = {
   dueDate: string | null;
   createdAt: Date;
   updatedAt: Date;
+  // tickets only — dynamic catalog ids (2026-07-22); null for activities,
+  // which still run entirely on the legacy workItems enum (out of scope
+  // this sprint). `status`/`priority` above remain the mirror, always
+  // in sync, and are what all business-rule logic in this file reads.
+  statusId: number | null;
+  priorityId: number | null;
+  billingStatusId: number | null;
   // tickets only
   firstResponseAt: Date | null;
   firstResponseTargetAt: Date | null;

@@ -4,6 +4,12 @@ import { activities, tickets, workItems } from "@/db/schema";
 import { recordAudit } from "@/lib/audit";
 import { buildSlaSnapshot, getOrgCalendar, resolveSlaDefinition } from "@/lib/sla";
 import type { SessionUser } from "@/lib/session";
+import {
+  getDefaultTicketBillingStatus,
+  getTicketPriorityByLegacyValue,
+  getTicketStatusBySemanticKey,
+  legacyBillingFor,
+} from "@/lib/ticket-catalogs";
 import type { WorkItemPriority } from "@/lib/work-items";
 
 /**
@@ -145,11 +151,16 @@ export async function convertActivityToTicket(
       .where(eq(workItems.id, row.item.id));
 
     // 2. ticket specialization with its immutable, sequence-generated folio
+    const priority = await getTicketPriorityByLegacyValue(tx, user.organizationId, input.priority);
+    const status = await getTicketStatusBySemanticKey(tx, user.organizationId, "NEW");
+    const billingStatus = await getDefaultTicketBillingStatus(tx, user.organizationId);
+    if (!priority || !status || !billingStatus) throw new ConversionError("not_found");
+
     // SLA cascade: explicit (superadmin) → active default for the priority → none
     const definition = await resolveSlaDefinition(
       tx,
       user.organizationId,
-      input.priority,
+      priority.id,
       user.role === "superadmin" ? (input.slaDefinitionId ?? null) : null,
     );
     const snapshot = definition
@@ -165,6 +176,10 @@ export async function convertActivityToTicket(
         organizationId: user.organizationId,
         workItemId: row.item.id,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: status.id,
+        priorityId: priority.id,
+        billingStatusId: billingStatus.id,
+        billingStatus: legacyBillingFor(billingStatus),
         category: input.category,
         subcategory: input.subcategory ?? null,
         channel: input.channel,

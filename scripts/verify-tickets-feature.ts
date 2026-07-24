@@ -23,6 +23,9 @@ async function main() {
   const { recordAudit } = await import("../src/lib/audit");
   const { createWorkItem } = await import("../src/lib/work-items");
   const { computeTicketAmount } = await import("../src/lib/tickets");
+  const { getTicketStatusBySemanticKey, getTicketPriorityByLegacyValue, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -44,12 +47,23 @@ async function main() {
       status: "in_progress",
       priority: "high",
     });
+    const [tkfStatus, tkfPriority, tkfBillingStatus] = await Promise.all([
+      getTicketStatusBySemanticKey(tx, org.id, "IN_PROGRESS"),
+      getTicketPriorityByLegacyValue(tx, org.id, "high"),
+      getDefaultTicketBillingStatus(tx, org.id),
+    ]);
+    if (!tkfStatus || !tkfPriority || !tkfBillingStatus) {
+      throw new Error("Missing system ticket status/priority/billing status catalog rows.");
+    }
     const [t] = await tx
       .insert(tickets)
       .values({
         organizationId: org.id,
         workItemId: item.id,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: tkfStatus.id,
+        priorityId: tkfPriority.id,
+        billingStatusId: tkfBillingStatus.id,
         resolution: "done",
         category: "Networking",
       })

@@ -1,11 +1,21 @@
 import { z } from "zod";
 import { tickets } from "@/db/schema";
+import type { TicketStatusCategoryValue, TicketStatusRow } from "./ticket-catalogs";
 
 /**
  * Ticket lifecycle, closure rules and operational billing — pure domain.
  * See docs/features/tickets.md and docs/features/ticket-billing.md.
+ *
+ * Status is now catalog-driven (2026-07-22 — see lib/ticket-catalogs.ts): the
+ * 11 fixed strings below no longer gate the workflow. canTransition/
+ * isActiveTicketStatus operate on a status row's stable semanticKey (system
+ * rows, exact graph below — byte-for-byte the same graph as before, just
+ * keyed by id instead of string) or, for a custom status with no
+ * semanticKey, on its semanticCategory (the "open/in_progress/waiting/
+ * resolved/closed/cancelled" dispatch key every row must declare).
  */
 
+/** Legacy list of the 11 system statuses' slugs — used only by seed/migration/test code that still needs the plain string set. */
 export const TICKET_STATUSES = [
   "new",
   "assigned",
@@ -22,54 +32,52 @@ export const TICKET_STATUSES = [
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 export const ticketStatusSchema = z.enum(TICKET_STATUSES);
 
-/** Statuses an agent can pick from the generic dropdown (the rest go through dedicated actions). */
-export const TICKET_WORKFLOW_STATUSES = [
-  "new",
-  "assigned",
-  "in_progress",
-  "waiting_customer",
-  "waiting_third_party",
-  "scheduled",
-  "cancelled",
-] as const;
-export const ticketWorkflowStatusSchema = z.enum(TICKET_WORKFLOW_STATUSES);
+type StatusForTransition = Pick<TicketStatusRow, "id" | "semanticKey" | "category">;
 
-const ACTIVE = [
-  "new",
-  "assigned",
-  "in_progress",
-  "waiting_customer",
-  "waiting_third_party",
-  "scheduled",
-  "reopened",
-] as const;
-
-/** Valid transitions. Resolution/confirmation/closure/reopen run through dedicated actions. */
-const TRANSITIONS: Record<TicketStatus, readonly TicketStatus[]> = {
-  new: ["assigned", "in_progress", "scheduled", "waiting_customer", "waiting_third_party", "resolved", "cancelled"],
-  assigned: ["in_progress", "scheduled", "waiting_customer", "waiting_third_party", "resolved", "cancelled"],
-  in_progress: ["assigned", "scheduled", "waiting_customer", "waiting_third_party", "resolved", "cancelled"],
-  waiting_customer: ["assigned", "in_progress", "scheduled", "waiting_third_party", "resolved", "cancelled"],
-  waiting_third_party: ["assigned", "in_progress", "scheduled", "waiting_customer", "resolved", "cancelled"],
-  scheduled: ["assigned", "in_progress", "waiting_customer", "waiting_third_party", "resolved", "cancelled"],
-  resolved: ["pending_confirmation", "closed", "reopened"],
-  pending_confirmation: ["closed", "reopened"],
-  closed: ["reopened"],
-  reopened: ["assigned", "in_progress", "scheduled", "waiting_customer", "waiting_third_party", "resolved", "cancelled"],
-  cancelled: ["reopened"],
+/** The exact graph the old string-keyed TRANSITIONS map encoded, now keyed by stable semanticKey. Resolution/confirmation/closure/reopen run through dedicated actions. */
+const SYSTEM_TRANSITIONS: Record<string, readonly string[]> = {
+  NEW: ["ASSIGNED", "IN_PROGRESS", "SCHEDULED", "WAITING_CUSTOMER", "WAITING_THIRD_PARTY", "RESOLVED", "CANCELLED"],
+  ASSIGNED: ["IN_PROGRESS", "SCHEDULED", "WAITING_CUSTOMER", "WAITING_THIRD_PARTY", "RESOLVED", "CANCELLED"],
+  IN_PROGRESS: ["ASSIGNED", "SCHEDULED", "WAITING_CUSTOMER", "WAITING_THIRD_PARTY", "RESOLVED", "CANCELLED"],
+  WAITING_CUSTOMER: ["ASSIGNED", "IN_PROGRESS", "SCHEDULED", "WAITING_THIRD_PARTY", "RESOLVED", "CANCELLED"],
+  WAITING_THIRD_PARTY: ["ASSIGNED", "IN_PROGRESS", "SCHEDULED", "WAITING_CUSTOMER", "RESOLVED", "CANCELLED"],
+  SCHEDULED: ["ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER", "WAITING_THIRD_PARTY", "RESOLVED", "CANCELLED"],
+  RESOLVED: ["PENDING_CONFIRMATION", "CLOSED", "REOPENED"],
+  PENDING_CONFIRMATION: ["CLOSED", "REOPENED"],
+  CLOSED: ["REOPENED"],
+  REOPENED: ["ASSIGNED", "IN_PROGRESS", "SCHEDULED", "WAITING_CUSTOMER", "WAITING_THIRD_PARTY", "RESOLVED", "CANCELLED"],
+  CANCELLED: ["REOPENED"],
 };
 
-export function canTransition(from: TicketStatus, to: TicketStatus): boolean {
-  if (from === to) return false;
-  return TRANSITIONS[from]?.includes(to) ?? false;
+/** Fallback graph for any transition involving a custom (no-semanticKey) status — a generalization of the graph above at the category level. */
+const CATEGORY_TRANSITIONS: Record<TicketStatusCategoryValue, readonly TicketStatusCategoryValue[]> = {
+  open: ["open", "in_progress", "waiting", "resolved", "cancelled"],
+  in_progress: ["open", "in_progress", "waiting", "resolved", "cancelled"],
+  waiting: ["open", "in_progress", "waiting", "resolved", "cancelled"],
+  resolved: ["resolved", "closed", "open"],
+  closed: ["open"],
+  cancelled: ["open"],
+};
+
+/** "new" only ever exists as a starting point — never a valid transition target, system or custom. */
+export function canTransition(from: StatusForTransition, to: StatusForTransition): boolean {
+  if (from.id === to.id) return false;
+  if (to.semanticKey === "NEW") return false;
+  if (from.semanticKey && to.semanticKey) {
+    return SYSTEM_TRANSITIONS[from.semanticKey]?.includes(to.semanticKey) ?? false;
+  }
+  return CATEGORY_TRANSITIONS[from.category]?.includes(to.category) ?? false;
 }
 
-export function isActiveTicketStatus(status: string): boolean {
-  return (ACTIVE as readonly string[]).includes(status);
+/** "Active" = still open work — everything except resolved/pending_confirmation/closed/cancelled. */
+export function isActiveTicketStatus(category: TicketStatusCategoryValue): boolean {
+  return category === "open" || category === "in_progress" || category === "waiting";
 }
 
-/** Statuses that pause the SLA clock (see docs/features/sla.md). */
-export const TICKET_SLA_PAUSE_STATUSES = ["waiting_customer", "waiting_third_party"] as const;
+/** Categories selectable from the generic status dropdown — resolve/close/reopen go through their own dedicated actions instead. */
+export function isWorkflowDropdownCategory(category: TicketStatusCategoryValue): boolean {
+  return category === "open" || category === "in_progress" || category === "waiting" || category === "cancelled";
+}
 
 export const CONFIRMATION_TYPES = tickets.confirmationType.enumValues;
 export const confirmationTypeSchema = z.enum(CONFIRMATION_TYPES);

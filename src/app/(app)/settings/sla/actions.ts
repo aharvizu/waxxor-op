@@ -15,15 +15,17 @@ import {
 import { diffFields, recordAudit } from "@/lib/audit";
 import { calendarSchema, slaDefinitionSchema } from "@/lib/sla";
 import { requireRole } from "@/lib/session";
+import { getTicketPriority, legacyPriorityFor } from "@/lib/ticket-catalogs";
 
 class DefinitionNotFoundError extends Error {}
+class PriorityNotFoundError extends Error {}
 
 const idSchema = z.object({ id: z.coerce.number().int().positive() });
 
 const auditedFields = [
   "name",
   "description",
-  "priority",
+  "priorityId",
   "firstResponseMinutes",
   "resolutionMinutes",
   "businessHoursOnly",
@@ -35,7 +37,7 @@ const auditedFields = [
 async function demoteOtherDefaults(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   orgId: number,
-  priority: (typeof slaDefinitions.priority.enumValues)[number],
+  priorityId: number,
   keepId: number,
 ) {
   await tx
@@ -44,7 +46,7 @@ async function demoteOtherDefaults(
     .where(
       and(
         eq(slaDefinitions.organizationId, orgId),
-        eq(slaDefinitions.priority, priority),
+        eq(slaDefinitions.priorityId, priorityId),
         eq(slaDefinitions.isDefault, true),
         ne(slaDefinitions.id, keepId),
       ),
@@ -61,12 +63,14 @@ export async function createSlaDefinition(
 
   try {
     await db.transaction(async (tx) => {
+      const priority = await getTicketPriority(tx, me.organizationId, data.priorityId);
+      if (!priority) throw new PriorityNotFoundError();
       const [created] = await tx
         .insert(slaDefinitions)
-        .values({ ...data, organizationId: me.organizationId })
+        .values({ ...data, priority: legacyPriorityFor(priority), organizationId: me.organizationId })
         .returning({ id: slaDefinitions.id });
       if (data.isDefault) {
-        await demoteOtherDefaults(tx, me.organizationId, data.priority, created.id);
+        await demoteOtherDefaults(tx, me.organizationId, data.priorityId, created.id);
       }
       await recordAudit(tx, {
         organizationId: me.organizationId,
@@ -78,6 +82,9 @@ export async function createSlaDefinition(
       });
     });
   } catch (err) {
+    if (err instanceof PriorityNotFoundError) {
+      return businessError("Selecciona una prioridad válida.");
+    }
     return unexpectedError(err);
   }
 
@@ -104,8 +111,10 @@ export async function updateSlaDefinition(
       );
       const [before] = await tx.select().from(slaDefinitions).where(scope);
       if (!before) throw new DefinitionNotFoundError();
+      const priority = await getTicketPriority(tx, me.organizationId, data.priorityId);
+      if (!priority) throw new PriorityNotFoundError();
 
-      const patch: Partial<typeof before> = { ...data, id: undefined };
+      const patch: Partial<typeof before> = { ...data, id: undefined, priority: legacyPriorityFor(priority) };
       const changes = diffFields(
         {
           organizationId: me.organizationId,
@@ -122,14 +131,17 @@ export async function updateSlaDefinition(
         .update(slaDefinitions)
         .set({ ...patch, updatedAt: new Date() })
         .where(scope);
-      if (patch.isDefault && patch.priority) {
-        await demoteOtherDefaults(tx, me.organizationId, patch.priority, before.id);
+      if (patch.isDefault && patch.priorityId) {
+        await demoteOtherDefaults(tx, me.organizationId, patch.priorityId, before.id);
       }
       await recordAudit(tx, changes);
     });
   } catch (err) {
     if (err instanceof DefinitionNotFoundError) {
       return businessError("This SLA definition no longer exists.");
+    }
+    if (err instanceof PriorityNotFoundError) {
+      return businessError("Selecciona una prioridad válida.");
     }
     return unexpectedError(err);
   }

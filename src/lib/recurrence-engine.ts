@@ -36,6 +36,12 @@ import { createReportForRecurrence } from "@/lib/report-generation";
 import { resolvePeriod } from "@/lib/reports";
 import { buildSlaSnapshot, getOrgCalendar, resolveSlaDefinition } from "@/lib/sla";
 import type { SessionUser } from "@/lib/session";
+import {
+  getDefaultTicketBillingStatus,
+  getTicketPriorityByLegacyValue,
+  getTicketStatusBySemanticKey,
+  legacyBillingFor,
+} from "@/lib/ticket-catalogs";
 import { createWorkItem } from "@/lib/work-items";
 
 /**
@@ -272,10 +278,16 @@ async function generateEntity(
       assigneeId: ctx.assignee?.id ?? null,
       dueDate,
     });
+    const priority = await getTicketPriorityByLegacyValue(tx, def.organizationId, templateData.priority);
+    const status = await getTicketStatusBySemanticKey(tx, def.organizationId, ctx.assignee ? "ASSIGNED" : "NEW");
+    const billingStatus = await getDefaultTicketBillingStatus(tx, def.organizationId);
+    if (!priority || !status || !billingStatus) {
+      throw new GenerationError("sla_missing", "El catálogo de tickets de la organización está incompleto.");
+    }
     const definition = await resolveSlaDefinition(
       tx,
       def.organizationId,
-      templateData.priority,
+      priority.id,
       templateData.slaDefinitionId,
     );
     if (templateData.slaDefinitionId && !definition) {
@@ -290,6 +302,10 @@ async function generateEntity(
         organizationId: def.organizationId,
         workItemId: item.id,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: status.id,
+        priorityId: priority.id,
+        billingStatusId: billingStatus.id,
+        billingStatus: legacyBillingFor(billingStatus),
         category: templateData.category,
         subcategory: templateData.subcategory || null,
         channel: templateData.channel,

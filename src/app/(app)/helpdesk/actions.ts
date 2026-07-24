@@ -47,11 +47,22 @@ import {
   computeTicketAmount,
   confirmationTypeSchema,
   finalSlaCompliance,
+  isWorkflowDropdownCategory,
   ticketBillingModalitySchema,
-  ticketBillingStatusSchema,
-  ticketWorkflowStatusSchema,
-  type TicketStatus,
 } from "@/lib/tickets";
+import {
+  getDefaultTicketBillingStatus,
+  getDefaultTicketPriority,
+  getTicketBillingStatus,
+  getTicketPriority,
+  getTicketStatus,
+  getTicketStatusBySemanticKey,
+  legacyBillingFor,
+  legacyPriorityFor,
+  legacyStatusFor,
+  type TicketStatusRow,
+} from "@/lib/ticket-catalogs";
+import { getCatalogNames } from "@/lib/settings-data";
 import {
   createWorkItem,
   updateWorkItemFields,
@@ -72,6 +83,10 @@ class InvalidTransitionError extends Error {
 class ClosureBlockedError extends Error {}
 class NoteEditError extends Error {}
 class LinkError extends Error {}
+/** e.g. picking a resolve/close/reopen-only status from the generic dropdown. */
+class DropdownStatusError extends Error {}
+/** Category must come from the org's ticket_category catalog — no free text. */
+class InvalidCategoryError extends Error {}
 
 /* ------------------------------------------------------------- primitives */
 
@@ -93,9 +108,9 @@ const optionalMoney = z.preprocess(
 const idSchema = z.object({ id: z.coerce.number().int().positive() });
 
 /** Selects submit "" for the empty choice — treat it as "not provided". */
-const optionalBillingStatus = z.preprocess(
+const optionalBillingStatusId = z.preprocess(
   (v) => (v === "" || v === null || v === undefined ? undefined : v),
-  ticketBillingStatusSchema.optional(),
+  z.coerce.number().int().positive().optional(),
 );
 const optionalConfirmationType = z.preprocess(
   (v) => (v === "" || v === null || v === undefined ? undefined : v),
@@ -189,16 +204,18 @@ async function applyStatusChange(
   tx: DbExecutor,
   user: SessionUser,
   row: { ticket: typeof tickets.$inferSelect; item: typeof workItems.$inferSelect },
-  next: TicketStatus,
+  next: TicketStatusRow,
 ) {
-  const from = row.item.status as TicketStatus;
-  if (!canTransition(from, next)) throw new InvalidTransitionError(from, next);
+  const from = await getTicketStatus(tx, user.organizationId, row.ticket.statusId);
+  if (!from) throw new TicketNotFoundError();
+  if (!canTransition(from, next)) throw new InvalidTransitionError(from.name, next.name);
 
-  await updateWorkItemFields(tx, user, row.item.id, { status: next });
+  await updateWorkItemFields(tx, user, row.item.id, { status: legacyStatusFor(next) });
+  await tx.update(tickets).set({ statusId: next.id }).where(eq(tickets.id, row.ticket.id));
 
   if (row.ticket.slaDefinitionId) {
     const now = new Date();
-    const entering = isSlaPauseStatus(next);
+    const entering = isSlaPauseStatus(next.category);
     const open = row.ticket.slaPausedAt !== null;
     if (entering && !open) {
       await tx
@@ -214,7 +231,7 @@ async function applyStatusChange(
         field: "slaPause",
         oldValue: null,
         newValue: now.toISOString(),
-        metadata: { event: "sla_pause_start", status: next },
+        metadata: { event: "sla_pause_start", status: next.name },
       });
     } else if (!entering && open) {
       const cal = ticketCalendar(row.ticket);
@@ -257,6 +274,9 @@ function ticketError(err: unknown): ActionState {
   if (err instanceof InvalidTransitionError) {
     return businessError(`A ticket cannot move from "${err.from}" to "${err.to}".`);
   }
+  if (err instanceof InvalidCategoryError) {
+    return businessError("Selecciona una categoría del catálogo.");
+  }
   return unexpectedError(err);
 }
 
@@ -270,7 +290,7 @@ function refresh(id: number) {
 const createTicketSchema = z.object({
   subject: z.string("Subject is required.").trim().min(1, "Subject is required."),
   description: optionalText,
-  priority: workItemPrioritySchema.default("medium"),
+  priorityId: optionalId,
   companyId: optionalId,
   contactId: optionalId,
   assigneeId: optionalId,
@@ -297,12 +317,21 @@ export async function createTicket(
   let ticketId: number;
   try {
     ticketId = await db.transaction(async (tx) => {
+      const priority = data.priorityId
+        ? await getTicketPriority(tx, user.organizationId, data.priorityId)
+        : await getDefaultTicketPriority(tx, user.organizationId);
+      if (!priority) throw new TicketNotFoundError();
+      const status = await getTicketStatusBySemanticKey(tx, user.organizationId, assigneeId ? "ASSIGNED" : "NEW");
+      if (!status) throw new TicketNotFoundError();
+      const billingStatus = await getDefaultTicketBillingStatus(tx, user.organizationId);
+      if (!billingStatus) throw new TicketNotFoundError();
+
       const item = await createWorkItem(tx, user, {
         type: "ticket",
         title: data.subject,
         description: data.description,
-        status: assigneeId ? "assigned" : "new",
-        priority: data.priority,
+        status: legacyStatusFor(status),
+        priority: legacyPriorityFor(priority),
         companyId,
         contactId,
         assigneeId,
@@ -311,7 +340,7 @@ export async function createTicket(
       const definition = await resolveSlaDefinition(
         tx,
         user.organizationId,
-        data.priority,
+        priority.id,
         explicitSlaId,
       );
       const snapshot = definition
@@ -327,6 +356,10 @@ export async function createTicket(
           organizationId: user.organizationId,
           workItemId: item.id,
           folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+          statusId: status.id,
+          priorityId: priority.id,
+          billingStatusId: billingStatus.id,
+          billingStatus: legacyBillingFor(billingStatus),
           category: data.category,
           subcategory: data.subcategory,
           channel: data.channel,
@@ -393,6 +426,12 @@ export async function updateTicketDetails(
   try {
     await db.transaction(async (tx) => {
       const row = await loadTicket(tx, user, data.id);
+      // Category must be either unchanged or one of the org's active catalog
+      // values — never new free text (Settings → Tickets → Categorías).
+      if (data.category !== null && data.category !== row.ticket.category) {
+        const validCategories = await getCatalogNames(user.organizationId, "ticket_category");
+        if (!validCategories.includes(data.category)) throw new InvalidCategoryError();
+      }
       await updateWorkItemFields(tx, user, row.item.id, {
         title: data.title,
         description: data.description,
@@ -474,8 +513,10 @@ export async function assignTicket(
       const row = await loadTicket(tx, user, data.id);
       await updateWorkItemFields(tx, user, row.item.id, { assigneeId });
       // assigning a new ticket moves it forward automatically
-      if (assigneeId && row.item.status === "new") {
-        await applyStatusChange(tx, user, row, "assigned");
+      const currentStatus = await getTicketStatus(tx, user.organizationId, row.ticket.statusId);
+      if (assigneeId && currentStatus?.semanticKey === "NEW") {
+        const assigned = await getTicketStatusBySemanticKey(tx, user.organizationId, "ASSIGNED");
+        if (assigned) await applyStatusChange(tx, user, row, assigned);
       }
     });
   } catch (err) {
@@ -487,7 +528,7 @@ export async function assignTicket(
 
 const prioritySchema = z.object({
   id: z.coerce.number().int().positive(),
-  priority: workItemPrioritySchema,
+  priorityId: z.coerce.number().int().positive(),
 });
 
 export async function setTicketPriority(
@@ -500,7 +541,10 @@ export async function setTicketPriority(
   try {
     await db.transaction(async (tx) => {
       const row = await loadTicket(tx, user, data.id);
-      await updateWorkItemFields(tx, user, row.item.id, { priority: data.priority });
+      const priority = await getTicketPriority(tx, user.organizationId, data.priorityId);
+      if (!priority) throw new TicketNotFoundError();
+      await updateWorkItemFields(tx, user, row.item.id, { priority: legacyPriorityFor(priority) });
+      await tx.update(tickets).set({ priorityId: priority.id }).where(eq(tickets.id, row.ticket.id));
     });
   } catch (err) {
     return ticketError(err);
@@ -511,7 +555,7 @@ export async function setTicketPriority(
 
 const statusSchema = z.object({
   id: z.coerce.number().int().positive(),
-  status: ticketWorkflowStatusSchema,
+  statusId: z.coerce.number().int().positive(),
 });
 
 export async function changeTicketStatus(
@@ -524,9 +568,16 @@ export async function changeTicketStatus(
   try {
     await db.transaction(async (tx) => {
       const row = await loadTicket(tx, user, data.id);
-      await applyStatusChange(tx, user, row, data.status);
+      const next = await getTicketStatus(tx, user.organizationId, data.statusId);
+      if (!next) throw new TicketNotFoundError();
+      // Resolve/close/reopen go through their own dedicated actions instead.
+      if (!isWorkflowDropdownCategory(next.category)) {
+        throw new DropdownStatusError(`Usa la acción dedicada para pasar a "${next.name}".`);
+      }
+      await applyStatusChange(tx, user, row, next);
     });
   } catch (err) {
+    if (err instanceof DropdownStatusError) return businessError(err.message);
     return ticketError(err);
   }
   refresh(data.id);
@@ -552,7 +603,7 @@ async function performClose(
     confirmationType?: (typeof tickets.confirmationType.enumValues)[number];
     confirmationNotes: string | null;
     timeExceptionReason: string | null;
-    billingStatus?: (typeof tickets.billingStatus.enumValues)[number];
+    billingStatusId?: number;
   },
 ) {
   const minutes = await activeMinutes(tx, row.item.id);
@@ -571,7 +622,9 @@ async function performClose(
     );
   }
 
-  await applyStatusChange(tx, user, row, "closed");
+  const closedStatus = await getTicketStatusBySemanticKey(tx, user.organizationId, "CLOSED");
+  if (!closedStatus) throw new TicketNotFoundError();
+  await applyStatusChange(tx, user, row, closedStatus);
 
   const now = new Date();
   const compliance = finalSlaCompliance({
@@ -606,22 +659,27 @@ async function performClose(
       metadata: { event: "time_exception_granted" },
     });
   }
-  // billing decision required at close while still pending_review — never auto-billable
-  if (row.ticket.billingStatus === "pending_review" && input.billingStatus) {
-    patch.billingStatus = input.billingStatus;
-    patch.billingDeterminedById = Number(user.id);
-    patch.billingDeterminedAt = now;
-    await recordAudit(tx, {
-      organizationId: user.organizationId,
-      userId: Number(user.id),
-      entityType: "ticket",
-      entityId: row.ticket.id,
-      action: "update",
-      field: "billingStatus",
-      oldValue: "pending_review",
-      newValue: input.billingStatus,
-      metadata: { event: "billing_set_at_close" },
-    });
+  // billing decision required at close while still in the "pending" category — never auto-billable
+  const currentBilling = await getTicketBillingStatus(tx, user.organizationId, row.ticket.billingStatusId);
+  if (currentBilling?.category === "pending" && input.billingStatusId) {
+    const nextBilling = await getTicketBillingStatus(tx, user.organizationId, input.billingStatusId);
+    if (nextBilling) {
+      patch.billingStatus = legacyBillingFor(nextBilling);
+      patch.billingStatusId = nextBilling.id;
+      patch.billingDeterminedById = Number(user.id);
+      patch.billingDeterminedAt = now;
+      await recordAudit(tx, {
+        organizationId: user.organizationId,
+        userId: Number(user.id),
+        entityType: "ticket",
+        entityId: row.ticket.id,
+        action: "update",
+        field: "billingStatus",
+        oldValue: currentBilling.name,
+        newValue: nextBilling.name,
+        metadata: { event: "billing_set_at_close" },
+      });
+    }
   }
   await tx.update(tickets).set(patch).where(eq(tickets.id, row.ticket.id));
   await recordAudit(tx, {
@@ -655,7 +713,7 @@ const resolveSchema = z.object({
   confirmationType: optionalConfirmationType,
   confirmationNotes: optionalText,
   timeExceptionReason: optionalText,
-  billingStatus: optionalBillingStatus,
+  billingStatusId: optionalBillingStatusId,
 });
 
 export async function resolveTicket(
@@ -671,7 +729,9 @@ export async function resolveTicket(
       const row = await loadTicket(tx, user, data.id);
       const now = new Date();
 
-      await applyStatusChange(tx, user, row, "resolved");
+      const resolvedStatus = await getTicketStatusBySemanticKey(tx, user.organizationId, "RESOLVED");
+      if (!resolvedStatus) throw new TicketNotFoundError();
+      await applyStatusChange(tx, user, row, resolvedStatus);
       const resolvedAt = row.ticket.resolvedAt ?? now;
       await tx
         .update(tickets)
@@ -704,10 +764,12 @@ export async function resolveTicket(
           confirmationType: data.confirmationType,
           confirmationNotes: data.confirmationNotes ?? null,
           timeExceptionReason: data.timeExceptionReason ?? null,
-          billingStatus: data.billingStatus,
+          billingStatusId: data.billingStatusId,
         });
       } else {
-        await applyStatusChange(tx, user, fresh, "pending_confirmation");
+        const pendingConfirmation = await getTicketStatusBySemanticKey(tx, user.organizationId, "PENDING_CONFIRMATION");
+        if (!pendingConfirmation) throw new TicketNotFoundError();
+        await applyStatusChange(tx, user, fresh, pendingConfirmation);
       }
     });
   } catch (err) {
@@ -728,7 +790,7 @@ const closeSchema = z.object({
   confirmationNotes: optionalText,
   confirmationChannel: optionalText,
   timeExceptionReason: optionalText,
-  billingStatus: optionalBillingStatus,
+  billingStatusId: optionalBillingStatusId,
 });
 
 export async function closeTicket(
@@ -752,7 +814,7 @@ export async function closeTicket(
         confirmationType: data.confirmationType,
         confirmationNotes: data.confirmationNotes ?? null,
         timeExceptionReason: data.timeExceptionReason ?? null,
-        billingStatus: data.billingStatus,
+        billingStatusId: data.billingStatusId,
       });
     });
   } catch (err) {
@@ -783,7 +845,9 @@ export async function reopenTicket(
     await db.transaction(async (tx) => {
       const row = await loadTicket(tx, user, data.id);
       const now = new Date();
-      await applyStatusChange(tx, user, row, "reopened");
+      const reopenedStatus = await getTicketStatusBySemanticKey(tx, user.organizationId, "REOPENED");
+      if (!reopenedStatus) throw new TicketNotFoundError();
+      await applyStatusChange(tx, user, row, reopenedStatus);
       await tx
         .update(tickets)
         .set({
@@ -874,7 +938,7 @@ export async function deleteTicket(
 
 const billingSchema = z.object({
   id: z.coerce.number().int().positive(),
-  billingStatus: ticketBillingStatusSchema,
+  billingStatusId: z.coerce.number().int().positive(),
   billingModality: ticketBillingModalitySchema,
   hourlyRate: optionalMoney,
   fixedAmount: optionalMoney,
@@ -894,6 +958,8 @@ export async function setTicketBilling(
   try {
     await db.transaction(async (tx) => {
       const row = await loadTicket(tx, user, data.id);
+      const billingStatus = await getTicketBillingStatus(tx, user.organizationId, data.billingStatusId);
+      if (!billingStatus) throw new TicketNotFoundError();
       const minutes = await billableMinutes(tx, row.item.id);
       const calculatedAmount = computeTicketAmount({
         modality: data.billingModality,
@@ -902,7 +968,8 @@ export async function setTicketBilling(
         fixedAmount: data.fixedAmount,
       });
       const patch = {
-        billingStatus: data.billingStatus,
+        billingStatus: legacyBillingFor(billingStatus),
+        billingStatusId: billingStatus.id,
         billingModality: data.billingModality,
         hourlyRate: data.hourlyRate,
         fixedAmount: data.fixedAmount,

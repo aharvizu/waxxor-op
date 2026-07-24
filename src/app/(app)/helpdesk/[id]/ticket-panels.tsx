@@ -16,18 +16,8 @@ import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { ACTIVITY_TYPES } from "@/lib/activities";
-import {
-  CONFIRMATION_TYPES,
-  TICKET_BILLING_MODALITIES,
-  TICKET_BILLING_STATUSES,
-  TICKET_WORKFLOW_STATUSES,
-} from "@/lib/tickets";
-import {
-  activityTypeMeta,
-  confirmationTypeMeta,
-  ticketBillingMeta,
-  ticketStatusMeta,
-} from "@/lib/labels";
+import { CONFIRMATION_TYPES, TICKET_BILLING_MODALITIES } from "@/lib/tickets";
+import { activityTypeMeta, confirmationTypeMeta } from "@/lib/labels";
 import {
   assignTicket,
   changeTicketStatus,
@@ -50,8 +40,25 @@ import {
 } from "../actions";
 
 type Option = { id: number; name: string };
-const PRIORITIES = ["low", "medium", "high", "critical"] as const;
+/** A catalog row's minimal display shape — id/name always; color when the caller renders a chip. */
+export type CatalogOption = { id: number; name: string; color?: string | null };
 const CHANNELS = ["manual", "whatsapp", "email", "phone", "portal", "internal"] as const;
+/** Activities' priority is still the plain legacy enum — out of scope for the Ticket Priority catalog. */
+const PRIORITIES = ["low", "medium", "high", "critical"] as const;
+
+/** Small colored chip for a catalog row — Badge only supports 7 fixed tones, not arbitrary hex. */
+export function CatalogChip({ option }: { option: CatalogOption | undefined }) {
+  if (!option) return <Badge tone="slate">—</Badge>;
+  if (!option.color) return <Badge tone="slate">{option.name}</Badge>;
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+      style={{ backgroundColor: `${option.color}22`, color: option.color }}
+    >
+      {option.name}
+    </span>
+  );
+}
 
 function useForm(action: (p: ActionState, f: FormData) => Promise<ActionState>) {
   return useActionState<ActionState, FormData>(action, null);
@@ -61,33 +68,40 @@ function useForm(action: (p: ActionState, f: FormData) => Promise<ActionState>) 
 
 export function StatusSelect({
   ticketId,
-  status,
+  statusId,
+  statuses,
+  currentStatusName,
   disabled,
 }: {
   ticketId: number;
-  status: string;
+  statusId: number;
+  /** The org's active, dropdown-eligible statuses (category open/in_progress/waiting/cancelled — see isWorkflowDropdownCategory). */
+  statuses: Option[];
+  /** The current status, shown as a disabled placeholder when it's not in `statuses` (e.g. Resolved/Closed — those go through dedicated actions). */
+  currentStatusName: string;
   disabled: boolean;
 }) {
   const [state, formAction] = useForm(changeTicketStatus);
+  const inDropdown = statuses.some((s) => s.id === statusId);
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={ticketId} />
       <select
-        name="status"
-        key={status}
-        defaultValue={TICKET_WORKFLOW_STATUSES.includes(status as never) ? status : ""}
+        name="statusId"
+        key={statusId}
+        defaultValue={inDropdown ? statusId : ""}
         disabled={disabled}
         aria-label="Change status"
         className={cx(inputClass, "h-8 w-auto text-xs")}
       >
-        {!TICKET_WORKFLOW_STATUSES.includes(status as never) ? (
+        {!inDropdown ? (
           <option value="" disabled>
-            {ticketStatusMeta[status]?.label ?? status}
+            {currentStatusName}
           </option>
         ) : null}
-        {TICKET_WORKFLOW_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {ticketStatusMeta[s]?.label ?? s}
+        {statuses.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
           </option>
         ))}
       </select>
@@ -330,12 +344,14 @@ export function ResolveForm({
   subcategory,
   hasTime,
   billingPending,
+  billingStatuses,
 }: {
   ticketId: number;
   category: string | null;
   subcategory: string | null;
   hasTime: boolean;
   billingPending: boolean;
+  billingStatuses: Option[];
 }) {
   const [state, formAction] = useForm(resolveTicket);
   const [next, setNext] = useState("pending_confirmation");
@@ -380,7 +396,7 @@ export function ResolveForm({
         </select>
       </div>
       {next === "closed" ? (
-        <CloseFields hasTime={hasTime} billingPending={billingPending} errors={errors} />
+        <CloseFields hasTime={hasTime} billingPending={billingPending} billingStatuses={billingStatuses} errors={errors} />
       ) : null}
       <SubmitButton>{next === "closed" ? "Resolve & close" : "Resolve"}</SubmitButton>
     </form>
@@ -390,10 +406,12 @@ export function ResolveForm({
 function CloseFields({
   hasTime,
   billingPending,
+  billingStatuses,
   errors,
 }: {
   hasTime: boolean;
   billingPending: boolean;
+  billingStatuses: Option[];
   errors: Record<string, string[]>;
 }) {
   return (
@@ -433,11 +451,11 @@ function CloseFields({
       {billingPending ? (
         <div>
           <label className={labelClass}>Billing decision (still pending review)</label>
-          <select name="billingStatus" defaultValue="" className={inputClass}>
+          <select name="billingStatusId" defaultValue="" className={inputClass}>
             <option value="">Keep pending review</option>
-            {TICKET_BILLING_STATUSES.filter((s) => s !== "pending_review").map((s) => (
-              <option key={s} value={s}>
-                {ticketBillingMeta[s]?.label ?? s}
+            {billingStatuses.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </select>
@@ -451,10 +469,12 @@ export function CloseForm({
   ticketId,
   hasTime,
   billingPending,
+  billingStatuses,
 }: {
   ticketId: number;
   hasTime: boolean;
   billingPending: boolean;
+  billingStatuses: Option[];
 }) {
   const [state, formAction] = useForm(closeTicket);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
@@ -462,7 +482,7 @@ export function CloseForm({
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={ticketId} />
       <FormAlert state={state} />
-      <CloseFields hasTime={hasTime} billingPending={billingPending} errors={errors} />
+      <CloseFields hasTime={hasTime} billingPending={billingPending} billingStatuses={billingStatuses} errors={errors} />
       <div>
         <label className={labelClass}>Confirmation channel (optional)</label>
         <input name="confirmationChannel" placeholder="e.g. WhatsApp +52…" className={inputClass} />
@@ -478,10 +498,11 @@ export function BillingForm({
   ticketId,
   defaults,
   billableMinutes,
+  billingStatuses,
 }: {
   ticketId: number;
   defaults: {
-    billingStatus: string;
+    billingStatusId: number;
     billingModality: string;
     hourlyRate: string | null;
     fixedAmount: string | null;
@@ -490,6 +511,7 @@ export function BillingForm({
     billingNotes: string | null;
   };
   billableMinutes: number;
+  billingStatuses: Option[];
 }) {
   const [state, formAction] = useForm(setTicketBilling);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
@@ -500,10 +522,10 @@ export function BillingForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Billing status</label>
-          <select name="billingStatus" defaultValue={defaults.billingStatus} className={inputClass}>
-            {TICKET_BILLING_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {ticketBillingMeta[s]?.label ?? s}
+          <select name="billingStatusId" defaultValue={defaults.billingStatusId} className={inputClass}>
+            {billingStatuses.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </select>
@@ -585,6 +607,8 @@ export function SidePanelForm({
   companies,
   contacts,
   users,
+  priorities,
+  categoryOptions,
 }: {
   ticketId: number;
   defaults: {
@@ -593,7 +617,7 @@ export function SidePanelForm({
     companyId: number | null;
     contactId: number | null;
     assigneeId: number | null;
-    priority: string;
+    priorityId: number;
     category: string | null;
     subcategory: string | null;
     channel: string | null;
@@ -603,6 +627,9 @@ export function SidePanelForm({
   companies: Option[];
   contacts: { id: number; name: string; companyId: number }[];
   users: Option[];
+  priorities: Option[];
+  /** Active names from the org's ticket-category catalog — the only selectable values (Settings → Tickets). */
+  categoryOptions: string[];
 }) {
   const [detailsState, detailsAction] = useForm(updateTicketDetails);
   const [assignState, assignAction] = useForm(assignTicket);
@@ -636,10 +663,10 @@ export function SidePanelForm({
         <FormAlert state={priorityState} />
         <label className={labelClass}>Priority</label>
         <div className="flex gap-2">
-          <select name="priority" key={defaults.priority} defaultValue={defaults.priority} className={inputClass}>
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {p}
+          <select name="priorityId" key={defaults.priorityId} defaultValue={defaults.priorityId} className={inputClass}>
+            {priorities.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
@@ -686,7 +713,17 @@ export function SidePanelForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Category</label>
-            <input name="category" defaultValue={defaults.category ?? ""} list="ticket-category-options" className={inputClass} />
+            <select name="category" defaultValue={defaults.category ?? ""} className={inputClass}>
+              <option value="">— None —</option>
+              {defaults.category && !categoryOptions.includes(defaults.category) ? (
+                <option value={defaults.category}>{defaults.category}</option>
+              ) : null}
+              {categoryOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelClass}>Subcategory</label>
@@ -907,9 +944,4 @@ export function PrimaryActions({ ticketId, isClosed }: { ticketId: number; isClo
       ) : null}
     </div>
   );
-}
-
-export function StatusBadgeSmall({ status }: { status: string }) {
-  const meta = ticketStatusMeta[status];
-  return <Badge tone={meta?.tone ?? "slate"}>{meta?.label ?? status}</Badge>;
 }

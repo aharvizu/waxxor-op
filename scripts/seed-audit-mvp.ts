@@ -53,6 +53,9 @@ async function main() {
   const { runDueRecurrences } = await import("../src/lib/recurrence-engine");
   const { recordAudit } = await import("../src/lib/audit");
   const { slugify } = await import("../src/lib/knowledge");
+  const { getTicketPriorityByLegacyValue, getTicketStatusBySemanticKey, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   const rand = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -123,12 +126,14 @@ async function main() {
       .select()
       .from(slaDefinitions)
       .where(and(eq(slaDefinitions.organizationId, orgId), eq(slaDefinitions.name, spec.name)));
+    const priorityRow = await getTicketPriorityByLegacyValue(db, orgId, spec.priority);
+    if (!priorityRow) throw new Error(`Missing system priority for legacy value "${spec.priority}".`);
     const row =
       existing ??
       (
         await db
           .insert(slaDefinitions)
-          .values({ ...spec, organizationId: orgId, businessHoursOnly: true, status: "active" })
+          .values({ ...spec, organizationId: orgId, priorityId: priorityRow.id, businessHoursOnly: true, status: "active" })
           .returning()
       )[0];
     slaByPriority[spec.priority] = row;
@@ -461,7 +466,13 @@ async function main() {
         contactId: contact?.id ?? null,
         assigneeId: assignee.id,
       });
-      const definition = await resolveSlaDefinition(tx, orgId, priority, null);
+      const priorityRow = await getTicketPriorityByLegacyValue(tx, orgId, priority);
+      const statusRow = await getTicketStatusBySemanticKey(tx, orgId, status.toUpperCase());
+      const billingStatusRow = await getDefaultTicketBillingStatus(tx, orgId);
+      if (!priorityRow || !statusRow || !billingStatusRow) {
+        throw new Error("Missing system ticket status/priority/billing status catalog rows.");
+      }
+      const definition = await resolveSlaDefinition(tx, orgId, priorityRow.id, null);
       const snapshot = definition ? buildSlaSnapshot(definition, calendar, new Date()) : {};
       const [ticket] = await tx
         .insert(tickets)
@@ -469,6 +480,9 @@ async function main() {
           organizationId: orgId,
           workItemId: item.id,
           folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+          statusId: statusRow.id,
+          priorityId: priorityRow.id,
+          billingStatusId: billingStatusRow.id,
           category: rand(ticketCategories.length > 0 ? ticketCategories : ["General"]),
           channel: rand(["email", "phone", "whatsapp", "portal"]),
           modality: rand(["remote", "onsite"]),

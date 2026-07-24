@@ -29,6 +29,11 @@ async function main() {
   const { workingMinutesBetween, addWorkingMinutes } = await import(
     "../src/lib/business-time"
   );
+  const {
+    getTicketPriorityByLegacyValue,
+    getDefaultTicketStatus,
+    getDefaultTicketBillingStatus,
+  } = await import("../src/lib/ticket-catalogs");
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -63,6 +68,14 @@ async function main() {
     insert into sla_definitions (organization_id, name, priority, first_response_minutes, resolution_minutes, business_hours_only, is_default)
     values (${org.id}, 'SLA-VERIFY explicit high', 'high', 30, 240, false, false) returning id`;
 
+  const highPriority = await getTicketPriorityByLegacyValue(db, org.id, "high");
+  if (!highPriority) throw new Error("Missing system 'high' ticket priority catalog row.");
+  const defaultTicketStatus = await getDefaultTicketStatus(db, org.id);
+  const defaultTicketBillingStatus = await getDefaultTicketBillingStatus(db, org.id);
+  if (!defaultTicketStatus || !defaultTicketBillingStatus) {
+    throw new Error("Missing default ticket status/billing status catalog rows.");
+  }
+
   async function makeTicket(explicitSlaId: number | null) {
     let ticketId = 0;
     await db.transaction(async (tx) => {
@@ -71,7 +84,7 @@ async function main() {
         title: "SLA-VERIFY ticket",
         priority: "high",
       });
-      const definition = await resolveSlaDefinition(tx, org.id, "high", explicitSlaId);
+      const definition = await resolveSlaDefinition(tx, org.id, highPriority!.id, explicitSlaId);
       const snapshot = definition
         ? buildSlaSnapshot(definition, await getOrgCalendar(tx, org.id), new Date())
         : {};
@@ -81,6 +94,9 @@ async function main() {
           organizationId: org.id,
           workItemId: item.id,
           folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+          statusId: defaultTicketStatus!.id,
+          priorityId: highPriority!.id,
+          billingStatusId: defaultTicketBillingStatus!.id,
           ...snapshot,
         })
         .returning({ id: tickets.id });
@@ -209,12 +225,15 @@ async function main() {
       const item = await createWorkItem(tx, user, {
         type: "ticket", title: "SLA-VERIFY rollback", priority: "high",
       });
-      const definition = await resolveSlaDefinition(tx, org.id, "high", null);
+      const definition = await resolveSlaDefinition(tx, org.id, highPriority.id, null);
       const snapshot = buildSlaSnapshot(definition!, await getOrgCalendar(tx, org.id), new Date());
       await tx.insert(tickets).values({
         organizationId: org.id,
         workItemId: item.id,
         folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+        statusId: defaultTicketStatus.id,
+        priorityId: highPriority.id,
+        billingStatusId: defaultTicketBillingStatus.id,
         ...snapshot,
       });
       await recordAudit(tx, {
@@ -235,7 +254,7 @@ async function main() {
     insert into organizations (name, slug) values ('SLA Verify Org', 'sla-verify')
     on conflict (slug) do update set name = excluded.name returning id`;
   const outsiderDef = await db.transaction((tx) =>
-    resolveSlaDefinition(tx, otherOrg.id, "high", defA.id),
+    resolveSlaDefinition(tx, otherOrg.id, highPriority.id, defA.id),
   );
   check("org isolation (outsider resolves no definition, even explicit)", outsiderDef === null);
 

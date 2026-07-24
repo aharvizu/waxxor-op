@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertCircle, Check, Copy, Loader2, RotateCcw } from "lucide-react";
-import { cx, inputClass } from "@/components/ui";
+import * as Popover from "@radix-ui/react-popover";
+import { AlertCircle, Check, Columns3, Copy, Loader2, RotateCcw } from "lucide-react";
+import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
 import type { SavedViewConfig, ViewType } from "@/lib/views";
 import type { ViewSaveStatus } from "./use-view-config";
 
@@ -61,15 +62,34 @@ export function ViewToolbar({
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2 text-xs">
       {viewType === "table" && columnOptions.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-faint">Columnas:</span>
-          {columnOptions.map((c) => (
-            <label key={c.key} className="flex items-center gap-1 text-muted">
-              <input type="checkbox" checked={visibleColumnKeys.has(c.key)} onChange={() => toggleColumn(c.key)} />
-              {c.label}
-            </label>
-          ))}
-        </div>
+        <Popover.Root>
+          <Popover.Trigger asChild>
+            <button type="button" className={cx(buttonSecondaryClass, "h-7 gap-1.5 px-2.5 text-xs")}>
+              <Columns3 className="size-3.5" />
+              Columnas
+              <span className="rounded-full bg-subtle px-1.5 text-[10px] text-muted">{visibleColumnKeys.size}</span>
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              collisionPadding={8}
+              avoidCollisions
+              className="z-20 max-h-72 w-56 overflow-y-auto rounded-xl border border-edge bg-surface p-2 shadow-overlay outline-none"
+            >
+              <div className="space-y-0.5">
+                {columnOptions.map((c) => (
+                  <label key={c.key} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-fg hover:bg-subtle">
+                    <input type="checkbox" checked={visibleColumnKeys.has(c.key)} onChange={() => toggleColumn(c.key)} />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
       ) : null}
 
       {viewType === "kanban" && groupByOptions.length > 0 ? (

@@ -94,11 +94,6 @@ export const reportBrandingSchema = z.object({
   ),
 });
 
-/** Section: Tickets — default priority applied when a ticket form leaves it unset. */
-export const ticketDefaultsSchema = z.object({
-  defaultPriority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
-});
-
 /**
  * Form sections/editor UIs post one hidden input per complex field, holding
  * a JSON string (see FormConfigEditor / ViewSettingsEditor) — `saveOrganizationSetting`
@@ -178,7 +173,6 @@ export const SETTINGS_SCHEMAS = {
   "projects.defaults": projectDefaultsSchema,
   "recurrence.defaults": recurrenceDefaultsSchema,
   "reports.branding": reportBrandingSchema,
-  "tickets.defaults": ticketDefaultsSchema,
   "tickets.formConfig": formConfigSchema,
   "tickets.viewSettings": viewSettingsSchema,
 } as const;
@@ -192,7 +186,6 @@ export type CompanyDefaults = z.output<typeof companyDefaultsSchema>;
 export type ProjectDefaults = z.output<typeof projectDefaultsSchema>;
 export type RecurrenceDefaults = z.output<typeof recurrenceDefaultsSchema>;
 export type ReportBranding = z.output<typeof reportBrandingSchema>;
-export type TicketDefaults = z.output<typeof ticketDefaultsSchema>;
 export type FormConfig = z.output<typeof formConfigSchema>;
 export type ViewSettings = z.output<typeof viewSettingsSchema>;
 
@@ -213,27 +206,6 @@ export const CATALOG_KINDS = {
     childLabel: "Subcategorías",
     wired: true,
     note: "Alimentan los campos categoría/subcategoría de Helpdesk (texto compatible con datos históricos).",
-  },
-  ticket_status_style: {
-    label: "Estilo de estados de tickets",
-    hasChildren: false,
-    childLabel: null,
-    wired: true,
-    note: "Personaliza etiqueta/color/ícono/orden de cada estado. El valor técnico (workflow) no cambia — ver docs/features/dynamic-configuration.md.",
-  },
-  ticket_priority_style: {
-    label: "Estilo de prioridades de tickets",
-    hasChildren: false,
-    childLabel: null,
-    wired: true,
-    note: "Personaliza etiqueta/color/ícono/orden de cada prioridad. El valor técnico no cambia.",
-  },
-  ticket_billing_status_style: {
-    label: "Estilo de estatus de cobro de tickets",
-    hasChildren: false,
-    childLabel: null,
-    wired: true,
-    note: "Personaliza etiqueta/color/ícono/orden de cada estatus de cobro. El valor técnico no cambia.",
   },
   company_category: {
     label: "Categorías de empresas",

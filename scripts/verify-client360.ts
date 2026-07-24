@@ -34,6 +34,9 @@ async function main() {
   const { recordAudit } = await import("../src/lib/audit");
   const { createWorkItem } = await import("../src/lib/work-items");
   const { getOrgRenewals } = await import("../src/lib/company360-data");
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -152,12 +155,23 @@ async function main() {
   const refTicketWorkItem = await db.transaction((tx) =>
     createWorkItem(tx, user, { type: "ticket", title: "C360-VERIFY ref ticket" }),
   );
+  const [refTicketStatus, refTicketPriority, refTicketBillingStatus] = await Promise.all([
+    getDefaultTicketStatus(db, orgId),
+    getDefaultTicketPriority(db, orgId),
+    getDefaultTicketBillingStatus(db, orgId),
+  ]);
+  if (!refTicketStatus || !refTicketPriority || !refTicketBillingStatus) {
+    throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+  }
   const [refTicket] = await db
     .insert(tickets)
     .values({
       organizationId: orgId,
       workItemId: refTicketWorkItem.id,
       folio: sql`'TK-' || lpad(nextval('ticket_folio_seq')::text, 6, '0')`,
+      statusId: refTicketStatus.id,
+      priorityId: refTicketPriority.id,
+      billingStatusId: refTicketBillingStatus.id,
       confirmedByContactId: contactA.id,
     })
     .returning({ id: tickets.id });

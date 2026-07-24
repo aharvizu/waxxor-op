@@ -2,14 +2,35 @@ import { describe, expect, it } from "vitest";
 import {
   CONFIRMATION_TYPES,
   TICKET_STATUSES,
-  TICKET_SLA_PAUSE_STATUSES,
   canTransition,
   closureBlockers,
   computeTicketAmount,
   confirmationTypeSchema,
   finalSlaCompliance,
+  isActiveTicketStatus,
+  isWorkflowDropdownCategory,
   ticketStatusSchema,
 } from "./tickets";
+import type { TicketStatusCategoryValue } from "./ticket-catalogs";
+
+/** Builds a minimal status row for canTransition — mirrors the 11 system rows' real semanticKey/category pairing (see lib/ticket-catalogs.ts's SYSTEM_TICKET_STATUSES). */
+function sys(id: number, semanticKey: string, category: TicketStatusCategoryValue) {
+  return { id, semanticKey, category };
+}
+/** A custom (admin-created) status — no semanticKey, only a category. */
+function custom(id: number, category: TicketStatusCategoryValue) {
+  return { id, semanticKey: null, category };
+}
+
+const NEW = sys(1, "NEW", "open");
+const ASSIGNED = sys(2, "ASSIGNED", "open");
+const IN_PROGRESS = sys(3, "IN_PROGRESS", "in_progress");
+const WAITING_CUSTOMER = sys(4, "WAITING_CUSTOMER", "waiting");
+const RESOLVED = sys(5, "RESOLVED", "resolved");
+const PENDING_CONFIRMATION = sys(6, "PENDING_CONFIRMATION", "resolved");
+const CLOSED = sys(7, "CLOSED", "closed");
+const REOPENED = sys(8, "REOPENED", "open");
+const CANCELLED = sys(9, "CANCELLED", "cancelled");
 
 describe("official ticket lifecycle", () => {
   it("exposes the eleven official statuses", () => {
@@ -21,32 +42,73 @@ describe("official ticket lifecycle", () => {
     expect(ticketStatusSchema.safeParse("pending").success).toBe(false); // activity value
   });
 
-  it("waiting states pause the SLA", () => {
-    expect(TICKET_SLA_PAUSE_STATUSES).toEqual(["waiting_customer", "waiting_third_party"]);
+  it("isActiveTicketStatus is true only for open/in_progress/waiting", () => {
+    expect(isActiveTicketStatus("open")).toBe(true);
+    expect(isActiveTicketStatus("in_progress")).toBe(true);
+    expect(isActiveTicketStatus("waiting")).toBe(true);
+    expect(isActiveTicketStatus("resolved")).toBe(false);
+    expect(isActiveTicketStatus("closed")).toBe(false);
+    expect(isActiveTicketStatus("cancelled")).toBe(false);
+  });
+
+  it("the generic dropdown excludes resolved/closed — those need dedicated actions", () => {
+    expect(isWorkflowDropdownCategory("open")).toBe(true);
+    expect(isWorkflowDropdownCategory("in_progress")).toBe(true);
+    expect(isWorkflowDropdownCategory("waiting")).toBe(true);
+    expect(isWorkflowDropdownCategory("cancelled")).toBe(true);
+    expect(isWorkflowDropdownCategory("resolved")).toBe(false);
+    expect(isWorkflowDropdownCategory("closed")).toBe(false);
   });
 });
 
-describe("transitions", () => {
+describe("transitions — system statuses (exact graph, now keyed by semanticKey)", () => {
   it("allows the documented forward paths", () => {
-    expect(canTransition("new", "assigned")).toBe(true);
-    expect(canTransition("assigned", "in_progress")).toBe(true);
-    expect(canTransition("in_progress", "waiting_customer")).toBe(true);
-    expect(canTransition("waiting_customer", "in_progress")).toBe(true);
-    expect(canTransition("in_progress", "resolved")).toBe(true);
-    expect(canTransition("resolved", "pending_confirmation")).toBe(true);
-    expect(canTransition("pending_confirmation", "closed")).toBe(true);
-    expect(canTransition("closed", "reopened")).toBe(true);
-    expect(canTransition("cancelled", "reopened")).toBe(true);
-    expect(canTransition("reopened", "in_progress")).toBe(true);
+    expect(canTransition(NEW, ASSIGNED)).toBe(true);
+    expect(canTransition(ASSIGNED, IN_PROGRESS)).toBe(true);
+    expect(canTransition(IN_PROGRESS, WAITING_CUSTOMER)).toBe(true);
+    expect(canTransition(WAITING_CUSTOMER, IN_PROGRESS)).toBe(true);
+    expect(canTransition(IN_PROGRESS, RESOLVED)).toBe(true);
+    expect(canTransition(RESOLVED, PENDING_CONFIRMATION)).toBe(true);
+    expect(canTransition(PENDING_CONFIRMATION, CLOSED)).toBe(true);
+    expect(canTransition(CLOSED, REOPENED)).toBe(true);
+    expect(canTransition(CANCELLED, REOPENED)).toBe(true);
+    expect(canTransition(REOPENED, IN_PROGRESS)).toBe(true);
   });
 
   it("rejects inconsistent jumps", () => {
-    expect(canTransition("new", "closed")).toBe(false); // must resolve first
-    expect(canTransition("new", "pending_confirmation")).toBe(false);
-    expect(canTransition("closed", "in_progress")).toBe(false); // reopen first
-    expect(canTransition("closed", "closed")).toBe(false);
-    expect(canTransition("cancelled", "in_progress")).toBe(false);
-    expect(canTransition("resolved", "new")).toBe(false);
+    expect(canTransition(NEW, CLOSED)).toBe(false); // must resolve first
+    expect(canTransition(NEW, PENDING_CONFIRMATION)).toBe(false);
+    expect(canTransition(CLOSED, IN_PROGRESS)).toBe(false); // reopen first
+    expect(canTransition(CLOSED, CLOSED)).toBe(false);
+    expect(canTransition(CANCELLED, IN_PROGRESS)).toBe(false);
+    expect(canTransition(RESOLVED, NEW)).toBe(false);
+  });
+
+  it("nothing can ever target the system NEW status", () => {
+    expect(canTransition(ASSIGNED, NEW)).toBe(false);
+    expect(canTransition(REOPENED, NEW)).toBe(false);
+    expect(canTransition(custom(20, "open"), NEW)).toBe(false);
+  });
+});
+
+describe("transitions — custom statuses fall back to the category graph", () => {
+  it("a custom status behaves like its category's system peers", () => {
+    const customWaiting = custom(21, "waiting");
+    expect(canTransition(IN_PROGRESS, customWaiting)).toBe(true); // in_progress -> waiting is allowed
+    expect(canTransition(customWaiting, RESOLVED)).toBe(true); // waiting -> resolved is allowed
+    expect(canTransition(CLOSED, customWaiting)).toBe(false); // closed only reopens
+  });
+
+  it("two different custom statuses in the same category can transition between each other", () => {
+    const waitingA = custom(22, "waiting");
+    const waitingB = custom(23, "waiting");
+    expect(canTransition(waitingA, waitingB)).toBe(true);
+  });
+
+  it("a custom resolved-category status can close or reopen, like Resolved/Pending confirmation", () => {
+    const customResolved = custom(24, "resolved");
+    expect(canTransition(customResolved, CLOSED)).toBe(true);
+    expect(canTransition(customResolved, REOPENED)).toBe(true);
   });
 });
 

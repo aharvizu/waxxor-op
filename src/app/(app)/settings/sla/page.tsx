@@ -4,6 +4,7 @@ import { Timer } from "lucide-react";
 import { db } from "@/db";
 import { businessCalendars, slaDefinitions } from "@/db/schema";
 import { requireRole } from "@/lib/session";
+import { listTicketPriorities } from "@/lib/ticket-catalogs";
 import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { CalendarForm, CreateDefinitionForm, DefinitionRow } from "./sla-forms";
 
@@ -12,17 +13,19 @@ export const metadata: Metadata = { title: "Configuración · SLA" };
 export default async function SlaPage() {
   const me = await requireRole("superadmin");
 
-  const [definitions, [calendar]] = await Promise.all([
+  const [definitions, [calendar], priorities] = await Promise.all([
     db
       .select()
       .from(slaDefinitions)
       .where(eq(slaDefinitions.organizationId, me.organizationId))
-      .orderBy(asc(slaDefinitions.priority), asc(slaDefinitions.name)),
+      .orderBy(asc(slaDefinitions.priorityId), asc(slaDefinitions.name)),
     db
       .select()
       .from(businessCalendars)
       .where(eq(businessCalendars.organizationId, me.organizationId)),
+    listTicketPriorities(me.organizationId, { includeInactive: true }),
   ]);
+  const priorityById = new Map(priorities.map((p) => [p.id, p]));
 
   return (
     <div>
@@ -41,7 +44,7 @@ export default async function SlaPage() {
           ) : (
             <ul className="space-y-2">
               {definitions.map((d) => (
-                <DefinitionRow key={d.id} definition={d} />
+                <DefinitionRow key={d.id} definition={d} priority={priorityById.get(d.priorityId)} priorities={priorities} />
               ))}
             </ul>
           )}
@@ -67,7 +70,7 @@ export default async function SlaPage() {
         <Card className="h-fit overflow-hidden">
           <CardHeader title="New SLA definition" description="Targets in minutes." />
           <div className="p-5">
-            <CreateDefinitionForm />
+            <CreateDefinitionForm priorities={priorities} />
           </div>
         </Card>
       </div>

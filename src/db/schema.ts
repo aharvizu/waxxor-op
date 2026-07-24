@@ -187,6 +187,26 @@ export const ticketBillingModality = pgEnum("ticket_billing_modality", [
   "fixed_price",
   "not_applicable",
 ]);
+// Fixed, code-level dispatch categories for the dynamic Ticket Status/Billing
+// Status catalogs (2026-07-22 sprint) — every row (system or custom) must
+// declare one, so workflow/SLA/reporting logic can key off the category
+// instead of the free-form display name. See lib/ticket-catalogs.ts.
+export const ticketStatusCategory = pgEnum("ticket_status_category", [
+  "open",
+  "in_progress",
+  "waiting",
+  "resolved",
+  "closed",
+  "cancelled",
+]);
+export const ticketBillingStatusCategory = pgEnum("ticket_billing_status_category", [
+  "not_billable",
+  "included",
+  "pending",
+  "approved",
+  "billed",
+  "rejected",
+]);
 export const conversationChannel = pgEnum("conversation_channel", [
   "manual",
   "whatsapp",
@@ -564,6 +584,108 @@ export const workItems = pgTable(
 );
 
 /**
+ * Dynamic Ticket Status/Priority/Billing Status catalogs (2026-07-22 sprint —
+ * replaces the fixed-enum-only model). One org-scoped table per catalog; the
+ * legacy `work_item_status`/`work_item_priority`/`ticket_billing_status`
+ * Postgres enums are KEPT (never dropped) as an internal, always-in-sync
+ * mirror — Postgres enums are closed sets and cannot hold an admin-created
+ * custom value, and `work_items.status`/`priority` are shared with
+ * Activities (out of scope for this sprint, must keep working unchanged).
+ * `semanticKey` is set only on system rows (immutable, stable — workflow/SLA
+ * code keys off it, never off `name`). `isSystem` rows can be restyled
+ * (name/color/icon/order) but never deleted; custom rows require a
+ * `category` (the dispatch key every row — system or custom — must declare)
+ * but no `semanticKey`, unless later wired to a specific workflow function.
+ * See lib/ticket-catalogs.ts for the shared engine over these three tables.
+ */
+export const ticketStatuses = pgTable(
+  "ticket_statuses",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    color: text("color"),
+    icon: text("icon"),
+    category: ticketStatusCategory("category").notNull(),
+    semanticKey: text("semantic_key"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    isSystem: boolean("is_system").notNull().default(false),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ticket_statuses_org_slug_idx").on(table.organizationId, table.slug),
+    index("ticket_statuses_org_idx").on(table.organizationId),
+    index("ticket_statuses_semantic_key_idx").on(table.semanticKey),
+  ],
+);
+
+export const ticketPriorities = pgTable(
+  "ticket_priorities",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    color: text("color"),
+    icon: text("icon"),
+    // Numeric severity — drives sort order AND "nearest legacy bucket"
+    // mirroring for custom priorities (see lib/ticket-catalogs.ts).
+    level: integer("level").notNull().default(0),
+    semanticKey: text("semantic_key"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    isSystem: boolean("is_system").notNull().default(false),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ticket_priorities_org_slug_idx").on(table.organizationId, table.slug),
+    index("ticket_priorities_org_idx").on(table.organizationId),
+  ],
+);
+
+export const ticketBillingStatuses = pgTable(
+  "ticket_billing_statuses",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    color: text("color"),
+    icon: text("icon"),
+    category: ticketBillingStatusCategory("category").notNull(),
+    semanticKey: text("semantic_key"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    isSystem: boolean("is_system").notNull().default(false),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ticket_billing_statuses_org_slug_idx").on(table.organizationId, table.slug),
+    index("ticket_billing_statuses_org_idx").on(table.organizationId),
+  ],
+);
+
+/**
  * Configurable SLA policies. Assignment snapshots into the ticket, so editing
  * a definition never retroactively changes existing tickets.
  */
@@ -576,7 +698,12 @@ export const slaDefinitions = pgTable(
       .references(() => organizations.id),
     name: text("name").notNull(),
     description: text("description"),
+    // Legacy enum match, kept in sync — see ticketPriorities' doc comment above.
     priority: workItemPriority("priority").notNull(),
+    // Authoritative going forward (2026-07-22).
+    priorityId: integer("priority_id")
+      .notNull()
+      .references(() => ticketPriorities.id),
     firstResponseMinutes: integer("first_response_minutes").notNull(),
     resolutionMinutes: integer("resolution_minutes").notNull(),
     businessHoursOnly: boolean("business_hours_only").notNull().default(false),
@@ -588,6 +715,7 @@ export const slaDefinitions = pgTable(
   (table) => [
     index("sla_definitions_org_idx").on(table.organizationId),
     index("sla_definitions_priority_idx").on(table.priority),
+    index("sla_definitions_priority_id_idx").on(table.priorityId),
     index("sla_definitions_status_idx").on(table.status),
     index("sla_definitions_default_idx").on(table.isDefault),
   ],
@@ -685,11 +813,27 @@ export const tickets = pgTable(
     billingNotes: text("billing_notes"),
     billingDeterminedById: integer("billing_determined_by_id").references(() => users.id),
     billingDeterminedAt: timestamp("billing_determined_at"),
+    // --- Dynamic catalogs (2026-07-22): authoritative going forward. The
+    // enum columns above (status lives on work_items, read via the join)
+    // and billingStatus stay in sync as an internal mirror — see the
+    // ticketStatuses/ticketPriorities/ticketBillingStatuses doc comment.
+    statusId: integer("status_id")
+      .notNull()
+      .references(() => ticketStatuses.id),
+    priorityId: integer("priority_id")
+      .notNull()
+      .references(() => ticketPriorities.id),
+    billingStatusId: integer("billing_status_id")
+      .notNull()
+      .references(() => ticketBillingStatuses.id),
   },
   (table) => [
     index("tickets_first_response_target_idx").on(table.firstResponseTargetAt),
     index("tickets_resolution_target_idx").on(table.resolutionTargetAt),
     index("tickets_billing_status_idx").on(table.billingStatus),
+    index("tickets_status_id_idx").on(table.statusId),
+    index("tickets_priority_id_idx").on(table.priorityId),
+    index("tickets_billing_status_id_idx").on(table.billingStatusId),
   ],
 );
 

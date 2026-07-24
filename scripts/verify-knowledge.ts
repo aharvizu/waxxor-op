@@ -44,6 +44,9 @@ async function main() {
   const { anonymizeText, canTransitionArticle } = await import("../src/lib/knowledge");
   const { getRelatedArticles } = await import("../src/lib/knowledge-data");
   const { getTutorialBySlug } = await import("../src/lib/help-data");
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -87,9 +90,26 @@ async function main() {
       .values({ organizationId: org.id, type: "ticket", title: "KB verify ticket", status: "resolved", priority: "medium", companyId: client.id, createdById: actor.id })
       .returning();
     ids.workItems.push(ticketItem.id);
+    const [kbStatus, kbPriority, kbBillingStatus] = await Promise.all([
+      getDefaultTicketStatus(db, org.id),
+      getDefaultTicketPriority(db, org.id),
+      getDefaultTicketBillingStatus(db, org.id),
+    ]);
+    if (!kbStatus || !kbPriority || !kbBillingStatus) {
+      throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+    }
     const [ticket] = await db
       .insert(tickets)
-      .values({ organizationId: org.id, workItemId: ticketItem.id, folio: "TCK-KB999", resolution: "Se reinició el servicio de KB Verify Client y se limpió la caché.", contact: "Jane Doe" })
+      .values({
+        organizationId: org.id,
+        workItemId: ticketItem.id,
+        folio: "TCK-KB999",
+        resolution: "Se reinició el servicio de KB Verify Client y se limpió la caché.",
+        contact: "Jane Doe",
+        statusId: kbStatus.id,
+        priorityId: kbPriority.id,
+        billingStatusId: kbBillingStatus.id,
+      })
       .returning();
 
     const [category] = await db

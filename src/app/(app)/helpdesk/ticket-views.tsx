@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import { ticketBillingMeta, ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
-import type { StyledMeta } from "@/lib/catalog-styles";
+import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 import { formatMinutes } from "@/lib/time-entries";
 import { Badge, Card, EmptyState, THead, Table, Td, Th, cx } from "@/components/ui";
 import { LifeBuoy, Plus } from "lucide-react";
@@ -15,10 +14,14 @@ export type TicketRow = {
   title: string;
   status: string;
   priority: string;
+  statusId: number;
+  priorityId: number;
+  billingStatusId: number;
   category: string | null;
   slaName: string | null;
   resolutionTargetAt: Date | null;
   billingStatus: string;
+  companyId: number | null;
   companyName: string | null;
   assigneeId: number | null;
   assigneeName: string | null;
@@ -29,9 +32,42 @@ export type TicketRow = {
   customFields: Record<string, unknown>;
 };
 
+/** Trimmed, client-safe view of a ticket_statuses row — id/name/color drive
+ * display everywhere; category/isActive drive the row-actions dropdown rule. */
+export type TicketStatusOption = { id: number; name: string; color: string | null; category: TicketStatusCategoryValue; isActive: boolean };
+export type TicketPriorityOption = { id: number; name: string; color: string | null; isActive: boolean };
+export type TicketBillingOption = { id: number; name: string; color: string | null };
+
+export function toCatalogMap<T extends { id: number }>(rows: T[]): Map<number, T> {
+  return new Map(rows.map((r) => [r.id, r]));
+}
+
+/** Renders a catalog entry (status/priority/billing) as a hex-colored chip —
+ * same pattern as settings/sla/sla-forms.tsx's DefinitionRow — since the
+ * Badge component only supports 7 fixed tone names, not arbitrary org colors.
+ * Falls back to a plain slate Badge with the legacy mirror value when the
+ * catalog row can't be found (deleted/stale id). */
+export function CatalogChip({ entry, fallback }: { entry: { name: string; color: string | null } | undefined; fallback: string }) {
+  if (!entry) return <Badge tone="slate">{fallback}</Badge>;
+  if (!entry.color) return <Badge tone="slate">{entry.name}</Badge>;
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+      style={{ backgroundColor: `${entry.color}22`, color: entry.color }}
+    >
+      {entry.name}
+    </span>
+  );
+}
+
 export type ColumnDef = { key: string; label: string; render: (r: TicketRow) => React.ReactNode };
 
-export function buildColumnRegistry(customFieldDefs: { key: string; name: string }[]): Record<string, ColumnDef> {
+export function buildColumnRegistry(
+  customFieldDefs: { key: string; name: string }[],
+  statuses: Map<number, TicketStatusOption> = new Map(),
+  priorities: Map<number, TicketPriorityOption> = new Map(),
+  billingStatuses: Map<number, TicketBillingOption> = new Map(),
+): Record<string, ColumnDef> {
   const registry: Record<string, ColumnDef> = {
     folio: { key: "folio", label: "Folio", render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span> },
     title: {
@@ -43,17 +79,28 @@ export function buildColumnRegistry(customFieldDefs: { key: string; name: string
         </Link>
       ),
     },
-    companyName: { key: "companyName", label: "Empresa", render: (r) => <span className="text-muted">{r.companyName ?? "—"}</span> },
+    companyName: {
+      key: "companyName",
+      label: "Empresa",
+      render: (r) =>
+        r.companyName && r.companyId ? (
+          <Link href={`/companies/${r.companyId}`} className="text-muted hover:text-primary hover:underline">
+            {r.companyName}
+          </Link>
+        ) : (
+          <span className="text-muted">—</span>
+        ),
+    },
     assigneeName: { key: "assigneeName", label: "Responsable", render: (r) => <span className="text-muted">{r.assigneeName ?? "Sin asignar"}</span> },
     status: {
       key: "status",
       label: "Estado",
-      render: (r) => <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>{ticketStatusMeta[r.status]?.label ?? r.status}</Badge>,
+      render: (r) => <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />,
     },
     priority: {
       key: "priority",
       label: "Prioridad",
-      render: (r) => <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>,
+      render: (r) => <CatalogChip entry={priorities.get(r.priorityId)} fallback={r.priority} />,
     },
     category: { key: "category", label: "Categoría", render: (r) => <span className="text-muted">{r.category ?? "—"}</span> },
     slaName: { key: "slaName", label: "SLA", render: (r) => <span className="text-muted">{r.slaName ?? "—"}</span> },
@@ -69,7 +116,7 @@ export function buildColumnRegistry(customFieldDefs: { key: string; name: string
     billingStatus: {
       key: "billingStatus",
       label: "Cobro",
-      render: (r) => <Badge tone={ticketBillingMeta[r.billingStatus]?.tone ?? "slate"}>{ticketBillingMeta[r.billingStatus]?.label ?? r.billingStatus}</Badge>,
+      render: (r) => <CatalogChip entry={billingStatuses.get(r.billingStatusId)} fallback={r.billingStatus} />,
     },
     updatedAt: { key: "updatedAt", label: "Actualizado", render: (r) => <span className="tabular-nums text-muted">{fmtDateTime(r.updatedAt)}</span> },
   };
@@ -109,12 +156,16 @@ export function TableView({
   registry,
   users,
   basePath,
+  statusOptions,
+  priorityOptions,
 }: {
   rows: TicketRow[];
   columns: string[];
   registry: Record<string, ColumnDef>;
   users: { id: number; name: string }[];
   basePath: string;
+  statusOptions: TicketStatusOption[];
+  priorityOptions: TicketPriorityOption[];
 }) {
   if (rows.length === 0) return <EmptyTickets />;
   const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => registry[c]);
@@ -134,7 +185,15 @@ export function TableView({
               <Td><FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} /></Td>
               {activeColumns.map((c) => <Td key={c}>{registry[c].render(r)}</Td>)}
               <Td>
-                <TicketRowActions ticketId={r.id} status={r.status} priority={r.priority} assigneeId={r.assigneeId} users={users} />
+                <TicketRowActions
+                  ticketId={r.id}
+                  statusId={r.statusId}
+                  priorityId={r.priorityId}
+                  assigneeId={r.assigneeId}
+                  users={users}
+                  statuses={statusOptions}
+                  priorities={priorityOptions}
+                />
               </Td>
             </tr>
           ))}
@@ -146,7 +205,17 @@ export function TableView({
 
 /* ------------------------------------------------------------------- list */
 
-export function ListView({ rows, basePath }: { rows: TicketRow[]; basePath: string }) {
+export function ListView({
+  rows,
+  basePath,
+  statuses,
+  priorities,
+}: {
+  rows: TicketRow[];
+  basePath: string;
+  statuses: Map<number, TicketStatusOption>;
+  priorities: Map<number, TicketPriorityOption>;
+}) {
   if (rows.length === 0) return <EmptyTickets />;
   return (
     <Card className="overflow-hidden">
@@ -154,12 +223,18 @@ export function ListView({ rows, basePath }: { rows: TicketRow[]; basePath: stri
         {rows.map((r) => (
           <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
             <FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
-            <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>{ticketStatusMeta[r.status]?.label ?? r.status}</Badge>
+            <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">
               {r.folio} · {r.title}
             </Link>
-            <span className="shrink-0 text-xs text-muted">{r.companyName ?? "—"}</span>
-            <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>
+            {r.companyName && r.companyId ? (
+              <Link href={`/companies/${r.companyId}`} className="shrink-0 text-xs text-muted hover:text-primary hover:underline">
+                {r.companyName}
+              </Link>
+            ) : (
+              <span className="shrink-0 text-xs text-muted">—</span>
+            )}
+            <CatalogChip entry={priorities.get(r.priorityId)} fallback={r.priority} />
             <span className="w-28 shrink-0 truncate text-xs text-muted">{r.assigneeName ?? "Sin asignar"}</span>
           </li>
         ))}
@@ -173,16 +248,16 @@ export function ListView({ rows, basePath }: { rows: TicketRow[]; basePath: stri
 export function KanbanView({
   rows,
   groupField,
-  statusStyles,
-  priorityStyles,
+  statuses,
+  priorities,
 }: {
   rows: TicketRow[];
   groupField: "status" | "priority";
-  statusStyles: Record<string, StyledMeta>;
-  priorityStyles: Record<string, StyledMeta>;
+  statuses: TicketStatusOption[];
+  priorities: TicketPriorityOption[];
 }) {
   if (rows.length === 0) return <EmptyTickets />;
-  return <TicketKanban rows={rows} groupField={groupField} statusStyles={statusStyles} priorityStyles={priorityStyles} />;
+  return <TicketKanban rows={rows} groupField={groupField} statuses={statuses} priorities={priorities} />;
 }
 
 /* --------------------------------------------------------------- calendar */
@@ -190,7 +265,7 @@ export function KanbanView({
  * para no romper vistas ya existentes creadas en el sprint piloto; la
  * creación de vistas nuevas de este tipo ya no se ofrece (view-switcher.tsx). */
 
-export function CalendarView({ rows }: { rows: TicketRow[] }) {
+export function CalendarView({ rows, statuses }: { rows: TicketRow[]; statuses: Map<number, TicketStatusOption> }) {
   const dated = rows.filter((r) => r.resolutionTargetAt);
   const undated = rows.filter((r) => !r.resolutionTargetAt);
   if (rows.length === 0) return <EmptyTickets />;
@@ -210,9 +285,15 @@ export function CalendarView({ rows }: { rows: TicketRow[] }) {
           <ul className="divide-y divide-edge">
             {byDay.get(day)!.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>{ticketStatusMeta[r.status]?.label ?? r.status}</Badge>
+                <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
                 <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">{r.folio} · {r.title}</Link>
-                <span className="shrink-0 text-xs text-muted">{r.companyName ?? "—"}</span>
+                {r.companyName && r.companyId ? (
+                  <Link href={`/companies/${r.companyId}`} className="shrink-0 text-xs text-muted hover:text-primary hover:underline">
+                    {r.companyName}
+                  </Link>
+                ) : (
+                  <span className="shrink-0 text-xs text-muted">—</span>
+                )}
               </li>
             ))}
           </ul>
@@ -224,7 +305,7 @@ export function CalendarView({ rows }: { rows: TicketRow[] }) {
           <ul className="divide-y divide-edge">
             {undated.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>{ticketStatusMeta[r.status]?.label ?? r.status}</Badge>
+                <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
                 <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">{r.folio} · {r.title}</Link>
               </li>
             ))}
@@ -237,7 +318,7 @@ export function CalendarView({ rows }: { rows: TicketRow[] }) {
 
 /* --------------------------------------------------------------- timeline */
 
-export function TimelineView({ rows }: { rows: TicketRow[] }) {
+export function TimelineView({ rows, statuses }: { rows: TicketRow[]; statuses: Map<number, TicketStatusOption> }) {
   if (rows.length === 0) return <EmptyTickets />;
   const sorted = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return (
@@ -247,7 +328,7 @@ export function TimelineView({ rows }: { rows: TicketRow[] }) {
           <li key={r.id} className="flex items-center gap-3 px-4 py-3 text-sm">
             <div className="w-24 shrink-0 text-xs text-faint tabular-nums">{fmtDate(r.createdAt)}</div>
             <div className="h-full w-px shrink-0 self-stretch bg-edge" aria-hidden />
-            <Badge tone={ticketStatusMeta[r.status]?.tone ?? "slate"}>{ticketStatusMeta[r.status]?.label ?? r.status}</Badge>
+            <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">{r.folio} · {r.title}</Link>
             <div className="w-28 shrink-0 text-right text-xs text-muted">
               {r.resolutionTargetAt ? `vence ${fmtDate(r.resolutionTargetAt)}` : "sin vencimiento"}

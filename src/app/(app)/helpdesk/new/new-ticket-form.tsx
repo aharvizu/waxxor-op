@@ -17,6 +17,7 @@ export function NewTicketForm({
   contacts,
   users,
   slas,
+  priorities,
   defaultCompanyId,
   categoryOptions = [],
   customFields = [],
@@ -25,6 +26,8 @@ export function NewTicketForm({
   contacts: ContactOption[];
   users: Option[];
   slas: Option[]; // empty for non-superadmins
+  /** Active rows from the org's Ticket Priorities catalog (Settings → Tickets). */
+  priorities: (Option & { isDefault: boolean })[];
   defaultCompanyId?: number;
   /** Active names from the org's ticket-category catalog (Settings). */
   categoryOptions?: string[];
@@ -74,14 +77,15 @@ export function NewTicketForm({
           </select>
         </div>
         <div>
-          <label htmlFor="priority" className={labelClass}>
+          <label htmlFor="priorityId" className={labelClass}>
             Priority
           </label>
-          <select id="priority" name="priority" defaultValue="medium" className={inputClass}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+          <select id="priorityId" name="priorityId" defaultValue={priorities.find((p) => p.isDefault)?.id ?? ""} className={inputClass}>
+            {priorities.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
         </div>
         <div>

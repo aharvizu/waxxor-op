@@ -52,6 +52,9 @@ async function main() {
     toggleFavoriteView,
   } = await import("../src/lib/views");
   const { createWorkItem } = await import("../src/lib/work-items");
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -120,9 +123,24 @@ async function main() {
   const item = await db.transaction((tx) =>
     createWorkItem(tx, sessionUser, { type: "ticket", title: "VERIFY dynconfig ticket", priority: "high", companyId: company.id }),
   );
+  const [dyncfgStatus, dyncfgPriority, dyncfgBillingStatus] = await Promise.all([
+    getDefaultTicketStatus(db, orgId),
+    getDefaultTicketPriority(db, orgId),
+    getDefaultTicketBillingStatus(db, orgId),
+  ]);
+  if (!dyncfgStatus || !dyncfgPriority || !dyncfgBillingStatus) {
+    throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+  }
   const [ticket] = await db
     .insert(tickets)
-    .values({ organizationId: orgId, workItemId: item.id, folio: `VERIFY-DYNCFG-${Date.now()}` })
+    .values({
+      organizationId: orgId,
+      workItemId: item.id,
+      folio: `VERIFY-DYNCFG-${Date.now()}`,
+      statusId: dyncfgStatus.id,
+      priorityId: dyncfgPriority.id,
+      billingStatusId: dyncfgBillingStatus.id,
+    })
     .returning({ id: tickets.id });
 
   // field2 (verify_notes) is deliberately left valueless — the "hard delete

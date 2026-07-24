@@ -7,14 +7,13 @@ import {
   remainingWorkingMinutes,
   type WorkCalendar,
 } from "@/lib/business-time";
-import { workItemPrioritySchema } from "@/lib/work-items";
+import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 
 /** SLA domain — see docs/features/sla.md. */
 
-export const SLA_PAUSE_STATUSES = ["waiting_customer", "waiting_third_party"] as const;
-
-export function isSlaPauseStatus(status: string): boolean {
-  return (SLA_PAUSE_STATUSES as readonly string[]).includes(status);
+/** A custom status in the "waiting" category pauses the SLA clock exactly like Waiting customer/Waiting third party did. */
+export function isSlaPauseStatus(category: TicketStatusCategoryValue): boolean {
+  return category === "waiting";
 }
 
 export const slaDefinitionSchema = z.object({
@@ -23,7 +22,7 @@ export const slaDefinitionSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? "").trim() || null),
-  priority: workItemPrioritySchema,
+  priorityId: z.coerce.number("Priority is required.").int().positive(),
   firstResponseMinutes: z.coerce
     .number("First response minutes are required.")
     .int()
@@ -91,12 +90,15 @@ export async function getOrgCalendar(
 
 /**
  * Assignment cascade (PRD R7 context): explicit active definition (SuperAdmin
- * choice) → active default for the priority → none.
+ * choice) → active default for the priority → none. Matched by priorityId
+ * (2026-07-22) — a brand-new custom priority with no SLA definition pointed
+ * at it simply resolves to `null` (no SLA auto-assigned), never falls back to
+ * Low/Medium/High/Critical.
  */
 export async function resolveSlaDefinition(
   tx: DbExecutor,
   organizationId: number,
-  priority: (typeof slaDefinitions.priority.enumValues)[number],
+  priorityId: number,
   explicitId?: number | null,
 ) {
   if (explicitId) {
@@ -118,7 +120,7 @@ export async function resolveSlaDefinition(
     .where(
       and(
         eq(slaDefinitions.organizationId, organizationId),
-        eq(slaDefinitions.priority, priority),
+        eq(slaDefinitions.priorityId, priorityId),
         eq(slaDefinitions.isDefault, true),
         eq(slaDefinitions.status, "active"),
       ),

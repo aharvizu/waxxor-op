@@ -12,7 +12,7 @@ import {
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { ticketPriorityMeta } from "@/lib/labels";
+import type { TicketPriorityRow } from "@/lib/ticket-catalogs";
 import { formatMinutes } from "@/lib/time-entries";
 import {
   createSlaDefinition,
@@ -21,22 +21,22 @@ import {
   updateSlaDefinition,
 } from "./actions";
 
-const PRIORITIES = ["low", "medium", "high", "critical"] as const;
-
 function DefinitionFields({
   errors,
   defaults,
+  priorities,
 }: {
   errors: Record<string, string[]>;
   defaults?: {
     name: string;
     description: string | null;
-    priority: string;
+    priorityId: number;
     firstResponseMinutes: number;
     resolutionMinutes: number;
     businessHoursOnly: boolean;
     isDefault: boolean;
   };
+  priorities: TicketPriorityRow[];
 }) {
   return (
     <>
@@ -55,10 +55,10 @@ function DefinitionFields({
         </div>
         <div>
           <label className={labelClass}>Priority it applies to</label>
-          <select name="priority" defaultValue={defaults?.priority ?? "medium"} className={inputClass}>
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {ticketPriorityMeta[p]?.label ?? p}
+          <select name="priorityId" defaultValue={defaults?.priorityId ?? ""} className={inputClass}>
+            {priorities.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
@@ -114,7 +114,7 @@ function DefinitionFields({
   );
 }
 
-export function CreateDefinitionForm() {
+export function CreateDefinitionForm({ priorities }: { priorities: TicketPriorityRow[] }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     createSlaDefinition,
     null,
@@ -123,7 +123,7 @@ export function CreateDefinitionForm() {
   return (
     <form action={formAction} className="space-y-4">
       <FormAlert state={state} />
-      <DefinitionFields errors={errors} />
+      <DefinitionFields errors={errors} priorities={priorities} />
       <SubmitButton>Create SLA</SubmitButton>
     </form>
   );
@@ -131,18 +131,22 @@ export function CreateDefinitionForm() {
 
 export function DefinitionRow({
   definition,
+  priority,
+  priorities,
 }: {
   definition: {
     id: number;
     name: string;
     description: string | null;
-    priority: string;
+    priorityId: number;
     firstResponseMinutes: number;
     resolutionMinutes: number;
     businessHoursOnly: boolean;
     isDefault: boolean;
     status: string;
   };
+  priority: TicketPriorityRow | undefined;
+  priorities: TicketPriorityRow[];
 }) {
   const [editing, setEditing] = useState(false);
   const [editState, editAction] = useActionState<ActionState, FormData>(
@@ -166,9 +170,16 @@ export function DefinitionRow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
           <span className="font-medium text-fg">{d.name}</span>
-          <Badge tone={ticketPriorityMeta[d.priority]?.tone ?? "slate"}>
-            {ticketPriorityMeta[d.priority]?.label ?? d.priority}
-          </Badge>
+          {priority?.color ? (
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ backgroundColor: `${priority.color}22`, color: priority.color }}
+            >
+              {priority.name}
+            </span>
+          ) : (
+            <Badge tone="slate">{priority?.name ?? "—"}</Badge>
+          )}
           <span className="text-muted tabular-nums">
             FR {formatMinutes(d.firstResponseMinutes)} · Res {formatMinutes(d.resolutionMinutes)}
           </span>
@@ -207,7 +218,7 @@ export function DefinitionRow({
         <form action={editAction} className="mt-3 space-y-3 border-t border-edge pt-3">
           <input type="hidden" name="id" value={d.id} />
           <FormAlert state={editState} />
-          <DefinitionFields errors={errors} defaults={d} />
+          <DefinitionFields errors={errors} defaults={d} priorities={priorities} />
           <div className="flex items-center gap-2">
             <SubmitButton>Save</SubmitButton>
             <button

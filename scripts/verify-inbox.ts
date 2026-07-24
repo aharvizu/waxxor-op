@@ -46,6 +46,9 @@ async function main() {
   const { getUserUnreadMentions, listConversations, getConversationSummary } = await import(
     "../src/lib/inbox-data"
   );
+  const { getDefaultTicketStatus, getDefaultTicketPriority, getDefaultTicketBillingStatus } = await import(
+    "../src/lib/ticket-catalogs"
+  );
 
   let failures = 0;
   const check = (name: string, ok: boolean, detail = "") => {
@@ -215,9 +218,24 @@ async function main() {
       })
       .returning();
     ids.workItems.push(ticketItem.id);
+    const [inboxStatus, inboxPriority, inboxBillingStatus] = await Promise.all([
+      getDefaultTicketStatus(db, org.id),
+      getDefaultTicketPriority(db, org.id),
+      getDefaultTicketBillingStatus(db, org.id),
+    ]);
+    if (!inboxStatus || !inboxPriority || !inboxBillingStatus) {
+      throw new Error("Missing default ticket status/priority/billing status catalog rows.");
+    }
     const [ticket] = await db
       .insert(tickets)
-      .values({ organizationId: org.id, workItemId: ticketItem.id, folio: "TCK-INB999" })
+      .values({
+        organizationId: org.id,
+        workItemId: ticketItem.id,
+        folio: "TCK-INB999",
+        statusId: inboxStatus.id,
+        priorityId: inboxPriority.id,
+        billingStatusId: inboxBillingStatus.id,
+      })
       .returning();
     const [ticketConv] = await db
       .insert(conversations)

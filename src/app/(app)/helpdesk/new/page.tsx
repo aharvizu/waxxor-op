@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { Card, PageHeader } from "@/components/ui";
 import { getFieldDefinitions } from "@/lib/custom-fields";
 import { getCatalogNames } from "@/lib/settings-data";
+import { listTicketPriorities } from "@/lib/ticket-catalogs";
 import { NewTicketForm } from "./new-ticket-form";
 
 export const metadata: Metadata = { title: "New ticket" };
@@ -54,6 +55,8 @@ export default async function NewTicketPage({
   }));
   const categoryOptions = await getCatalogNames(user.organizationId, "ticket_category");
   const customFields = await getFieldDefinitions(user.organizationId, "tickets", { activeOnly: true });
+  const priorityRows = await listTicketPriorities(user.organizationId);
+  const priorities = priorityRows.map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault }));
 
   return (
     <div className="max-w-2xl">
@@ -67,6 +70,7 @@ export default async function NewTicketPage({
           contacts={contactOptions}
           users={userRows}
           slas={slaRows}
+          priorities={priorities}
           categoryOptions={categoryOptions}
           customFields={customFields}
           defaultCompanyId={

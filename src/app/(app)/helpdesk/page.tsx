@@ -6,7 +6,6 @@ import { db } from "@/db";
 import { companies, tickets, timeEntries, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { PageHeader, buttonClass } from "@/components/ui";
-import { getStyledMeta } from "@/lib/catalog-styles";
 import { getValuesForEntities, getFieldDefinitions } from "@/lib/custom-fields";
 import {
   buildFieldRegistry,
@@ -20,7 +19,7 @@ import {
   type TicketQuickFilterKey,
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
-import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
+import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
 import { TICKET_COLUMN_OPTIONS, TICKET_KANBAN_GROUP_OPTIONS, type TicketRow } from "./ticket-views";
 import { TicketsViewContent } from "./tickets-view-content";
@@ -62,6 +61,30 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
 
   const customFieldDefs = await getFieldDefinitions(user.organizationId, "tickets", { activeOnly: true });
   const fieldRegistry = await buildFieldRegistry(TICKET_FIELDS, customFieldDefs);
+
+  const [statusRows, priorityRows, billingRows] = await Promise.all([
+    listTicketStatuses(user.organizationId, { includeInactive: true }),
+    listTicketPriorities(user.organizationId, { includeInactive: true }),
+    listTicketBillingStatuses(user.organizationId, { includeInactive: true }),
+  ]);
+  // ticket_status_style / ticket_priority_style (catalog-styles.ts) is now
+  // obsolete for these two catalogs — dynamic tables carry the real
+  // org-configured name + color directly, no cosmetic overlay needed.
+  fieldRegistry.status = {
+    ...fieldRegistry.status,
+    column: tickets.statusId,
+    options: statusRows.map((s) => ({ value: String(s.id), label: s.name })),
+  };
+  fieldRegistry.priority = {
+    ...fieldRegistry.priority,
+    column: tickets.priorityId,
+    options: priorityRows.map((p) => ({ value: String(p.id), label: p.name })),
+  };
+  fieldRegistry.billingStatus = {
+    ...fieldRegistry.billingStatus,
+    column: tickets.billingStatusId,
+    options: billingRows.map((b) => ({ value: String(b.id), label: b.name })),
+  };
 
   const favoriteIds = await getFavoriteIds(user.organizationId, userId, "tickets");
 
@@ -112,10 +135,14 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
       title: workItems.title,
       status: workItems.status,
       priority: workItems.priority,
+      statusId: tickets.statusId,
+      priorityId: tickets.priorityId,
+      billingStatusId: tickets.billingStatusId,
       category: tickets.category,
       slaName: tickets.slaName,
       resolutionTargetAt: tickets.resolutionTargetAt,
       billingStatus: tickets.billingStatus,
+      companyId: workItems.companyId,
       companyName: companies.name,
       assigneeId: workItems.assigneeId,
       assigneeName: users.name,
@@ -142,15 +169,11 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     customFields: cfValuesByEntity.get(r.id) ?? {},
   }));
 
-  const [userRows, statusStyles, priorityStyles] = await Promise.all([
-    db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(eq(users.organizationId, user.organizationId))
-      .orderBy(asc(users.name)),
-    getStyledMeta(user.organizationId, "ticket_status_style", ticketStatusMeta),
-    getStyledMeta(user.organizationId, "ticket_priority_style", ticketPriorityMeta),
-  ]);
+  const userRows = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.organizationId, user.organizationId))
+    .orderBy(asc(users.name));
 
   return (
     <div>
@@ -174,8 +197,9 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
         rows={rows}
         users={userRows}
         customFieldDefs={customFieldDefs.map((f) => ({ key: f.key, name: f.name }))}
-        statusStyles={statusStyles}
-        priorityStyles={priorityStyles}
+        statuses={statusRows}
+        priorities={priorityRows}
+        billingStatuses={billingRows}
         fields={toPublicFields(fieldRegistry)}
         quickFilters={TICKET_QUICK_FILTERS}
         activeQuick={quick}

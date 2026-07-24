@@ -3,15 +3,21 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { AlertTriangle, ArrowRight, Bell, X } from "lucide-react";
 import { requireUser, type SessionUser } from "@/lib/session";
-import { Badge, Card, CardHeader, EmptyState, Skeleton, buttonClass, buttonSecondaryClass, cx } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, Skeleton, buttonClass, buttonSecondaryClass, cx, type BadgeTone } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   activityStatusMeta,
   activityTypeMeta,
-  ticketBillingMeta,
   ticketPriorityMeta,
-  ticketStatusMeta,
 } from "@/lib/labels";
+import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
+import {
+  CatalogChip,
+  toCatalogMap,
+  type TicketBillingOption,
+  type TicketPriorityOption,
+  type TicketStatusOption,
+} from "@/app/(app)/helpdesk/ticket-views";
 import { formatMinutes } from "@/lib/time-entries";
 import {
   WAITING_STATUSES,
@@ -252,8 +258,10 @@ async function CoreSections({
   let timeToday: number;
   let userRows: { id: number; name: string }[];
   let recurrenceSummary: { scheduledToday: number; inError: number; generatedToday: number };
+  let statusRows: TicketStatusOption[];
+  let priorityRows: TicketPriorityOption[];
   try {
-    [items, unassigned, timeToday, userRows, recurrenceSummary] = await Promise.all([
+    [items, unassigned, timeToday, userRows, recurrenceSummary, statusRows, priorityRows] = await Promise.all([
       getTodayItems(user, scope),
       getUnassignedCounts(user.organizationId),
       getTimeLoggedOn(user, scope, date),
@@ -265,10 +273,14 @@ async function CoreSections({
         )
         .orderBy(asc(users.name)),
       getRecurrenceSummary(user.organizationId),
+      listTicketStatuses(user.organizationId, { includeInactive: true }),
+      listTicketPriorities(user.organizationId, { includeInactive: true }),
     ]);
   } catch {
     return <SectionError title="Resumen y Mi trabajo" />;
   }
+  const statusMap = toCatalogMap(statusRows);
+  const priorityMap = toCatalogMap(priorityRows);
 
   const active = items.filter(
     (i) => !["closed", "cancelled", "completed", "archived"].includes(i.status),
@@ -423,7 +435,7 @@ async function CoreSections({
                   <ItemLink item={item} qs={qs} />
                   <span className="hidden text-xs text-faint sm:inline">{item.companyName ?? ""}</span>
                 </div>
-                <InlineActions item={item} users={userRows} qs={qs} />
+                <InlineActions item={item} users={userRows} qs={qs} statuses={statusRows} priorities={priorityRows} />
               </li>
             ))}
           </ul>
@@ -489,11 +501,11 @@ async function CoreSections({
           {ordered.length === 0 ? (
             <EmptyStateNoWork qs={qs} />
           ) : view === "table" ? (
-            <CompactTable items={ordered} qs={qs} />
+            <CompactTable items={ordered} qs={qs} statuses={statusMap} priorities={priorityMap} />
           ) : view === "agenda" ? (
-            <AgendaView items={ordered} date={date} qs={qs} users={userRows} />
+            <AgendaView items={ordered} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} />
           ) : (
-            <GroupedList items={ordered} group={group} users={userRows} qs={qs} now={now} />
+            <GroupedList items={ordered} group={group} users={userRows} qs={qs} now={now} statuses={statusRows} priorities={priorityRows} />
           )}
         </Card>
 
@@ -513,7 +525,7 @@ async function CoreSections({
             {agendaItems.length === 0 ? (
               <p className="px-5 py-6 text-sm text-muted">Sin elementos agendados.</p>
             ) : (
-              <AgendaView items={agendaItems} date={date} qs={qs} users={userRows} compact />
+              <AgendaView items={agendaItems} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} compact />
             )}
           </Card>
 
@@ -526,9 +538,7 @@ async function CoreSections({
                   <li key={`${i.kind}-${i.id}`} className="space-y-1 px-5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <ItemLink item={i} qs={qs} />
-                      <Badge tone={statusMetaFor(i)?.tone ?? "amber"}>
-                        {statusMetaFor(i)?.label ?? i.status}
-                      </Badge>
+                      <StatusBadge item={i} statuses={statusMap} fallbackTone="amber" />
                     </div>
                     <div className="text-xs text-muted">
                       {i.companyName ? `${i.companyName} · ` : ""}
@@ -561,10 +571,47 @@ function shiftDate(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function statusMetaFor(item: TodayItem) {
-  return item.kind === "ticket"
-    ? ticketStatusMeta[item.status]
-    : activityStatusMeta[item.status];
+/** Ticket status/priority now come from the org's dynamic catalogs (real
+ * name + color, incl. custom values) — looked up by statusId/priorityId.
+ * Activities still run entirely on the legacy workItems enum (out of scope
+ * this sprint), so they keep the static activityStatusMeta/ticketPriorityMeta
+ * lookup (same priority enum is shared between tickets and activities). */
+function StatusBadge({
+  item,
+  statuses,
+  fallbackTone = "slate",
+}: {
+  item: TodayItem;
+  statuses: Map<number, TicketStatusOption>;
+  fallbackTone?: BadgeTone;
+}) {
+  if (item.kind === "ticket" && item.statusId !== null) {
+    return <CatalogChip entry={statuses.get(item.statusId)} fallback={item.status} />;
+  }
+  const meta = activityStatusMeta[item.status];
+  return <Badge tone={meta?.tone ?? fallbackTone}>{meta?.label ?? item.status}</Badge>;
+}
+
+function PriorityBadge({ item, priorities }: { item: TodayItem; priorities: Map<number, TicketPriorityOption> }) {
+  if (item.kind === "ticket" && item.priorityId !== null) {
+    return <CatalogChip entry={priorities.get(item.priorityId)} fallback={item.priority} />;
+  }
+  const meta = ticketPriorityMeta[item.priority];
+  return <Badge tone={meta?.tone ?? "slate"}>{meta?.label ?? item.priority}</Badge>;
+}
+
+function statusLabelFor(item: TodayItem, statuses: Map<number, TicketStatusOption>): string {
+  if (item.kind === "ticket" && item.statusId !== null) {
+    return statuses.get(item.statusId)?.name ?? item.status;
+  }
+  return activityStatusMeta[item.status]?.label ?? item.status;
+}
+
+function priorityLabelFor(item: TodayItem, priorities: Map<number, TicketPriorityOption>): string {
+  if (item.kind === "ticket" && item.priorityId !== null) {
+    return priorities.get(item.priorityId)?.name ?? item.priority;
+  }
+  return ticketPriorityMeta[item.priority]?.label ?? item.priority;
 }
 
 function ItemLink({ item, qs }: { item: TodayItem; qs: (o: Record<string, string>) => string }) {
@@ -596,20 +643,27 @@ function InlineActions({
   item,
   users,
   qs,
+  statuses,
+  priorities,
 }: {
   item: TodayItem;
   users: { id: number; name: string }[];
   qs: (o: Record<string, string>) => string;
+  statuses: TicketStatusOption[];
+  priorities: TicketPriorityOption[];
 }) {
   if (item.kind === "ticket") {
+    if (item.statusId === null || item.priorityId === null) return null; // defensive; today-data.ts always sets these for tickets
     return (
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         <TicketRowActions
           ticketId={item.id}
-          status={item.status}
-          priority={item.priority}
+          statusId={item.statusId}
+          priorityId={item.priorityId}
           assigneeId={item.assigneeId}
           users={users}
+          statuses={statuses}
+          priorities={priorities}
         />
         {!item.firstResponseAt ? (
           <Link href={`/helpdesk/${item.id}?tab=conversation#composer`} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
@@ -665,16 +719,24 @@ function EmptyStateNoWork({ qs }: { qs: (o: Record<string, string>) => string })
 
 /* -------------------------------------------------------------- list views */
 
-function RowMeta({ item, now }: { item: TodayItem; now: Date }) {
+function RowMeta({
+  item,
+  now,
+  statuses,
+  priorities,
+}: {
+  item: TodayItem;
+  now: Date;
+  statuses: Map<number, TicketStatusOption>;
+  priorities: Map<number, TicketPriorityOption>;
+}) {
   const overdue = isOverdue(item, now);
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted">
       {item.companyName ? <span className="hidden lg:inline">{item.companyName}</span> : null}
       <span>{item.assigneeName ?? "Sin responsable"}</span>
-      <Badge tone={statusMetaFor(item)?.tone ?? "slate"}>{statusMetaFor(item)?.label ?? item.status}</Badge>
-      <Badge tone={ticketPriorityMeta[item.priority]?.tone ?? "slate"}>
-        {ticketPriorityMeta[item.priority]?.label ?? item.priority}
-      </Badge>
+      <StatusBadge item={item} statuses={statuses} />
+      <PriorityBadge item={item} priorities={priorities} />
       {item.slaName ? <Badge tone={isSlaAtRisk(item, now) ? "amber" : "blue"}>SLA</Badge> : null}
       {item.unansweredInbound ? <Badge tone="amber">Msj</Badge> : null}
       <span className={cx("tabular-nums", overdue && "font-medium text-danger")}>
@@ -695,17 +757,23 @@ function GroupedList({
   users,
   qs,
   now,
+  statuses,
+  priorities,
 }: {
   items: TodayItem[];
   group: string;
   users: { id: number; name: string }[];
   qs: (o: Record<string, string>) => string;
   now: Date;
+  statuses: TicketStatusOption[];
+  priorities: TicketPriorityOption[];
 }) {
+  const statusMap = toCatalogMap(statuses);
+  const priorityMap = toCatalogMap(priorities);
   const keyFor = (i: TodayItem): string => {
     switch (group) {
       case "priority":
-        return ticketPriorityMeta[i.priority]?.label ?? i.priority;
+        return priorityLabelFor(i, priorityMap);
       case "type":
         return KIND_LABEL[i.kind];
       case "assignee":
@@ -713,7 +781,7 @@ function GroupedList({
       case "client":
         return i.companyName ?? "Sin cliente";
       case "status":
-        return statusMetaFor(i)?.label ?? i.status;
+        return statusLabelFor(i, statusMap);
       case "date":
         return i.dueDate ?? (i.resolutionTargetAt ? i.resolutionTargetAt.toISOString().slice(0, 10) : "Sin fecha");
       default:
@@ -739,8 +807,8 @@ function GroupedList({
               <li key={`${i.kind}-${i.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5">
                 <ItemLink item={i} qs={qs} />
                 <div className="flex flex-wrap items-center gap-2">
-                  <RowMeta item={i} now={now} />
-                  <InlineActions item={i} users={users} qs={qs} />
+                  <RowMeta item={i} now={now} statuses={statusMap} priorities={priorityMap} />
+                  <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} />
                 </div>
               </li>
             ))}
@@ -756,12 +824,16 @@ function AgendaView({
   date,
   qs,
   users,
+  statuses,
+  priorities,
   compact = false,
 }: {
   items: TodayItem[];
   date: string;
   qs: (o: Record<string, string>) => string;
   users: { id: number; name: string }[];
+  statuses: TicketStatusOption[];
+  priorities: TicketPriorityOption[];
   compact?: boolean;
 }) {
   const timed = items
@@ -777,7 +849,7 @@ function AgendaView({
           </span>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
             <ItemLink item={i} qs={qs} />
-            {!compact ? <InlineActions item={i} users={users} qs={qs} /> : null}
+            {!compact ? <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} /> : null}
           </div>
         </div>
       ))}
@@ -789,7 +861,7 @@ function AgendaView({
           {allDay.map((i) => (
             <div key={`${i.kind}-${i.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5">
               <ItemLink item={i} qs={qs} />
-              {!compact ? <InlineActions item={i} users={users} qs={qs} /> : null}
+              {!compact ? <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} /> : null}
             </div>
           ))}
         </>
@@ -804,9 +876,13 @@ function AgendaView({
 function CompactTable({
   items,
   qs,
+  statuses,
+  priorities,
 }: {
   items: TodayItem[];
   qs: (o: Record<string, string>) => string;
+  statuses: Map<number, TicketStatusOption>;
+  priorities: Map<number, TicketPriorityOption>;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -830,9 +906,11 @@ function CompactTable({
               <td className="px-4 py-2 text-muted">{i.companyName ?? "—"}</td>
               <td className="px-4 py-2 text-muted">{i.assigneeName ?? "—"}</td>
               <td className="px-4 py-2">
-                <Badge tone={statusMetaFor(i)?.tone ?? "slate"}>{statusMetaFor(i)?.label ?? i.status}</Badge>
+                <StatusBadge item={i} statuses={statuses} />
               </td>
-              <td className="px-4 py-2 text-muted">{i.priority}</td>
+              <td className="px-4 py-2 text-muted">
+                <PriorityBadge item={i} priorities={priorities} />
+              </td>
               <td className="px-4 py-2 text-muted tabular-nums">
                 {i.dueDate ? fmtDate(i.dueDate) : i.resolutionTargetAt ? fmtDate(i.resolutionTargetAt) : "—"}
               </td>
@@ -1075,21 +1153,32 @@ async function QuickView({
 
   let item: TodayItem | undefined;
   let userRows: { id: number; name: string }[];
+  let statusRows: TicketStatusOption[];
+  let priorityRows: TicketPriorityOption[];
+  let billingRows: TicketBillingOption[];
   try {
     const items = await getTodayItems(user, "org");
     item = items.find(
       (i) => i.id === id && (kind === "ticket" ? i.kind === "ticket" : i.kind !== "ticket"),
     );
-    userRows = await db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client")))
-      .orderBy(asc(users.name));
+    [userRows, statusRows, priorityRows, billingRows] = await Promise.all([
+      db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client")))
+        .orderBy(asc(users.name)),
+      listTicketStatuses(user.organizationId, { includeInactive: true }),
+      listTicketPriorities(user.organizationId, { includeInactive: true }),
+      listTicketBillingStatuses(user.organizationId, { includeInactive: true }),
+    ]);
   } catch {
     return null;
   }
   if (!item) return null;
   const detailHref = kind === "ticket" ? `/helpdesk/${item.id}` : `/activities/${item.id}`;
+  const statusMap = toCatalogMap(statusRows);
+  const priorityMap = toCatalogMap(priorityRows);
+  const billingMap = toCatalogMap(billingRows);
 
   return (
       <div className="fixed inset-0 z-50 flex justify-end bg-black/30" role="dialog" aria-label="Quick View">
@@ -1110,15 +1199,15 @@ async function QuickView({
           <dl className="space-y-2 text-sm">
             <QVRow label="Empresa" value={item.companyName ?? "—"} />
             <QVRow label="Responsable" value={item.assigneeName ?? "Sin responsable"} />
-            <QVRow label="Estado" value={statusMetaFor(item)?.label ?? item.status} />
-            <QVRow label="Prioridad" value={ticketPriorityMeta[item.priority]?.label ?? item.priority} />
+            <QVRow label="Estado" value={statusLabelFor(item, statusMap)} />
+            <QVRow label="Prioridad" value={priorityLabelFor(item, priorityMap)} />
             <QVRow
               label="Fecha"
               value={item.dueDate ? fmtDate(item.dueDate) : item.resolutionTargetAt ? fmtDateTime(item.resolutionTargetAt) : "Sin fecha"}
             />
             {item.slaName ? <QVRow label="SLA" value={item.slaName} /> : null}
-            {item.kind === "ticket" && item.billingStatus ? (
-              <QVRow label="Cobro" value={ticketBillingMeta[item.billingStatus]?.label ?? item.billingStatus} />
+            {item.kind === "ticket" && item.billingStatusId !== null ? (
+              <QVRow label="Cobro" value={billingMap.get(item.billingStatusId)?.name ?? item.billingStatus ?? "—"} />
             ) : null}
             {item.activityType ? (
               <QVRow label="Tipo" value={activityTypeMeta[item.activityType]?.label ?? item.activityType} />
@@ -1126,7 +1215,7 @@ async function QuickView({
             <QVRow label="Tiempo registrado" value={item.minutes > 0 ? formatMinutes(item.minutes) : "—"} />
           </dl>
           <div className="mt-5 space-y-3 border-t border-edge pt-4">
-            <InlineActions item={item} users={userRows} qs={() => closeHref} />
+            <InlineActions item={item} users={userRows} qs={() => closeHref} statuses={statusRows} priorities={priorityRows} />
             <div className="flex flex-wrap gap-2">
               <Link href={detailHref} className={buttonClass}>
                 Abrir detalle completo
