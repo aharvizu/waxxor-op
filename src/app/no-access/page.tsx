@@ -51,8 +51,8 @@ export default async function NoAccessPage({
             <h1 className="text-lg font-semibold text-fg">No portal access</h1>
             <p className="mt-2 text-sm text-muted">
               Your account ({user.email}) is a client account and does not have
-              access to the Waxxor Ops internal portal. If you believe this is a
-              mistake, contact your Waxxor representative.
+              access to the Watson internal portal. If you believe this is a
+              mistake, contact your representative.
             </p>
             <form
               className="mt-6"

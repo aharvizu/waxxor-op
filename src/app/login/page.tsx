@@ -19,8 +19,8 @@ const highlights = [
   },
   {
     icon: ShieldCheck,
-    title: "Built for security teams",
-    body: "Role-based access for the whole Waxxor team.",
+    title: "Built for service teams",
+    body: "Role-based access for the whole team.",
   },
 ];
 
@@ -51,14 +51,14 @@ export default async function LoginPage() {
             W
           </span>
           <div>
-            <div className="text-sm font-semibold text-white">Waxxor Ops</div>
-            <div className="text-xs text-slate-500">Information Security</div>
+            <div className="text-sm font-semibold text-white">Watson</div>
+            <div className="text-xs text-slate-500">Operations OS</div>
           </div>
         </div>
 
         <div className="relative max-w-md">
           <h1 className="text-3xl leading-tight font-semibold tracking-tight text-white">
-            Run your security business from a single pane of glass.
+            Run your service business from a single pane of glass.
           </h1>
           <ul className="mt-10 space-y-6">
             {highlights.map((h) => (
@@ -76,7 +76,7 @@ export default async function LoginPage() {
         </div>
 
         <p className="relative text-xs text-slate-600">
-          Internal system · waxxor.com
+          Internal system
         </p>
       </aside>
 
@@ -90,7 +90,7 @@ export default async function LoginPage() {
           </div>
           <h2 className="text-2xl font-semibold tracking-tight text-fg">Welcome back</h2>
           <p className="mt-1.5 text-sm text-muted">
-            Sign in to your Waxxor Ops account.
+            Sign in to your Watson account.
           </p>
           <div className="mt-8">
             <LoginForm />

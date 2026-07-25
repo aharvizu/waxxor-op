@@ -10,6 +10,16 @@ import { CalendarForm, CreateDefinitionForm, DefinitionRow } from "./sla-forms";
 
 export const metadata: Metadata = { title: "Configuración · SLA" };
 
+/**
+ * Computed once, server-side (Node's own ICU data), and passed down as a
+ * prop rather than recomputed inside the client component — a client-side
+ * `Intl.supportedValuesOf("timeZone")` call can return a different
+ * order/set than the server used to render, which causes a hydration
+ * mismatch on a ~400-option <select> and can silently reset the user's
+ * selection right as they interact with it (2026-07-25 bugfix).
+ */
+const TIMEZONES: string[] = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+
 export default async function SlaPage() {
   const me = await requireRole("superadmin");
 
@@ -62,6 +72,7 @@ export default async function SlaPage() {
                   workStartMinute: calendar?.workStartMinute ?? 540,
                   workEndMinute: calendar?.workEndMinute ?? 1080,
                 }}
+                timezones={TIMEZONES}
               />
             </div>
           </Card>

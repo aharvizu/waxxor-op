@@ -1,9 +1,10 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { signOut } from "@/auth";
 import { db } from "@/db";
-import { workItems } from "@/db/schema";
+import { organizations, workItems } from "@/db/schema";
 import { listTutorials } from "@/lib/help-data";
 import { requireUser } from "@/lib/session";
+import { getSetting } from "@/lib/settings-data";
 import { AppShell } from "@/components/shell/app-shell";
 
 export default async function AppLayout({
@@ -12,7 +13,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const [[openTickets], tutorials] = await Promise.all([
+  const [[openTickets], tutorials, [org], profile] = await Promise.all([
     db
       .select({ value: count() })
       .from(workItems)
@@ -24,6 +25,8 @@ export default async function AppLayout({
         ),
       ),
     listTutorials(),
+    db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, user.organizationId)),
+    getSetting(user.organizationId, "organization.profile"),
   ]);
 
   return (
@@ -35,6 +38,8 @@ export default async function AppLayout({
       }}
       openTickets={openTickets.value}
       tutorials={tutorials.map((t) => ({ slug: t.slug, title: t.title, module: t.module }))}
+      orgName={profile.displayName || org?.name || "Watson"}
+      orgLogo={profile.logo ?? null}
       signOut={async () => {
         "use server";
         await signOut({ redirectTo: "/login" });

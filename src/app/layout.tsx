@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Waxxor Ops",
-    template: "%s · Waxxor Ops",
+    default: "Watson",
+    template: "%s · Watson",
   },
-  description: "Business operations for Waxxor — Information Security",
+  description: "Watson — Operations OS for technology service companies",
 };
 
 // Applies the saved theme before first paint to avoid a flash of the wrong theme.

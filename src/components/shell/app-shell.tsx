@@ -71,12 +71,18 @@ export function AppShell({
   user,
   openTickets,
   tutorials,
+  orgName,
+  orgLogo,
   signOut,
   children,
 }: {
   user: ShellUser;
   openTickets: number;
   tutorials: TutorialSummary[];
+  /** Org's display name — Configuración → Organización; defaults to "Watson" when unset. */
+  orgName: string;
+  /** Org's uploaded logo (data URI), or null to show the default Watson mark — same "brand until you upload your own" pattern as Microsoft 365. */
+  orgLogo: string | null;
   signOut: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -97,10 +103,11 @@ export function AppShell({
     setCollapsedOverride(next);
   }
 
-  // Six mandated groups (UX consolidation, 2026-07-20): every module lives in
-  // exactly one of these — no per-feature ad-hoc sections. Configuration
-  // (Users, SLA, Roles, catalogs) lives ONLY inside Settings; see
-  // docs/features/settings.md and docs/architecture/navigation.md.
+  // Mandated groups (UX consolidation, 2026-07-20; Sales split out of
+  // Analytics, 2026-07-25): every module lives in exactly one of these — no
+  // per-feature ad-hoc sections. Configuration (Users, SLA, Roles, catalogs)
+  // lives ONLY inside Settings; see docs/features/settings.md and
+  // docs/architecture/navigation.md.
   const sections: NavSection[] = [
     {
       name: "Today",
@@ -117,7 +124,12 @@ export function AppShell({
         { href: "/helpdesk", label: "Tickets", icon: LifeBuoy, badge: openTickets },
         { href: "/projects", label: "Projects", icon: FolderKanban },
         { href: "/recurring", label: "Recurring", icon: Repeat },
+        { href: "/reports", label: "Reports", icon: ClipboardList },
       ],
+    },
+    {
+      name: "Sales",
+      items: [{ href: "/quotes", label: "Quotes", icon: FileText }],
     },
     {
       name: "Companies",
@@ -136,10 +148,8 @@ export function AppShell({
     {
       name: "Analytics",
       items: [
-        { href: "/reports", label: "Reports", icon: ClipboardList },
         { href: "/indicators", label: "Indicators", icon: Gauge },
         { href: "/kpis", label: "KPIs", icon: Inbox },
-        { href: "/quotes", label: "Quotes", icon: FileText },
       ],
     },
     {
@@ -157,8 +167,16 @@ export function AppShell({
         collapsed={collapsed}
         mounted={mounted}
         onToggle={toggleSidebar}
+        orgName={orgName}
+        orgLogo={orgLogo}
       />
-      <MobileNav sections={sections} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      <MobileNav
+        sections={sections}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        orgName={orgName}
+        orgLogo={orgLogo}
+      />
 
       <div
         className={cx(
@@ -184,6 +202,29 @@ export function AppShell({
   );
 }
 
+/* ------------------------------------------------------------- Brand mark */
+
+/**
+ * Org logo (Configuración → Organización) when set, else the default Watson
+ * mark — same "your logo takes over once you upload one" pattern as
+ * Microsoft 365's tenant branding, 2026-07-25.
+ */
+function BrandMark({ name, logo, size = "md" }: { name: string; logo: string | null; size?: "sm" | "md" }) {
+  const box = size === "sm" ? "size-6 rounded-md text-[11px]" : "size-8 rounded-lg text-sm";
+  if (logo) {
+    return (
+      // data URI inline — next/image no aplica
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={logo} alt={name} className={cx(box, "shrink-0 bg-white object-contain p-1 shadow-card")} />
+    );
+  }
+  return (
+    <span className={cx(box, "flex shrink-0 items-center justify-center bg-gradient-to-br from-purple-500 to-purple-700 font-bold text-white shadow-card")}>
+      {name.charAt(0).toUpperCase() || "W"}
+    </span>
+  );
+}
+
 /* -------------------------------------------------------------- Mobile nav */
 
 /**
@@ -195,10 +236,14 @@ function MobileNav({
   sections,
   open,
   onClose,
+  orgName,
+  orgLogo,
 }: {
   sections: NavSection[];
   open: boolean;
   onClose: () => void;
+  orgName: string;
+  orgLogo: string | null;
 }) {
   const pathname = usePathname();
 
@@ -240,11 +285,9 @@ function MobileNav({
             className="flex h-full w-72 max-w-[85vw] flex-col bg-sidebar"
           >
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
-              <span className="flex items-center gap-2.5">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 text-sm font-bold text-white shadow-card">
-                  W
-                </span>
-                <span className="text-sm font-semibold text-white">Waxxor Ops</span>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <BrandMark name={orgName} logo={orgLogo} />
+                <span className="truncate text-sm font-semibold text-white">{orgName}</span>
               </span>
               <button
                 type="button"
@@ -310,11 +353,15 @@ function Sidebar({
   collapsed,
   mounted,
   onToggle,
+  orgName,
+  orgLogo,
 }: {
   sections: NavSection[];
   collapsed: boolean;
   mounted: boolean;
   onToggle: () => void;
+  orgName: string;
+  orgLogo: string | null;
 }) {
   const pathname = usePathname();
 
@@ -339,18 +386,12 @@ function Sidebar({
           panelClassName="w-60"
           button={
             <>
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 text-sm font-bold text-white shadow-card">
-                W
-              </span>
+              <BrandMark name={orgName} logo={orgLogo} />
               {!collapsed ? (
                 <>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-white">
-                      Waxxor Ops
-                    </span>
-                    <span className="block truncate text-[11px] text-slate-500">
-                      Information Security
-                    </span>
+                    <span className="block truncate text-sm font-semibold text-white">{orgName}</span>
+                    <span className="block truncate text-[11px] text-slate-500">Operations OS</span>
                   </span>
                   <ChevronsUpDown className="size-3.5 shrink-0 text-slate-500" />
                 </>
@@ -360,15 +401,9 @@ function Sidebar({
         >
           <MenuLabel>Organization</MenuLabel>
           <div className={cx(menuItemClass, "cursor-default")}>
-            <span className="flex size-6 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-purple-700 text-[11px] font-bold text-white">
-              W
-            </span>
-            <span className="flex-1">Waxxor</span>
+            <BrandMark name={orgName} logo={orgLogo} size="sm" />
+            <span className="flex-1 truncate">{orgName}</span>
             <Check className="size-4 text-primary" />
-          </div>
-          <MenuSeparator />
-          <div className="px-2.5 py-1.5 text-xs text-faint">
-            waxxor.com · Enterprise plan
           </div>
         </Dropdown>
       </div>

@@ -134,7 +134,7 @@ export default async function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        subtitle="A snapshot of Waxxor’s day-to-day operations."
+        subtitle="A snapshot of day-to-day operations."
       />
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">

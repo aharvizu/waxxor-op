@@ -245,6 +245,7 @@ function toTime(minute: number): string {
 
 export function CalendarForm({
   calendar,
+  timezones,
 }: {
   calendar: {
     timezone: string;
@@ -252,6 +253,8 @@ export function CalendarForm({
     workStartMinute: number;
     workEndMinute: number;
   };
+  /** Full IANA list — computed server-side (page.tsx) and passed down so client hydration always agrees with the server render (see doc comment there). */
+  timezones: string[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveCalendar, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
@@ -261,13 +264,22 @@ export function CalendarForm({
       <FormAlert state={state} />
       <div>
         <label className={labelClass}>Timezone (IANA)</label>
-        <input
+        <select
           name="timezone"
           required
           defaultValue={calendar.timezone}
           aria-invalid={errors.timezone ? true : undefined}
           className={inputClass}
-        />
+        >
+          {!timezones.includes(calendar.timezone) ? (
+            <option value={calendar.timezone}>{calendar.timezone}</option>
+          ) : null}
+          {timezones.map((tz) => (
+            <option key={tz} value={tz}>
+              {tz}
+            </option>
+          ))}
+        </select>
         <FieldError errors={errors.timezone} />
       </div>
       <div>
