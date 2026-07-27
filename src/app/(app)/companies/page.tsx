@@ -10,7 +10,6 @@ import {
   Avatar,
   Badge,
   Card,
-  CardHeader,
   EmptyState,
   PageHeader,
   THead,
@@ -21,7 +20,7 @@ import {
   cx,
   inputClass,
 } from "@/components/ui";
-import { CompanyForm } from "./company-form";
+import { NewCompanyButton } from "./company-form";
 
 export const metadata: Metadata = { title: "Empresas" };
 
@@ -79,6 +78,7 @@ export default async function CompaniesPage({
         <button type="submit" className={buttonSecondaryClass}>
           Buscar
         </button>
+        <NewCompanyButton />
       </form>
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -98,14 +98,13 @@ export default async function CompaniesPage({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
-        <div className="xl:col-span-3">
-          {rows.length === 0 ? (
-            <EmptyState icon={<Building2 />} title="No se encontraron empresas">
-              Prueba otra búsqueda, o agrega tu primera empresa a la derecha — queda
-              disponible en tickets, actividades, proyectos y reportes.
-            </EmptyState>
-          ) : (
+      <div>
+        {rows.length === 0 ? (
+          <EmptyState icon={<Building2 />} title="No se encontraron empresas">
+            Prueba otra búsqueda, o agrega tu primera empresa con el botón de
+            arriba — queda disponible en tickets, actividades, proyectos y reportes.
+          </EmptyState>
+        ) : (
             <Card className="overflow-visible">
               <Table>
                 <THead>
@@ -193,15 +192,7 @@ export default async function CompaniesPage({
                 </tbody>
               </Table>
             </Card>
-          )}
-        </div>
-
-        <Card className="h-fit overflow-hidden">
-          <CardHeader title="Agregar empresa" description="Una nueva cuenta de cliente." />
-          <div className="p-5">
-            <CompanyForm submitLabel="Agregar empresa" />
-          </div>
-        </Card>
+        )}
       </div>
     </div>
   );

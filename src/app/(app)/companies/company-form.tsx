@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
-import { inputClass, labelClass } from "@/components/ui";
+import { useActionState, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { Modal } from "@/components/modal";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { createClient } from "./actions";
@@ -10,8 +12,18 @@ import { createClient } from "./actions";
 type FieldName = "name" | "contactName" | "email" | "phone" | "notes";
 
 /** Quick-add form used from the companies list — full profile editing lives in Client 360. */
-export function CompanyForm({ submitLabel }: { submitLabel: string }) {
+export function CompanyForm({
+  submitLabel,
+  onSuccess,
+}: {
+  submitLabel: string;
+  onSuccess?: () => void;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(createClient, null);
+
+  useEffect(() => {
+    if (state?.ok) onSuccess?.();
+  }, [state, onSuccess]);
 
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
@@ -66,5 +78,26 @@ export function CompanyForm({ submitLabel }: { submitLabel: string }) {
       </div>
       <SubmitButton>{submitLabel}</SubmitButton>
     </form>
+  );
+}
+
+/** Trigger + modal used next to the search bar on /companies. */
+export function NewCompanyButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        Agregar empresa
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Agregar empresa"
+        description="Una nueva cuenta de cliente."
+      >
+        <CompanyForm submitLabel="Agregar empresa" onSuccess={() => setOpen(false)} />
+      </Modal>
+    </>
   );
 }

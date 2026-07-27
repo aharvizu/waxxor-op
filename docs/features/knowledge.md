@@ -1,7 +1,8 @@
 # Knowledge Base & Help Center
 
 > Status: shipped 2026-07-19. Resolves I-02 (Knowledge listed as a PRD module but absent from MVP scope) with two separated spaces: **KB Operativa** (`/knowledge`) and **Centro de Ayuda** (`/help`).
-> Fuera de alcance explícito: IA, chatbot, búsqueda semántica externa, portal del cliente, publicación pública, traducción automática, videos reales, LMS completo.
+> Fuera de alcance explícito: búsqueda semántica externa, portal del cliente, publicación pública, traducción automática, videos reales, LMS completo.
+> Actualización 2026-07-26: se agregó un chatbot ("Asistente", `/help/assistant`) a Centro de Ayuda — ver sección propia abajo. El resto de la nota de alcance sigue vigente.
 
 ## Objetivo
 
@@ -46,6 +47,16 @@ Desde la pestaña Resolution de un ticket con resolución escrita, el botón "Cr
 - **Recorrido guiado**: overlay de pasos secuenciales (no tooltips anclados al DOM — decisión documentada, motor de posicionamiento fuera de alcance de este sprint), reutiliza el mismo contenido que el checklist; la posición se persiste (`setTutorialPosition`) para "continuar donde quedó".
 - **"No volver a mostrar"**: marca `dismissedAt` sin exigir completar el tutorial.
 - **"Marcar como completado"**: atajo que completa todos los pasos de una vez.
+
+## Asistente (`/help/assistant`)
+
+- **Qué es**: chat estilo ChatGPT dentro de Centro de Ayuda para que cualquier usuario interno pregunte, en lenguaje natural, cómo funciona Watson (módulos, flujos, reglas de negocio) — el mismo tipo de pregunta que se le haría a quien construyó el sistema.
+- **Fuente de verdad**: el modelo (OpenAI, `OPENAI_HELP_MODEL`, default `gpt-4o-mini`) recibe como contexto de sistema **todo el contenido de `docs/features/*.md`** (concatenado, `src/lib/help-assistant.ts`), no la PRD (`docs/prd/*.docx`, sin parsear) ni datos en vivo de la organización (tickets, clientes, etc.). Instrucción explícita en el prompt: si la documentación no cubre algo, decirlo en vez de inventar una regla.
+- **Sin RAG/embeddings**: todo el corpus de docs se manda completo en cada request (context stuffing) — más simple que un pipeline de embeddings/vector search, aceptable mientras el corpus quepa cómodo en la ventana de contexto del modelo. Si el corpus crece mucho, revisar.
+- **Historial**: `help_chat_messages` — un hilo continuo por usuario (no hay concepto de "conversación"/sesión múltiple, mismo criterio que `user_tutorial_progress`: una fila por usuario, no por sesión). Se persiste completo (pregunta y respuesta) por auditoría; al llamar al modelo solo se envían las últimas 20 entradas como ventana de contexto (`HISTORY_WINDOW` en `assistant-actions.ts`), aunque la tabla conserve todo. No hay botón de "limpiar conversación" en este MVP.
+- **Sin streaming**: la respuesta se pide completa (no token-por-token) y se llama como función de servidor normal (`askHelpAssistant`) desde el componente de chat, no vía `useActionState`/`<form>` — encaja mejor con una función invocada imperativamente que retorna un payload arbitrario.
+- **Acceso**: mismo `requireUser()` que el resto de Centro de Ayuda — cualquier rol interno.
+- **Sin API key configurada**: el chat responde con un mensaje de error explícito en vez de fallar silenciosamente; `OPENAI_API_KEY` aparece en Configuración → Entorno como variable opcional.
 
 ## Interactividad transversal
 

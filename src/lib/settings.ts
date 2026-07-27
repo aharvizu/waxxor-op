@@ -277,6 +277,7 @@ export const ENV_CHECKS: { name: string; required: boolean; secret: boolean; hin
   { name: "CRON_SECRET", required: false, secret: true, hint: "Protege /api/cron/recurrences; sin él el scheduler responde 503." },
   { name: "SEED_ADMIN_EMAIL", required: false, secret: false, hint: "Solo para el seed inicial." },
   { name: "SEED_ADMIN_PASSWORD", required: false, secret: true, hint: "Solo para el seed inicial." },
+  { name: "OPENAI_API_KEY", required: false, secret: true, hint: "Asistente de IA en Centro de Ayuda; sin ella el chat responde con un error." },
 ];
 
 export const API_KEY_PREFIX = "wxk";

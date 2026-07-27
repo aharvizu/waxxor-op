@@ -2055,6 +2055,32 @@ export const userTutorialProgress = pgTable(
   ],
 );
 
+export const helpChatRole = pgEnum("help_chat_role", ["user", "assistant"]);
+
+/**
+ * "Watson Assistant" (Help Center, 2026-07-26) — a docs-grounded Q&A chat,
+ * one continuous thread per user (no multi-conversation management, matching
+ * the tutorial-progress model: one row set per user, not per session).
+ */
+export const helpChatMessages = pgTable(
+  "help_chat_messages",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: helpChatRole("role").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("help_chat_messages_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 /* ==================================================================== */
 /* Dynamic Configuration: Views, Filters, Custom Fields (2026-07-20)      */
 /* ==================================================================== */

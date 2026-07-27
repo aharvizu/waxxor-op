@@ -197,6 +197,13 @@
       "when": 1784734159346,
       "tag": "0027_ancient_dexter_bennett",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785006333653,
+      "tag": "0028_conscious_lyja",
+      "breakpoints": true
     }
   ]
 }

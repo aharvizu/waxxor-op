@@ -5,6 +5,7 @@ import { HELP_MODULE_LABELS, HELP_MODULES, progressStatus } from "@/lib/help";
 import { getTutorialsWithProgress } from "@/lib/help-data";
 import { requireUser } from "@/lib/session";
 import { Badge, EmptyState, PageHeader, inputClass } from "@/components/ui";
+import { HelpTabs } from "./help-tabs";
 
 export const metadata: Metadata = { title: "Centro de Ayuda" };
 
@@ -36,6 +37,8 @@ export default async function HelpPage({
         title="Centro de Ayuda"
         subtitle="Tutoriales y recorridos guiados para aprender a usar Watson, módulo por módulo."
       />
+
+      <HelpTabs active="tutorials" />
 
       <form method="get" className="mb-6 max-w-lg">
         <input name="q" defaultValue={q ?? ""} placeholder="Buscar tutoriales…" className={inputClass} />

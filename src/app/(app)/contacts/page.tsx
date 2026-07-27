@@ -11,7 +11,6 @@ import {
   Avatar,
   Badge,
   Card,
-  CardHeader,
   EmptyState,
   PageHeader,
   THead,
@@ -22,7 +21,7 @@ import {
   cx,
   inputClass,
 } from "@/components/ui";
-import { ContactCreateForm } from "./contact-form";
+import { NewContactButton } from "./contact-form";
 
 export const metadata: Metadata = { title: "Contactos" };
 
@@ -70,15 +69,15 @@ export default async function ContactsPage({
         <button type="submit" className={buttonSecondaryClass}>
           Buscar
         </button>
+        <NewContactButton companies={companyOptions} />
       </form>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
-        <div className="xl:col-span-3">
-          {rows.length === 0 ? (
-            <EmptyState icon={<Users />} title="No se encontraron contactos">
-              Prueba otra búsqueda, o agrega tu primer contacto a la derecha.
-            </EmptyState>
-          ) : (
+      <div>
+        {rows.length === 0 ? (
+          <EmptyState icon={<Users />} title="No se encontraron contactos">
+            Prueba otra búsqueda, o agrega tu primer contacto con el botón de arriba.
+          </EmptyState>
+        ) : (
             <Card className="overflow-visible">
               <Table>
                 <THead>
@@ -135,15 +134,7 @@ export default async function ContactsPage({
                 </tbody>
               </Table>
             </Card>
-          )}
-        </div>
-
-        <Card className="h-fit overflow-hidden">
-          <CardHeader title="Agregar contacto" description="Una nueva persona de contacto." />
-          <div className="p-5">
-            <ContactCreateForm companies={companyOptions} />
-          </div>
-        </Card>
+        )}
       </div>
     </div>
   );

@@ -208,12 +208,37 @@ export function AppShell({
  * Org logo (Configuración → Organización) when set, else the default Watson
  * mark — same "your logo takes over once you upload one" pattern as
  * Microsoft 365's tenant branding, 2026-07-25.
+ *
+ * `size="wide"` is for the expanded sidebar/mobile-nav header once a real
+ * logo is set: no org-name text alongside it (the logo speaks for itself),
+ * sized to a 280:60 aspect ratio — the recommended upload ratio — scaled to
+ * fit the header row instead of a fixed pixel box, so it never overflows the
+ * sidebar (2026-07-26). Falls back to the square mark for "sm"/"md", and to
+ * the square mark + text when there's no logo at all (see call sites).
  */
-function BrandMark({ name, logo, size = "md" }: { name: string; logo: string | null; size?: "sm" | "md" }) {
+function BrandMark({
+  name,
+  logo,
+  size = "md",
+}: {
+  name: string;
+  logo: string | null;
+  size?: "sm" | "md" | "wide";
+}) {
+  if (logo && size === "wide") {
+    return (
+      // data URI inline — next/image no aplica
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logo}
+        alt={name}
+        className="aspect-[280/60] w-full max-w-[220px] min-w-0 flex-1 rounded-lg bg-white object-contain p-1 shadow-card"
+      />
+    );
+  }
   const box = size === "sm" ? "size-6 rounded-md text-[11px]" : "size-8 rounded-lg text-sm";
   if (logo) {
     return (
-      // data URI inline — next/image no aplica
       // eslint-disable-next-line @next/next/no-img-element
       <img src={logo} alt={name} className={cx(box, "shrink-0 bg-white object-contain p-1 shadow-card")} />
     );
@@ -285,9 +310,15 @@ function MobileNav({
             className="flex h-full w-72 max-w-[85vw] flex-col bg-sidebar"
           >
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
-              <span className="flex min-w-0 items-center gap-2.5">
-                <BrandMark name={orgName} logo={orgLogo} />
-                <span className="truncate text-sm font-semibold text-white">{orgName}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                {orgLogo ? (
+                  <BrandMark name={orgName} logo={orgLogo} size="wide" />
+                ) : (
+                  <>
+                    <BrandMark name={orgName} logo={orgLogo} />
+                    <span className="truncate text-sm font-semibold text-white">{orgName}</span>
+                  </>
+                )}
               </span>
               <button
                 type="button"
@@ -385,18 +416,22 @@ function Sidebar({
           )}
           panelClassName="w-60"
           button={
-            <>
+            collapsed ? (
               <BrandMark name={orgName} logo={orgLogo} />
-              {!collapsed ? (
-                <>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-white">{orgName}</span>
-                    <span className="block truncate text-[11px] text-slate-500">Operations OS</span>
-                  </span>
-                  <ChevronsUpDown className="size-3.5 shrink-0 text-slate-500" />
-                </>
-              ) : null}
-            </>
+            ) : orgLogo ? (
+              <>
+                <BrandMark name={orgName} logo={orgLogo} size="wide" />
+                <ChevronsUpDown className="size-3.5 shrink-0 text-slate-500" />
+              </>
+            ) : (
+              <>
+                <BrandMark name={orgName} logo={orgLogo} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-white">{orgName}</span>
+                </span>
+                <ChevronsUpDown className="size-3.5 shrink-0 text-slate-500" />
+              </>
+            )
           }
         >
           <MenuLabel>Organization</MenuLabel>

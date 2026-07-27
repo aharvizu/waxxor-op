@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
-import { inputClass, labelClass } from "@/components/ui";
+import { useActionState, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { Modal } from "@/components/modal";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { CONTACT_TYPES } from "@/lib/company360";
@@ -12,8 +14,19 @@ import { createContact } from "../companies/company360-actions";
 /** Standalone contact creation form for /contacts — unlike the Company 360
  * variant (fixed companyId), this one lets the user pick the empresa
  * principal from a dropdown since there is no company context on this page. */
-export function ContactCreateForm({ companies }: { companies: { id: number; name: string }[] }) {
+export function ContactCreateForm({
+  companies,
+  onSuccess,
+}: {
+  companies: { id: number; name: string }[];
+  onSuccess?: () => void;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(createContact, null);
+
+  useEffect(() => {
+    if (state?.ok) onSuccess?.();
+  }, [state, onSuccess]);
+
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
   const value = (name: string) => (failed?.values?.[name] ? String(failed.values[name]) : "");
@@ -77,5 +90,26 @@ export function ContactCreateForm({ companies }: { companies: { id: number; name
       </div>
       <SubmitButton>Agregar contacto</SubmitButton>
     </form>
+  );
+}
+
+/** Trigger + modal used next to the search bar on /contacts. */
+export function NewContactButton({ companies }: { companies: { id: number; name: string }[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        Agregar contacto
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Agregar contacto"
+        description="Una nueva persona de contacto."
+      >
+        <ContactCreateForm companies={companies} onSuccess={() => setOpen(false)} />
+      </Modal>
+    </>
   );
 }
