@@ -13,6 +13,7 @@ import {
   unexpectedError,
 } from "@/lib/action-result";
 import { diffFields, recordAudit } from "@/lib/audit";
+import { getCatalogNames } from "@/lib/settings-data";
 import { requireRole, requireUser, type SessionUser } from "@/lib/session";
 import {
   billingStatusSchema,
@@ -20,7 +21,6 @@ import {
   durationMinutesSchema,
   optionalMoneySchema,
   timeModalitySchema,
-  timeTypeSchema,
 } from "@/lib/time-entries";
 
 class EntryNotFoundError extends Error {}
@@ -34,7 +34,7 @@ const optionalText = z
 const sessionFieldsSchema = z.object({
   date: z.string("Date is required.").regex(/^\d{4}-\d{2}-\d{2}$/, "Date is required."),
   durationMinutes: durationMinutesSchema,
-  timeType: timeTypeSchema,
+  timeType: z.string("Type is required.").trim().min(1, "Type is required."),
   billingStatus: billingStatusSchema,
   modality: timeModalitySchema,
   description: z
@@ -114,6 +114,11 @@ export async function createTimeEntry(
   const user = await requireUser();
   const { data, error } = parseForm(createSchema, formData);
   if (error) return error;
+
+  const validTimeTypes = await getCatalogNames(user.organizationId, "time_entry_type");
+  if (!validTimeTypes.includes(data.timeType)) {
+    return businessError("Selecciona un tipo de trabajo del catálogo.");
+  }
 
   // multi-technician: one entry per selected user, all in one transaction
   const requested = formData
@@ -211,6 +216,11 @@ export async function updateTimeEntry(
 
   const [validUser] = await internalOrgUserIds(user.organizationId, [data.userId]);
   if (!validUser) return businessError("Select an internal technician of this organization.");
+
+  const validTimeTypes = await getCatalogNames(user.organizationId, "time_entry_type");
+  if (!validTimeTypes.includes(data.timeType)) {
+    return businessError("Selecciona un tipo de trabajo del catálogo.");
+  }
 
   try {
     await db.transaction(async (tx) => {

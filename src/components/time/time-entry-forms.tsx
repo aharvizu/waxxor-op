@@ -16,7 +16,6 @@ import { fmtDate, fmtMoney } from "@/lib/format";
 import {
   BILLING_STATUSES,
   TIME_MODALITIES,
-  TIME_TYPES,
   formatMinutes,
 } from "@/lib/time-entries";
 import {
@@ -59,6 +58,7 @@ const modalityLabels: Record<string, string> = {
 function SessionFields({
   errors,
   defaults,
+  timeTypeOptions,
 }: {
   errors: Record<string, string[]>;
   defaults?: {
@@ -72,6 +72,8 @@ function SessionFields({
     hourlyRate: string | null;
     internalHourlyCost: string | null;
   };
+  /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
+  timeTypeOptions: string[];
 }) {
   const today = new Date().toISOString().slice(0, 10);
   return (
@@ -104,10 +106,14 @@ function SessionFields({
           <label className={labelClass}>Type</label>
           <select
             name="timeType"
+            required
             defaultValue={defaults?.timeType ?? "technical_work"}
             className={inputClass}
           >
-            {TIME_TYPES.map((t) => (
+            {defaults?.timeType && !timeTypeOptions.includes(defaults.timeType) ? (
+              <option value={defaults.timeType}>{typeLabels[defaults.timeType] ?? defaults.timeType}</option>
+            ) : null}
+            {timeTypeOptions.map((t) => (
               <option key={t} value={t}>
                 {typeLabels[t] ?? t}
               </option>
@@ -195,10 +201,13 @@ export function AddTimeEntryForm({
   workItemId,
   technicians,
   currentUserId,
+  timeTypeOptions,
 }: {
   workItemId: number;
   technicians: Option[];
   currentUserId: number;
+  /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
+  timeTypeOptions: string[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     createTimeEntry,
@@ -235,7 +244,7 @@ export function AddTimeEntryForm({
         </select>
         <FieldError errors={errors.userIds} />
       </div>
-      <SessionFields errors={errors} />
+      <SessionFields errors={errors} timeTypeOptions={timeTypeOptions} />
       <SubmitButton>Log time</SubmitButton>
     </form>
   );
@@ -246,6 +255,7 @@ export function TimeEntryRow({
   technicians,
   canDelete,
   readOnly,
+  timeTypeOptions,
 }: {
   entry: {
     id: number;
@@ -266,6 +276,8 @@ export function TimeEntryRow({
   technicians: Option[];
   canDelete: boolean;
   readOnly: boolean;
+  /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
+  timeTypeOptions: string[];
 }) {
   const [editing, setEditing] = useState(false);
   const [editState, editAction] = useActionState<ActionState, FormData>(
@@ -371,6 +383,7 @@ export function TimeEntryRow({
           </div>
           <SessionFields
             errors={errors}
+            timeTypeOptions={timeTypeOptions}
             defaults={{
               date: entry.date,
               durationMinutes: entry.durationMinutes,

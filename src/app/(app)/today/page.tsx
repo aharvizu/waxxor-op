@@ -1,9 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AlertTriangle, ArrowRight, Bell, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Bell,
+  CalendarClock,
+  CircleDollarSign,
+  ClipboardCheck,
+  MessagesSquare,
+  ShieldAlert,
+  Ticket as TicketIcon,
+  Timer,
+  UserX,
+  X,
+} from "lucide-react";
 import { requireUser, type SessionUser } from "@/lib/session";
-import { Badge, Card, CardHeader, EmptyState, Skeleton, buttonClass, buttonSecondaryClass, cx, type BadgeTone } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, Skeleton, StatCard, buttonClass, buttonSecondaryClass, cx, type BadgeTone } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   activityStatusMeta,
@@ -35,7 +48,7 @@ import {
 } from "@/lib/today-rules";
 import { getOrgRenewals } from "@/lib/company360-data";
 import { getUserProjectSignals } from "@/lib/project-data";
-import { getRecurrenceSummary, getUserRecurrenceSignals } from "@/lib/recurrence-data";
+import { getUserRecurrenceSignals } from "@/lib/recurrence-data";
 import { getUserReportSignals } from "@/lib/indicator-data";
 import {
   defaultScopeFor,
@@ -257,11 +270,10 @@ async function CoreSections({
   let unassigned: { tickets: number; activities: number };
   let timeToday: number;
   let userRows: { id: number; name: string }[];
-  let recurrenceSummary: { scheduledToday: number; inError: number; generatedToday: number };
   let statusRows: TicketStatusOption[];
   let priorityRows: TicketPriorityOption[];
   try {
-    [items, unassigned, timeToday, userRows, recurrenceSummary, statusRows, priorityRows] = await Promise.all([
+    [items, unassigned, timeToday, userRows, statusRows, priorityRows] = await Promise.all([
       getTodayItems(user, scope),
       getUnassignedCounts(user.organizationId),
       getTimeLoggedOn(user, scope, date),
@@ -272,7 +284,6 @@ async function CoreSections({
           and(eq(users.organizationId, user.organizationId), ne(users.role, "client")),
         )
         .orderBy(asc(users.name)),
-      getRecurrenceSummary(user.organizationId),
       listTicketStatuses(user.organizationId, { includeInactive: true }),
       listTicketPriorities(user.organizationId, { includeInactive: true }),
     ]);
@@ -369,19 +380,17 @@ async function CoreSections({
     );
   });
 
-  const indicators: [string, number, string][] = [
-    ["Para hoy", counts.dueToday, qs({ filter: "today" })],
-    ["Vencidos", counts.overdue, qs({ filter: "overdue" })],
-    ["Tickets nuevos", counts.newTickets, "/helpdesk?status=new"],
-    ["Sin asignar", counts.unassignedTickets + counts.unassignedActivities, qs({ filter: "unassigned" })],
-    ["SLA en riesgo", counts.slaAtRisk, qs({ filter: "sla_risk" })],
-    ["SLA vencidos", counts.slaBreached, "/helpdesk?quick=overdue"],
-    ["Por confirmar", counts.pendingConfirmation, qs({ filter: "pending_confirmation" })],
-    ["Conversaciones", counts.unansweredConversations, "#messages"],
-    ["Cobro por revisar", counts.billingReview, "/helpdesk?billing=pending_review"],
-    ["Recurrencias hoy", recurrenceSummary.scheduledToday, "/recurring?quick=today"],
-    ["Recurrencias con error", recurrenceSummary.inError, "/recurring?quick=errors"],
-    ["Generado hoy (recurrente)", recurrenceSummary.generatedToday, "/recurring"],
+  // Most urgent first — the point is to read what matters most without scanning the whole row.
+  const indicators: [string, number, string, typeof AlertTriangle][] = [
+    ["Vencidos", counts.overdue, qs({ filter: "overdue" }), AlertTriangle],
+    ["SLA vencidos", counts.slaBreached, "/helpdesk?quick=overdue", ShieldAlert],
+    ["SLA en riesgo", counts.slaAtRisk, qs({ filter: "sla_risk" }), Timer],
+    ["Sin asignar", counts.unassignedTickets + counts.unassignedActivities, qs({ filter: "unassigned" }), UserX],
+    ["Para hoy", counts.dueToday, qs({ filter: "today" }), CalendarClock],
+    ["Tickets nuevos", counts.newTickets, "/helpdesk?status=new", TicketIcon],
+    ["Por confirmar", counts.pendingConfirmation, qs({ filter: "pending_confirmation" }), ClipboardCheck],
+    ["Conversaciones", counts.unansweredConversations, "#messages", MessagesSquare],
+    ["Cobro por revisar", counts.billingReview, "/helpdesk?billing=pending_review", CircleDollarSign],
   ];
 
   return (
@@ -398,18 +407,14 @@ async function CoreSections({
             · {formatMinutes(timeToday)} registrados {date === new Date().toISOString().slice(0, 10) ? "hoy" : `el ${fmtDate(date)}`}
           </span>
         </p>
-        <div className="flex flex-wrap gap-2">
-          {indicators.map(([label, value, href]) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+          {indicators.map(([label, value, href, Icon]) => (
             <Link
               key={label}
               href={href}
-              className={cx(
-                "flex items-baseline gap-2 rounded-lg border border-edge bg-surface px-3 py-2 shadow-card transition-colors hover:border-primary/30 hover:bg-primary-soft/40",
-                value === 0 && "opacity-60",
-              )}
+              className={cx("rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60", value === 0 && "opacity-60")}
             >
-              <span className="text-lg font-semibold tabular-nums">{value}</span>
-              <span className="text-xs text-muted">{label}</span>
+              <StatCard icon={<Icon />} label={label} value={String(value)} />
             </Link>
           ))}
         </div>

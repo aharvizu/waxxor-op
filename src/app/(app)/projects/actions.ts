@@ -28,7 +28,6 @@ import {
   success,
   unexpectedError,
 } from "@/lib/action-result";
-import { activityTypeSchema } from "@/lib/activities";
 import { diffFields, recordAudit } from "@/lib/audit";
 import {
   MAX_ATTACHMENT_BYTES,
@@ -52,7 +51,7 @@ import {
   wouldCreateDependencyCycle,
 } from "@/lib/projects";
 import { requireRole, requireUser, type SessionUser } from "@/lib/session";
-import { getSetting } from "@/lib/settings-data";
+import { getCatalogNames, getSetting } from "@/lib/settings-data";
 import { projectTemplateConfigSchema } from "@/lib/settings";
 import { createWorkItem, updateWorkItemFields } from "@/lib/work-items";
 
@@ -925,7 +924,7 @@ const projectActivitySchema = z.object({
   parentActivityId: optionalId,
   title: z.string("Título requerido.").trim().min(1, "Título requerido."),
   description: optionalText,
-  activityType: activityTypeSchema.default("general"),
+  activityType: z.string().trim().min(1).default("general"),
   priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
   assigneeId: optionalId,
   startDate: optionalDate,
@@ -969,6 +968,10 @@ export async function createProjectActivity(
   if (error) return error;
   try {
     await db.transaction(async (tx) => {
+      const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+      if (!validTypes.includes(data.activityType)) {
+        throw new RuleError("Selecciona un tipo del catálogo.");
+      }
       const project = await loadProject(tx, user, data.projectId);
       assertOperational(project);
       const list = await loadList(tx, user, data.listId);

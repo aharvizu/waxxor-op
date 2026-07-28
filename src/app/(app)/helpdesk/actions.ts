@@ -68,7 +68,6 @@ import {
   updateWorkItemFields,
   workItemPrioritySchema,
 } from "@/lib/work-items";
-import { activityTypeSchema } from "@/lib/activities";
 import { FieldValidationError, setValues } from "@/lib/custom-fields";
 
 class TicketNotFoundError extends Error {}
@@ -87,6 +86,7 @@ class LinkError extends Error {}
 class DropdownStatusError extends Error {}
 /** Category must come from the org's ticket_category catalog — no free text. */
 class InvalidCategoryError extends Error {}
+class InvalidActivityTypeError extends Error {}
 
 /* ------------------------------------------------------------- primitives */
 
@@ -277,6 +277,9 @@ function ticketError(err: unknown): ActionState {
   if (err instanceof InvalidCategoryError) {
     return businessError("Selecciona una categoría del catálogo.");
   }
+  if (err instanceof InvalidActivityTypeError) {
+    return businessError("Selecciona un tipo del catálogo.");
+  }
   return unexpectedError(err);
 }
 
@@ -294,7 +297,7 @@ const createTicketSchema = z.object({
   companyId: optionalId,
   contactId: optionalId,
   assigneeId: optionalId,
-  category: optionalText,
+  category: z.string("Category is required.").trim().min(1, "Category is required."),
   subcategory: optionalText,
   channel: optionalText,
   modality: optionalText,
@@ -317,6 +320,10 @@ export async function createTicket(
   let ticketId: number;
   try {
     ticketId = await db.transaction(async (tx) => {
+      // Category must come from the org's active catalog — never new free text.
+      const validCategories = await getCatalogNames(user.organizationId, "ticket_category");
+      if (!validCategories.includes(data.category)) throw new InvalidCategoryError();
+
       const priority = data.priorityId
         ? await getTicketPriority(tx, user.organizationId, data.priorityId)
         : await getDefaultTicketPriority(tx, user.organizationId);
@@ -383,7 +390,7 @@ export async function createTicket(
       return ticket.id;
     });
   } catch (err) {
-    return unexpectedError(err);
+    return ticketError(err);
   }
 
   try {
@@ -727,6 +734,10 @@ export async function resolveTicket(
   try {
     await db.transaction(async (tx) => {
       const row = await loadTicket(tx, user, data.id);
+      if (data.category !== row.ticket.category) {
+        const validCategories = await getCatalogNames(user.organizationId, "ticket_category");
+        if (!validCategories.includes(data.category)) throw new InvalidCategoryError();
+      }
       const now = new Date();
 
       const resolvedStatus = await getTicketStatusBySemanticKey(tx, user.organizationId, "RESOLVED");
@@ -1228,7 +1239,7 @@ export async function deleteMessage(
 const relatedActivitySchema = z.object({
   id: z.coerce.number().int().positive(), // ticket id
   title: z.string("Title is required.").trim().min(1, "Title is required."),
-  activityType: activityTypeSchema.default("general"),
+  activityType: z.string().trim().min(1).default("general"),
   priority: workItemPrioritySchema.default("medium"),
   assigneeId: optionalId,
   dueDate: optionalText,
@@ -1246,6 +1257,9 @@ export async function createRelatedActivity(
 
   try {
     await db.transaction(async (tx) => {
+      const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+      if (!validTypes.includes(data.activityType)) throw new InvalidActivityTypeError();
+
       const row = await loadTicket(tx, user, data.id);
       const item = await createWorkItem(tx, user, {
         type: "activity",

@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { and, asc, desc, eq, ilike, isNull } from "drizzle-orm";
-import { Plus } from "lucide-react";
 import { db } from "@/db";
 import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
-import { PageHeader, buttonClass } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { ACTIVITY_STATUSES, type ActivityStatus } from "@/lib/activities";
 import {
   ACTIVITY_FIELDS,
@@ -19,7 +17,9 @@ import {
   type FilterGroup,
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
+import { getCatalogNames } from "@/lib/settings-data";
 import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
+import { NewActivityButton } from "./activity-form";
 import { ACTIVITY_COLUMN_OPTIONS, ACTIVITY_KANBAN_GROUP_OPTIONS, type ActivityRow } from "./activity-views";
 import { ActivitiesViewContent } from "./activities-view-content";
 
@@ -118,16 +118,21 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     .where(eq(users.organizationId, user.organizationId))
     .orderBy(asc(users.name));
 
+  const [companyRows, activityTypeOptions] = await Promise.all([
+    db
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
+    getCatalogNames(user.organizationId, "activity_type"),
+  ]);
+
   return (
     <div>
       <PageHeader
         title="Activities"
         subtitle="Standalone work — follow-ups, meetings, internal tasks — that isn't a ticket or a project."
-        action={
-          <Link href="/activities/new" className={buttonClass}>
-            <Plus /> New activity
-          </Link>
-        }
+        action={<NewActivityButton companies={companyRows} activityTypeOptions={activityTypeOptions} />}
       />
 
       <ActivitiesViewContent

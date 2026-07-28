@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { inputClass, labelClass } from "@/components/ui";
+import { Plus } from "lucide-react";
+import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { Modal } from "@/components/modal";
 import { SubmitButton } from "@/components/submit-button";
 import { CustomFieldsForm } from "@/components/custom-fields-form";
 import type { ActionState } from "@/lib/action-result";
@@ -12,16 +14,7 @@ import { createTicket } from "../actions";
 type Option = { id: number; name: string };
 type ContactOption = { id: number; name: string; companyId: number };
 
-export function NewTicketForm({
-  companies,
-  contacts,
-  users,
-  slas,
-  priorities,
-  defaultCompanyId,
-  categoryOptions = [],
-  customFields = [],
-}: {
+type NewTicketFormProps = {
   companies: Option[];
   contacts: ContactOption[];
   users: Option[];
@@ -33,7 +26,18 @@ export function NewTicketForm({
   categoryOptions?: string[];
   /** Active Custom Fields for module "tickets" (Settings → Campos Personalizados). */
   customFields?: CustomFieldDefinition[];
-}) {
+};
+
+export function NewTicketForm({
+  companies,
+  contacts,
+  users,
+  slas,
+  priorities,
+  defaultCompanyId,
+  categoryOptions = [],
+  customFields = [],
+}: NewTicketFormProps) {
   const [state, formAction] = useActionState<ActionState, FormData>(createTicket, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   const [companyId, setCompanyId] = useState(defaultCompanyId ? String(defaultCompanyId) : "");
@@ -105,16 +109,26 @@ export function NewTicketForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="category" className={labelClass}>
-            Category (optional)
+            Category
           </label>
-          <input id="category" name="category" list="ticket-category-options" className={inputClass} />
-          {categoryOptions.length > 0 ? (
-            <datalist id="ticket-category-options">
-              {categoryOptions.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          ) : null}
+          <select
+            id="category"
+            name="category"
+            required
+            defaultValue=""
+            aria-invalid={errors.category ? true : undefined}
+            className={inputClass}
+          >
+            <option value="" disabled>
+              — Select —
+            </option>
+            {categoryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <FieldError errors={errors.category} />
         </div>
         <div>
           <label htmlFor="channel" className={labelClass}>
@@ -173,5 +187,27 @@ export function NewTicketForm({
       {customFields.length > 0 ? <CustomFieldsForm fields={customFields} errors={errors} /> : null}
       <SubmitButton>Create ticket</SubmitButton>
     </form>
+  );
+}
+
+/** Trigger + modal for the Helpdesk list header — creation redirects to the new ticket on success, which closes this by leaving the route. */
+export function NewTicketButton(props: NewTicketFormProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        Nuevo ticket
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Nuevo ticket"
+        description="Empieza como Nuevo (o Asignado si ya tiene responsable) y toma el SLA de su prioridad automáticamente."
+        className="max-w-2xl"
+      >
+        <NewTicketForm {...props} />
+      </Modal>
+    </>
   );
 }

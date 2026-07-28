@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState, useId, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useActionState, useEffect, useId, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { Modal } from "@/components/modal";
 import { SubmitButton } from "@/components/submit-button";
 import {
   Badge,
+  buttonClass,
   buttonDangerClass,
   buttonSecondaryClass,
   cx,
@@ -297,10 +299,20 @@ function CatalogRow({
 /* Users                                                               */
 /* ------------------------------------------------------------------ */
 
-export function InviteUserForm({ roles }: { roles: { value: string; label: string }[] }) {
+export function InviteUserForm({
+  roles,
+  onSuccess,
+}: {
+  roles: { value: string; label: string }[];
+  onSuccess?: () => void;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(inviteUser, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   const id = useId();
+
+  useEffect(() => {
+    if (state?.ok) onSuccess?.();
+  }, [state, onSuccess]);
   return (
     <form action={formAction} className="space-y-3">
       <FormAlert state={state} />
@@ -333,6 +345,27 @@ export function InviteUserForm({ roles }: { roles: { value: string; label: strin
         Watson no envía correos: comparte el enlace de invitación que aparecerá en la tabla.
       </p>
     </form>
+  );
+}
+
+/** Trigger + modal for the Usuarios header — the activation link appears in the table below, not in the form, so the modal can safely close on success. */
+export function NewUserButton({ roles }: { roles: { value: string; label: string }[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        Invitar usuario
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Invitar usuario"
+        description="Crea la cuenta y comparte el enlace de activación (Watson no envía correos)."
+      >
+        <InviteUserForm roles={roles} onSuccess={() => setOpen(false)} />
+      </Modal>
+    </>
   );
 }
 

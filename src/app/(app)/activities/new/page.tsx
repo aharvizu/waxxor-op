@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { companies } from "@/db/schema";
+import { getCatalogNames } from "@/lib/settings-data";
 import { requireUser } from "@/lib/session";
 import { Card, PageHeader } from "@/components/ui";
 import { ActivityForm } from "../activity-form";
@@ -16,11 +17,14 @@ export default async function NewActivityPage({
   const user = await requireUser();
   const { type, companyId } = await searchParams;
   const defaultCompanyId = companyId ? Number(companyId) : undefined;
-  const companyRows = await db
-    .select({ id: companies.id, name: companies.name })
-    .from(companies)
-    .where(eq(companies.organizationId, user.organizationId))
-    .orderBy(asc(companies.name));
+  const [companyRows, activityTypeOptions] = await Promise.all([
+    db
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
+    getCatalogNames(user.organizationId, "activity_type"),
+  ]);
 
   return (
     <div className="max-w-2xl">
@@ -31,6 +35,7 @@ export default async function NewActivityPage({
       <Card className="p-6">
         <ActivityForm
           companies={companyRows}
+          activityTypeOptions={activityTypeOptions}
           submitLabel="Create activity"
           defaultType={type}
           defaultCompanyId={

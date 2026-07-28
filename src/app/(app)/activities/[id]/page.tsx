@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { activityStatusMeta, activityTypeMeta } from "@/lib/labels";
+import { getCatalogNames } from "@/lib/settings-data";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { ActivityForm } from "../activity-form";
 import { TransitionButtons, WorkflowCard } from "../activity-controls";
@@ -42,7 +43,7 @@ export default async function ActivityPage({
     redirect(`/helpdesk/${row.activity.convertedTicketId}`);
   }
 
-  const [companyRows, userRows] = await Promise.all([
+  const [companyRows, userRows, activityTypeOptions] = await Promise.all([
     db
       .select({ id: companies.id, name: companies.name })
       .from(companies)
@@ -53,6 +54,7 @@ export default async function ActivityPage({
       .from(users)
       .where(eq(users.organizationId, user.organizationId))
       .orderBy(asc(users.name)),
+    getCatalogNames(user.organizationId, "activity_type"),
   ]);
 
   const a = row.activity;
@@ -81,6 +83,13 @@ export default async function ActivityPage({
           completed={w.status === "completed"}
           archived={archived}
         />
+        <WorkflowCard
+          activityId={a.id}
+          status={w.status}
+          assigneeId={w.assigneeId}
+          users={userRows}
+          archived={archived}
+        />
         {!archived ? (
           <Link href={`/activities/${a.id}/convert`} className={buttonSecondaryClass}>
             <ArrowRightLeft /> Convert to ticket
@@ -91,69 +100,55 @@ export default async function ActivityPage({
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="overflow-hidden lg:col-span-2">
-          <CardHeader
-            title="Details"
-            description={
-              archived
-                ? "This activity is archived — restore it to make changes."
-                : "Everything about this activity."
-            }
-          />
-          <div className="p-6">
-            {archived ? (
-              <dl className="space-y-3 text-sm">
+      <Card className="overflow-hidden">
+        <CardHeader
+          title="Details"
+          description={
+            archived
+              ? "This activity is archived — restore it to make changes."
+              : "Everything about this activity."
+          }
+        />
+        <div className="p-6">
+          {archived ? (
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="font-medium text-faint">Description</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-fg">
+                  {w.description ?? "—"}
+                </dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <dt className="font-medium text-faint">Description</dt>
-                  <dd className="mt-1 whitespace-pre-wrap text-fg">
-                    {w.description ?? "—"}
-                  </dd>
+                  <dt className="font-medium text-faint">Start date</dt>
+                  <dd className="mt-1 text-muted">{w.startDate ? fmtDate(w.startDate) : "—"}</dd>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <dt className="font-medium text-faint">Start date</dt>
-                    <dd className="mt-1 text-muted">{w.startDate ? fmtDate(w.startDate) : "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-faint">Due date</dt>
-                    <dd className="mt-1 text-muted">{w.dueDate ? fmtDate(w.dueDate) : "—"}</dd>
-                  </div>
+                <div>
+                  <dt className="font-medium text-faint">Due date</dt>
+                  <dd className="mt-1 text-muted">{w.dueDate ? fmtDate(w.dueDate) : "—"}</dd>
                 </div>
-              </dl>
-            ) : (
-              <ActivityForm
-                activity={{
-                  id: a.id,
-                  title: w.title,
-                  description: w.description,
-                  activityType: a.activityType,
-                  priority: w.priority,
-                  companyId: w.companyId,
-                  startDate: w.startDate,
-                  dueDate: w.dueDate,
-                  estimatedMinutes: w.estimatedMinutes,
-                }}
-                companies={companyRows}
-                submitLabel="Save changes"
-              />
-            )}
-          </div>
-        </Card>
-
-        <Card className="h-fit overflow-hidden">
-          <CardHeader title="Workflow" description="Status and owner." />
-          <div className="p-5">
-            <WorkflowCard
-              activityId={a.id}
-              status={w.status}
-              assigneeId={w.assigneeId}
-              users={userRows}
-              archived={archived}
+              </div>
+            </dl>
+          ) : (
+            <ActivityForm
+              activity={{
+                id: a.id,
+                title: w.title,
+                description: w.description,
+                activityType: a.activityType,
+                priority: w.priority,
+                companyId: w.companyId,
+                startDate: w.startDate,
+                dueDate: w.dueDate,
+                estimatedMinutes: w.estimatedMinutes,
+              }}
+              companies={companyRows}
+              activityTypeOptions={activityTypeOptions}
+              submitLabel="Save changes"
             />
-          </div>
-        </Card>
-      </div>
+          )}
+        </div>
+      </Card>
 
       <div className="mt-6">
         <TimeEntriesCard workItemId={w.id} readOnly={archived} />

@@ -6,12 +6,18 @@ import {
   AlertTriangle,
   Archive,
   BookOpen,
+  Briefcase,
   Building2,
   CircleDollarSign,
   Clock,
+  ClipboardList,
+  FileSignature,
   FileText,
+  FolderKanban,
   History,
+  LayoutGrid,
   MessagesSquare,
+  Pencil,
   Plus,
   RefreshCw,
   Repeat,
@@ -47,8 +53,6 @@ import {
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import {
   activityStatusMeta,
-  clientServiceStatusMeta,
-  clientServiceTypeMeta,
   companyStatusMeta,
   contactTypeMeta,
   contractStatusMeta,
@@ -62,7 +66,6 @@ import {
   renewalBucketMeta,
   reportStatusMeta,
   reportTypeMeta,
-  supportCoverageMeta,
   ticketBillingMeta,
   ticketPriorityMeta,
   ticketStatusMeta,
@@ -88,50 +91,70 @@ import {
   cx,
 } from "@/components/ui";
 import {
+  AddContactButton,
+  AddServiceButton,
+  CompanyAlerts,
   CompanyProfileForm,
-  ClientServiceForm,
-  ContactForm,
   ContractForm,
   Disclosure,
   NoteComposer,
   NoteEditor,
   RenewalInlineForm,
   RowAction,
-  ServiceCatalogForm,
+  ServicesTable,
 } from "../company360-forms";
 
 export const metadata: Metadata = { title: "Empresa 360" };
 
+/**
+ * Vertical nav instead of a long horizontal tab strip (16 sections don't fit
+ * one row) — same pattern as Settings (`settings-nav.tsx`): a left-hand list
+ * that becomes a wrapping pill row below `lg`, a proper sidebar above it.
+ * Matches Untitled UI's own "Vertical tabs" / sidebar-navigation components,
+ * which it recommends over horizontal tabs for record/detail pages with many
+ * sections (2026-07-28).
+ */
 const TABS = [
-  ["resumen", "Resumen"],
-  ["contactos", "Contactos"],
-  ["servicios", "Servicios"],
-  ["contratos", "Contratos"],
-  ["renovaciones", "Renovaciones"],
-  ["tickets", "Tickets"],
-  ["actividades", "Actividades"],
-  ["proyectos", "Proyectos"],
-  ["recurrentes", "Recurrentes"],
-  ["conversaciones", "Conversaciones"],
-  ["conocimiento", "Conocimiento"],
-  ["tiempo", "Tiempo"],
-  ["cobros", "Cobros"],
-  ["reportes", "Reportes"],
-  ["notas", "Notas"],
-  ["historial", "Historial"],
+  ["resumen", "Resumen", LayoutGrid],
+  ["contactos", "Contactos", Users],
+  ["servicios", "Servicios", Briefcase],
+  ["contratos", "Contratos", FileSignature],
+  ["renovaciones", "Renovaciones", RefreshCw],
+  ["tickets", "Tickets", Ticket],
+  ["actividades", "Actividades", ClipboardList],
+  ["proyectos", "Proyectos", FolderKanban],
+  ["recurrentes", "Recurrentes", Repeat],
+  ["conversaciones", "Conversaciones", MessagesSquare],
+  ["conocimiento", "Conocimiento", BookOpen],
+  ["tiempo", "Tiempo", Clock],
+  ["cobros", "Cobros", CircleDollarSign],
+  ["reportes", "Reportes", FileText],
+  ["notas", "Notas", StickyNote],
+  ["historial", "Historial", History],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-function TabLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+function TabLink({
+  href,
+  active,
+  icon: Icon,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  icon: typeof Users;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cx(
-        "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-        active ? "bg-primary-soft text-primary" : "text-muted hover:bg-subtle hover:text-fg",
+        "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+        active ? "bg-subtle font-medium text-fg" : "text-muted hover:bg-subtle hover:text-fg",
       )}
     >
+      <Icon className="size-4 shrink-0" aria-hidden />
       {children}
     </Link>
   );
@@ -261,28 +284,7 @@ export default async function ClientDetailPage({
         }
       />
 
-      {alerts.length > 0 ? (
-        <div className="mb-6 space-y-2">
-          {alerts.map((a) => (
-            <Link
-              key={a.key}
-              href={a.href}
-              className={cx(
-                "flex items-center gap-3 rounded-lg border px-4 py-2.5 text-sm transition-colors",
-                a.severity === "high"
-                  ? "border-red-600/20 bg-red-50 text-red-800 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300"
-                  : a.severity === "medium"
-                    ? "border-amber-600/20 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-400/10 dark:text-amber-300"
-                    : "border-edge bg-subtle text-muted hover:bg-subtle/70",
-              )}
-            >
-              <AlertTriangle className="size-4 shrink-0" />
-              <span className="font-medium">{a.title}</span>
-              <span className="text-xs opacity-80">{a.detail}</span>
-            </Link>
-          ))}
-        </div>
-      ) : null}
+      <CompanyAlerts alerts={alerts} />
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard icon={<Ticket />} label="Tickets abiertos" value={String(summary.openTickets)} />
@@ -297,72 +299,80 @@ export default async function ClientDetailPage({
         <StatCard icon={<RefreshCw />} label="Contratos activos" value={String(summary.activeContracts)} />
       </div>
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-edge pb-px">
-        {TABS.map(([key, label]) => (
-          <TabLink key={key} href={`/companies/${companyId}?tab=${key}`} active={tab === key}>
-            {label}
-          </TabLink>
-        ))}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <nav aria-label="Secciones de la empresa" className="lg:w-56 lg:shrink-0">
+          <ul className="flex flex-wrap gap-1 lg:flex-col">
+            {TABS.map(([key, label, Icon]) => (
+              <li key={key}>
+                <TabLink href={`/companies/${companyId}?tab=${key}`} active={tab === key} icon={Icon}>
+                  {label}
+                </TabLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="min-w-0 flex-1">
+          {tab === "resumen" ? (
+            <ResumenTab
+              client={client}
+              internalUsers={internalUsers}
+              renewalItems={renewalItems}
+              now={now}
+            />
+          ) : null}
+
+          {tab === "contactos" ? <ContactosTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "servicios" ? (
+            <ServiciosTab companyId={companyId} orgId={user.organizationId} servicesList={servicesList} now={now} />
+          ) : null}
+
+          {tab === "contratos" ? (
+            <ContratosTab
+              companyId={companyId}
+              orgId={user.organizationId}
+              contractsList={contractsList}
+              now={now}
+              canDelete={user.role === "superadmin"}
+            />
+          ) : null}
+
+          {tab === "renovaciones" ? (
+            <RenovacionesTab companyId={companyId} renewalItems={renewalItems} now={now} />
+          ) : null}
+
+          {tab === "tickets" ? <TicketsTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "actividades" ? <ActividadesTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "proyectos" ? <ProyectosTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "recurrentes" ? (
+            <RecurrentesTab companyId={companyId} rows={clientRecurrences} now={now} />
+          ) : null}
+
+          {tab === "conversaciones" ? (
+            <ConversacionesTab companyId={companyId} orgId={user.organizationId} />
+          ) : null}
+
+          {tab === "conocimiento" ? <ConocimientoTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "tiempo" ? <TiempoTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "cobros" ? <CobrosTab companyId={companyId} orgId={user.organizationId} /> : null}
+
+          {tab === "reportes" ? <ReportesTab companyId={companyId} rows={clientReports} /> : null}
+
+          {tab === "notas" ? (
+            <NotasTab companyId={companyId} orgId={user.organizationId} currentUserId={Number(user.id)} />
+          ) : null}
+
+          {tab === "historial" ? (
+            <HistorialTab companyId={companyId} orgId={user.organizationId} canSeeTechnical={canSeeTechnicalAudit} />
+          ) : null}
+        </div>
       </div>
-
-      {tab === "resumen" ? (
-        <ResumenTab
-          client={client}
-          internalUsers={internalUsers}
-          renewalItems={renewalItems}
-          now={now}
-        />
-      ) : null}
-
-      {tab === "contactos" ? <ContactosTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "servicios" ? (
-        <ServiciosTab companyId={companyId} orgId={user.organizationId} servicesList={servicesList} now={now} />
-      ) : null}
-
-      {tab === "contratos" ? (
-        <ContratosTab
-          companyId={companyId}
-          orgId={user.organizationId}
-          contractsList={contractsList}
-          now={now}
-          canDelete={user.role === "superadmin"}
-        />
-      ) : null}
-
-      {tab === "renovaciones" ? (
-        <RenovacionesTab companyId={companyId} renewalItems={renewalItems} now={now} />
-      ) : null}
-
-      {tab === "tickets" ? <TicketsTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "actividades" ? <ActividadesTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "proyectos" ? <ProyectosTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "recurrentes" ? (
-        <RecurrentesTab companyId={companyId} rows={clientRecurrences} now={now} />
-      ) : null}
-
-      {tab === "conversaciones" ? (
-        <ConversacionesTab companyId={companyId} orgId={user.organizationId} />
-      ) : null}
-
-      {tab === "conocimiento" ? <ConocimientoTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "tiempo" ? <TiempoTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "cobros" ? <CobrosTab companyId={companyId} orgId={user.organizationId} /> : null}
-
-      {tab === "reportes" ? <ReportesTab companyId={companyId} rows={clientReports} /> : null}
-
-      {tab === "notas" ? (
-        <NotasTab companyId={companyId} orgId={user.organizationId} currentUserId={Number(user.id)} />
-      ) : null}
-
-      {tab === "historial" ? (
-        <HistorialTab companyId={companyId} orgId={user.organizationId} canSeeTechnical={canSeeTechnicalAudit} />
-      ) : null}
     </div>
   );
 }
@@ -439,9 +449,7 @@ async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: nu
   const contactsList = await getClientContacts(orgId, companyId);
   return (
     <div className="space-y-6">
-      <Disclosure label="+ Agregar contacto">
-        <ContactForm companyId={companyId} />
-      </Disclosure>
+      <AddContactButton companyId={companyId} />
       {contactsList.length === 0 ? (
         <EmptyState icon={<Users />} title="Sin contactos">
           Agrega el primer contacto de este cliente.
@@ -463,10 +471,13 @@ async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: nu
               {contactsList.map((c) => (
                 <tr key={c.id} className={cx(!c.isActive && "opacity-60")}>
                   <Td>
-                    <span className="flex items-center gap-2 font-medium text-fg">
+                    <Link
+                      href={`/contacts/${c.id}`}
+                      className="flex items-center gap-2 font-medium text-fg hover:text-primary"
+                    >
                       {c.firstName} {c.lastName}
                       {c.isPrimary ? <Badge tone="blue">Principal</Badge> : null}
-                    </span>
+                    </Link>
                     {c.jobTitle || c.department ? (
                       <span className="block text-xs text-muted">
                         {[c.jobTitle, c.department].filter(Boolean).join(" · ")}
@@ -483,6 +494,13 @@ async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: nu
                   <Td>{c.isActive ? <Badge tone="green">Activo</Badge> : <Badge tone="slate">Archivado</Badge>}</Td>
                   <Td>
                     <div className="flex items-center gap-1">
+                      <Link
+                        href={`/contacts/${c.id}`}
+                        title="Editar contacto"
+                        className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-subtle hover:text-fg"
+                      >
+                        <Pencil className="size-3.5" />
+                      </Link>
                       {!c.isPrimary && c.isActive ? (
                         <RowAction action="setPrimaryContact" fields={{ id: c.id }} label="Hacer principal" />
                       ) : null}
@@ -499,32 +517,6 @@ async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: nu
           </Table>
         </Card>
       )}
-
-      {contactsList.length > 0 ? (
-        <div className="space-y-3">
-          {contactsList.map((c) => (
-            <Disclosure key={c.id} label={`Editar: ${c.firstName} ${c.lastName}`}>
-              <ContactForm
-                companyId={companyId}
-                contact={{
-                  id: c.id,
-                  firstName: c.firstName,
-                  lastName: c.lastName,
-                  jobTitle: c.jobTitle,
-                  department: c.department,
-                  email: c.email,
-                  phone: c.phone,
-                  mobile: c.mobile,
-                  whatsappNumber: c.whatsappNumber,
-                  contactType: c.contactType,
-                  isPrimary: c.isPrimary,
-                  notes: c.notes,
-                }}
-              />
-            </Disclosure>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -550,23 +542,7 @@ async function ServiciosTab({
 
   return (
     <div className="space-y-6">
-      <Disclosure label="+ Contratar servicio">
-        {catalog.length === 0 ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted">
-              Aún no hay servicios en el catálogo de la organización. Crea uno primero.
-            </p>
-            <ServiceCatalogForm />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <Disclosure label="+ Nuevo servicio en catálogo">
-              <ServiceCatalogForm companyId={companyId} />
-            </Disclosure>
-            <ClientServiceForm companyId={companyId} servicesCatalog={catalog} />
-          </div>
-        )}
-      </Disclosure>
+      <AddServiceButton companyId={companyId} servicesCatalog={catalog} />
 
       {servicesList.length === 0 ? (
         <EmptyState icon={<Building2 />} title="Sin servicios contratados">
@@ -574,80 +550,32 @@ async function ServiciosTab({
           administrado. El tipo se distingue con la etiqueta &quot;Tipo&quot; de cada fila.
         </EmptyState>
       ) : (
-        <Card className="overflow-visible">
-          <Table>
-            <THead>
-              <tr>
-                <Th>Servicio</Th>
-                <Th>Tipo</Th>
-                <Th>Estado</Th>
-                <Th>Cobertura</Th>
-                <Th>Proveedor</Th>
-                <Th>Precio</Th>
-                <Th>Renovación</Th>
-              </tr>
-            </THead>
-            <tbody className="divide-y divide-edge">
-              {servicesList.map(({ cs, serviceName }) => {
-                const status = derivedServiceStatus(cs, now);
-                return (
-                  <tr key={cs.id}>
-                    <Td className="font-medium text-fg">{serviceName}</Td>
-                    <Td>
-                      <Badge tone={clientServiceTypeMeta[cs.serviceType]?.tone ?? "slate"}>
-                        {clientServiceTypeMeta[cs.serviceType]?.label ?? cs.serviceType}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge tone={clientServiceStatusMeta[status]?.tone ?? "slate"}>
-                        {clientServiceStatusMeta[status]?.label ?? status}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge tone={supportCoverageMeta[cs.supportCoverage]?.tone ?? "slate"}>
-                        {supportCoverageMeta[cs.supportCoverage]?.label ?? cs.supportCoverage}
-                      </Badge>
-                    </Td>
-                    <Td className="text-muted">{cs.provider ?? "—"}</Td>
-                    <Td className="tabular-nums text-muted">{cs.clientPrice ? fmtMoney(cs.clientPrice) : "—"}</Td>
-                    <Td className="text-muted">{cs.renewalDate ? fmtDate(cs.renewalDate) : "—"}</Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </Card>
+        <ServicesTable
+          companyId={companyId}
+          servicesCatalog={catalog}
+          rows={servicesList.map(({ cs, serviceName }) => ({
+            serviceName,
+            derivedStatus: derivedServiceStatus(cs, now),
+            cs: {
+              id: cs.id,
+              serviceId: cs.serviceId,
+              serviceType: cs.serviceType,
+              status: cs.status,
+              quantity: cs.quantity,
+              provider: cs.provider,
+              billingCycle: cs.billingCycle,
+              cost: cs.cost,
+              clientPrice: cs.clientPrice,
+              startDate: cs.startDate,
+              endDate: cs.endDate,
+              renewalDate: cs.renewalDate,
+              supportCoverage: cs.supportCoverage,
+              includedHours: cs.includedHours,
+              notes: cs.notes,
+            },
+          }))}
+        />
       )}
-
-      {servicesList.length > 0 && catalog.length > 0 ? (
-        <div className="space-y-3">
-          {servicesList.map(({ cs, serviceName }) => (
-            <Disclosure key={cs.id} label={`Editar: ${serviceName} (desde ${fmtDate(cs.startDate)})`}>
-              <ClientServiceForm
-                companyId={companyId}
-                servicesCatalog={catalog}
-                clientService={{
-                  id: cs.id,
-                  serviceId: cs.serviceId,
-                  serviceType: cs.serviceType,
-                  status: cs.status,
-                  quantity: cs.quantity,
-                  provider: cs.provider,
-                  billingCycle: cs.billingCycle,
-                  cost: cs.cost,
-                  clientPrice: cs.clientPrice,
-                  startDate: cs.startDate,
-                  endDate: cs.endDate,
-                  renewalDate: cs.renewalDate,
-                  supportCoverage: cs.supportCoverage,
-                  includedHours: cs.includedHours,
-                  notes: cs.notes,
-                }}
-              />
-            </Disclosure>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

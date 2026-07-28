@@ -4,6 +4,7 @@ import { timeEntries, users } from "@/db/schema";
 import { Badge, Card, CardHeader } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { formatMinutes, summarizeByUser } from "@/lib/time-entries";
+import { getCatalogNames } from "@/lib/settings-data";
 import { requireUser } from "@/lib/session";
 import { AddTimeEntryForm, TimeEntryRow } from "./time-entry-forms";
 
@@ -20,7 +21,7 @@ export async function TimeEntriesCard({
 }) {
   const user = await requireUser();
 
-  const [entries, technicianRows] = await Promise.all([
+  const [entries, technicianRows, timeTypeOptions] = await Promise.all([
     db
       .select({
         entry: timeEntries,
@@ -42,6 +43,7 @@ export async function TimeEntriesCard({
         and(eq(users.organizationId, user.organizationId), ne(users.role, "client")),
       )
       .orderBy(asc(users.name)),
+    getCatalogNames(user.organizationId, "time_entry_type"),
   ]);
 
   const active = entries.filter((e) => !e.entry.voidedAt);
@@ -117,6 +119,7 @@ export async function TimeEntriesCard({
                 technicians={technicianRows}
                 canDelete={user.role === "superadmin"}
                 readOnly={readOnly}
+                timeTypeOptions={timeTypeOptions}
               />
             ))}
           </ul>
@@ -127,6 +130,7 @@ export async function TimeEntriesCard({
             workItemId={workItemId}
             technicians={technicianRows}
             currentUserId={Number(user.id)}
+            timeTypeOptions={timeTypeOptions}
           />
         ) : null}
       </div>

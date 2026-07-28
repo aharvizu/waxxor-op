@@ -14,13 +14,13 @@ import {
   unexpectedError,
 } from "@/lib/action-result";
 import {
-  activityTypeSchema,
   activityWorkflowStatusSchema,
   completedAtFor,
   restoredStatus,
   type ActivityStatus,
 } from "@/lib/activities";
 import { diffFields, recordAudit } from "@/lib/audit";
+import { getCatalogNames } from "@/lib/settings-data";
 import { requireUser, type SessionUser } from "@/lib/session";
 import {
   ConversionError,
@@ -35,6 +35,7 @@ import {
 } from "@/lib/work-items";
 
 class ActivityNotFoundError extends Error {}
+class InvalidActivityTypeError extends Error {}
 
 /** "" or missing → null; otherwise a positive int. */
 const optionalId = z.preprocess(
@@ -57,7 +58,7 @@ const optionalMinutes = z.preprocess(
 const detailsSchema = z.object({
   title: z.string("Title is required.").trim().min(1, "Title is required."),
   description: optionalText,
-  activityType: activityTypeSchema,
+  activityType: z.string("Type is required.").trim().min(1, "Type is required."),
   priority: workItemPrioritySchema.default("medium"),
   companyId: optionalId,
   assigneeId: optionalId,
@@ -192,6 +193,9 @@ export async function createActivity(
   let activityId: number;
   try {
     activityId = await db.transaction(async (tx) => {
+      const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+      if (!validTypes.includes(data.activityType)) throw new InvalidActivityTypeError();
+
       const item = await createWorkItem(tx, user, {
         type: "activity",
         title: data.title,
@@ -223,6 +227,9 @@ export async function createActivity(
       return activity.id;
     });
   } catch (err) {
+    if (err instanceof InvalidActivityTypeError) {
+      return businessError("Selecciona un tipo del catálogo.");
+    }
     return unexpectedError(err);
   }
 
@@ -243,6 +250,10 @@ export async function updateActivityDetails(
   try {
     await db.transaction(async (tx) => {
       const { activity, item } = await loadActivity(tx, user, data.id);
+      if (data.activityType !== activity.activityType) {
+        const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+        if (!validTypes.includes(data.activityType)) throw new InvalidActivityTypeError();
+      }
 
       await updateWorkItemFields(tx, user, item.id, {
         title: data.title,
@@ -279,6 +290,9 @@ export async function updateActivityDetails(
     }
     if (err instanceof ConvertedActivityError) {
       return businessError("This activity was converted into a ticket and is read-only.");
+    }
+    if (err instanceof InvalidActivityTypeError) {
+      return businessError("Selecciona un tipo del catálogo.");
     }
     return unexpectedError(err);
   }

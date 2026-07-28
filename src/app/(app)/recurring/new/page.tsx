@@ -3,7 +3,7 @@ import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { companies, projectLists, projects, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
-import { getSetting } from "@/lib/settings-data";
+import { getCatalogNames, getSetting } from "@/lib/settings-data";
 import { Card, PageHeader } from "@/components/ui";
 import { RecurrenceWizard } from "../recurring-forms";
 
@@ -17,11 +17,13 @@ export default async function NewRecurrencePage({
   const user = await requireUser();
   const { targetType, companyId, projectId } = await searchParams;
 
-  const [companyRows, projectRows, listRows, userRows] = await Promise.all([
+  const [companyRows, projectRows, listRows, userRows, activityTypeOptions, categoryOptions] = await Promise.all([
     db.select({ id: companies.id, name: companies.name }).from(companies).where(and(eq(companies.organizationId, user.organizationId), ne(companies.status, "archived"))).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.organizationId, user.organizationId), ne(projects.status, "archived"))).orderBy(asc(projects.name)),
     db.select({ id: projectLists.id, name: projectLists.name, projectId: projectLists.projectId }).from(projectLists).where(eq(projectLists.organizationId, user.organizationId)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client"))).orderBy(asc(users.name)),
+    getCatalogNames(user.organizationId, "activity_type"),
+    getCatalogNames(user.organizationId, "ticket_category"),
   ]);
 
   const recurrenceDefaults = await getSetting(user.organizationId, "recurrence.defaults");
@@ -40,6 +42,8 @@ export default async function NewRecurrencePage({
           projects={projectRows}
           projectListsByProject={projectListsByProject}
           internalUsers={userRows}
+          activityTypeOptions={activityTypeOptions}
+          categoryOptions={categoryOptions}
           initialTargetType={targetType}
           defaults={{
             companyId: companyId ? Number(companyId) : null,

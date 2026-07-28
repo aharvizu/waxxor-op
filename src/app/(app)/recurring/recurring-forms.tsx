@@ -6,7 +6,6 @@ import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { activityTypeMeta } from "@/lib/labels";
-import { ACTIVITY_TYPES } from "@/lib/activities";
 import {
   computeNextRun,
   describeSchedule,
@@ -288,6 +287,8 @@ export function RecurrenceWizard({
   projects,
   projectListsByProject,
   internalUsers,
+  activityTypeOptions,
+  categoryOptions,
   initialTargetType,
 }: {
   defaults?: RecurrenceFormDefaults;
@@ -295,6 +296,10 @@ export function RecurrenceWizard({
   projects: Option[];
   projectListsByProject: Record<number, Option[]>;
   internalUsers: Option[];
+  /** Active names from the org's activity-type catalog (Settings → Actividades). */
+  activityTypeOptions: string[];
+  /** Active names from the org's ticket-category catalog (Settings → Tickets). */
+  categoryOptions: string[];
   initialTargetType?: string;
 }) {
   const isEdit = defaults?.id !== undefined;
@@ -525,7 +530,10 @@ export function RecurrenceWizard({
               <div>
                 <label className={labelClass}>Tipo de actividad</label>
                 <select value={activityType} onChange={(e) => setActivityType(e.target.value)} className={inputClass}>
-                  {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{activityTypeMeta[t]?.label ?? t}</option>)}
+                  {activityType && !activityTypeOptions.includes(activityType) ? (
+                    <option value={activityType}>{activityTypeMeta[activityType]?.label ?? activityType}</option>
+                  ) : null}
+                  {activityTypeOptions.map((t) => <option key={t} value={t}>{activityTypeMeta[t]?.label ?? t}</option>)}
                 </select>
               </div>
               <div>
@@ -566,7 +574,19 @@ export function RecurrenceWizard({
             <>
               <div>
                 <label className={labelClass}>Categoría</label>
-                <input value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass} placeholder="Mantenimiento" />
+                <select value={category} onChange={(e) => setCategory(e.target.value)} required className={inputClass}>
+                  <option value="" disabled>
+                    — Selecciona —
+                  </option>
+                  {category && !categoryOptions.includes(category) ? (
+                    <option value={category}>{category}</option>
+                  ) : null}
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className={labelClass}>Canal</label>

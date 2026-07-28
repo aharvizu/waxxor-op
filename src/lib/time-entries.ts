@@ -3,11 +3,15 @@ import { timeEntries } from "@/db/schema";
 
 /** Domain constants and pure rules for Time Entries — see docs/features/time-entries.md. */
 
-export const TIME_TYPES = timeEntries.timeType.enumValues;
 export const BILLING_STATUSES = timeEntries.billingStatus.enumValues;
 export const TIME_MODALITIES = timeEntries.modality.enumValues;
 
-export const timeTypeSchema = z.enum(TIME_TYPES);
+/**
+ * Time type is a catalog (Settings → Actividades → Tipos de trabajo,
+ * catalog_items kind "time_entry_type"), not an enum — see getCatalogNames.
+ * Validated per-org at the action layer, not with a static Zod enum.
+ */
+
 export const billingStatusSchema = z.enum(BILLING_STATUSES);
 export const timeModalitySchema = z.enum(TIME_MODALITIES);
 

@@ -6,11 +6,10 @@ import {
   buttonClass,
   buttonSecondaryClass,
   buttonSuccessClass,
+  cx,
   inputClass,
-  labelClass,
 } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
-import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { ACTIVITY_WORKFLOW_STATUSES } from "@/lib/activities";
 import { activityStatusMeta } from "@/lib/labels";
@@ -24,7 +23,12 @@ import {
 
 type Option = { id: number; name: string };
 
-/** Status + assignee card. Disabled while the activity is archived. */
+/**
+ * Status + assignee, compact and inline — lives in the top action row next
+ * to the other options instead of its own sidebar card, auto-submitting on
+ * change (same pattern as the Helpdesk row-action dropdowns) instead of a
+ * separate "Update" button (2026-07-28).
+ */
 export function WorkflowCard({
   activityId,
   status,
@@ -44,20 +48,17 @@ export function WorkflowCard({
   );
 
   return (
-    <form action={formAction} className="space-y-4">
-      <input type="hidden" name="id" value={activityId} />
-      <FormAlert state={state} />
-      <div>
-        <label htmlFor="status" className={labelClass}>
-          Status
-        </label>
+    <div>
+      <form action={formAction} className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="id" value={activityId} />
         <select
-          id="status"
           name="status"
           key={status}
           defaultValue={status}
           disabled={archived}
-          className={inputClass}
+          aria-label="Status"
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className={cx(inputClass, "h-9 w-auto disabled:opacity-50")}
         >
           {ACTIVITY_WORKFLOW_STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -65,18 +66,14 @@ export function WorkflowCard({
             </option>
           ))}
         </select>
-      </div>
-      <div>
-        <label htmlFor="assigneeId" className={labelClass}>
-          Assignee
-        </label>
         <select
-          id="assigneeId"
           name="assigneeId"
           key={assigneeId ?? "none"}
           defaultValue={assigneeId ?? ""}
           disabled={archived}
-          className={inputClass}
+          aria-label="Assignee"
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className={cx(inputClass, "h-9 w-auto disabled:opacity-50")}
         >
           <option value="">Unassigned</option>
           {users.map((u) => (
@@ -85,11 +82,9 @@ export function WorkflowCard({
             </option>
           ))}
         </select>
-      </div>
-      <SubmitButton className={archived ? "opacity-50" : undefined}>
-        Update
-      </SubmitButton>
-    </form>
+      </form>
+      {state && !state.ok ? <FormAlert state={state} className="mt-2" /> : null}
+    </div>
   );
 }
 

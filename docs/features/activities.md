@@ -25,9 +25,9 @@ An Activity is a `work_items` row (`type: "activity"`) plus its 1:1 specializati
 
 Added to the shared `work_item_status` enum (additive `ALTER TYPE`, as planned in `work-item-model.md`). Each module validates its own subset: helpdesk actions now use `ticketStatusSchema`, activities use `activityStatusSchema` — a ticket can never take `pending`, an activity can never take `resolved`. `archived` can only be reached through the archive action, never the status dropdown (`activityWorkflowStatusSchema` excludes it).
 
-## Types (12)
+## Types
 
-general · follow_up · meeting · research · documentation · training · review · implementation · preventive · administrative · commercial · reminder (`activity_type` enum).
+Catalog-driven since 2026-07-28 (`catalog_items` kind `activity_type`, Settings → Actividades → Tipos de actividad, `CatalogManager`) — no longer a fixed Postgres enum, so admins can add/rename/recolor/deactivate types. `activities.activity_type` is a plain `text` column validated per-org against the active catalog names at the action layer (`createActivity`/`updateActivityDetails`/`createRelatedActivity`/`createProjectActivity`), the same pattern `tickets.category` already used. Every org is seeded with the original 12 values (general · follow_up · meeting · research · documentation · training · review · implementation · preventive · administrative · commercial · reminder); "general", "meeting" and "reminder" are system-protected (can't be renamed or deleted) because Today's quick-create and recurrence key off those exact strings literally.
 
 ## Rules (implemented and tested)
 
@@ -48,7 +48,7 @@ Any internal role (superadmin, administrator, director, project_manager, technic
 |---|---|
 | `/activities` | List: view tabs **All / Mine / Unassigned / Overdue / No date / Completed / Archived** + filters by status, priority, assignee, client, type (GET form). Overdue dates render in red. Non-archived views always exclude archived rows. |
 | `/activities/new` | Creation form (`ActivityForm`) |
-| `/activities/[id]` | Detail: quick actions (Complete/Reopen, Archive/Restore), Details edit form, Workflow card (status + assignee). Archived items show a read-only summary. |
+| `/activities/[id]` | Detail: top action row has the quick actions (Complete/Reopen, Archive/Restore) plus Workflow (status + assignee, compact inline selects, auto-submit on change — moved out of its own sidebar card, 2026-07-28), then the Details edit form full-width below. Archived items show a read-only summary. Creating a new activity is a modal launched from the Activities list header (2026-07-28); the dedicated `/activities/new` page still exists for deep links that prefill a client or type. |
 
 Navigation: "Activities" added to the sidebar under **Operations** (first item, matching the PRD module order), to the ⌘K command menu (Navigate + Create) and to the topbar quick-create menu.
 

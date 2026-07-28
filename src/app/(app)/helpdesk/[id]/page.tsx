@@ -26,7 +26,7 @@ import {
   workItems,
 } from "@/db/schema";
 import { requireUser } from "@/lib/session";
-import { getCatalog } from "@/lib/settings-data";
+import { getCatalog, getCatalogNames } from "@/lib/settings-data";
 import { getArticleForTicket } from "@/lib/knowledge-data";
 import { knowledgeStatusMeta } from "@/lib/labels";
 import { canCreateDraft } from "@/lib/knowledge";
@@ -295,6 +295,7 @@ export default async function TicketPage({
   const categoryItems = await getCatalog(user.organizationId, "ticket_category");
   const categoryNames = categoryItems.filter((c) => c.parentId === null).map((c) => c.name);
   const subcategoryNames = [...new Set(categoryItems.filter((c) => c.parentId !== null).map((c) => c.name))];
+  const activityTypeOptions = await getCatalogNames(user.organizationId, "activity_type");
   const kbArticle = t.resolution ? await getArticleForTicket(user.organizationId, t.id) : null;
 
   const dropdownStatuses = statuses
@@ -312,14 +313,7 @@ export default async function TicketPage({
 
   return (
     <div>
-      {/* Shared datalists: category inputs across the panels reference them. */}
-      {categoryNames.length > 0 ? (
-        <datalist id="ticket-category-options">
-          {categoryNames.map((c) => (
-            <option key={c} value={c} />
-          ))}
-        </datalist>
-      ) : null}
+      {/* Shared datalist: subcategory inputs across the panels reference it (category is a strict <select> everywhere now). */}
       {subcategoryNames.length > 0 ? (
         <datalist id="ticket-subcategory-options">
           {subcategoryNames.map((c) => (
@@ -555,7 +549,12 @@ export default async function TicketPage({
                     ))}
                   </ul>
                 )}
-                <RelatedActivityForms ticketId={t.id} users={userRows} linkable={linkable} />
+                <RelatedActivityForms
+                  ticketId={t.id}
+                  users={userRows}
+                  linkable={linkable}
+                  activityTypeOptions={activityTypeOptions}
+                />
               </div>
             </Card>
           ) : null}
@@ -735,6 +734,7 @@ export default async function TicketPage({
                       hasTime={timeTotal.total > 0}
                       billingPending={billingPending}
                       billingStatuses={closeBillingOptions}
+                      categoryOptions={categoryNames}
                     />
                   </div>
                 </Card>

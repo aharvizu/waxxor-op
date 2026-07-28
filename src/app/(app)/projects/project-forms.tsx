@@ -11,7 +11,6 @@ import {
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { ACTIVITY_TYPES } from "@/lib/activities";
 import {
   MILESTONE_STATUSES,
   PROJECT_LIST_STATUSES,
@@ -535,12 +534,15 @@ export function ProjectActivityForm({
   projectId,
   lists,
   internalUsers,
+  activityTypeOptions,
   defaultListId,
   parentActivityId,
 }: {
   projectId: number;
   lists: Option[];
   internalUsers: Option[];
+  /** Active names from the org's activity-type catalog (Settings → Actividades). */
+  activityTypeOptions: string[];
   defaultListId?: number;
   /** Set when creating a subactivity — the list is locked to the parent's. */
   parentActivityId?: number;
@@ -575,7 +577,7 @@ export function ProjectActivityForm({
           <SelectInput
             name="activityType"
             value={value}
-            options={metaOptions(ACTIVITY_TYPES, activityTypeMeta)}
+            options={metaOptions(activityTypeOptions, activityTypeMeta)}
           />
         </Field>
         <Field label="Prioridad" name="priority" errors={errors}>

@@ -57,20 +57,6 @@ export const workItemStatus = pgEnum("work_item_status", [
   "pending_confirmation",
   "reopened",
 ]);
-export const activityType = pgEnum("activity_type", [
-  "general",
-  "follow_up",
-  "meeting",
-  "research",
-  "documentation",
-  "training",
-  "review",
-  "implementation",
-  "preventive",
-  "administrative",
-  "commercial",
-  "reminder",
-]);
 export const workItemPriority = pgEnum("work_item_priority", [
   "low",
   "medium",
@@ -284,20 +270,6 @@ export const reminderMarkStatus = pgEnum("reminder_mark_status", [
 export const slaDefinitionStatus = pgEnum("sla_definition_status", [
   "active",
   "inactive",
-]);
-export const timeType = pgEnum("time_type", [
-  "technical_work",
-  "remote_support",
-  "onsite_support",
-  "travel",
-  "waiting_customer",
-  "waiting_provider",
-  "research",
-  "documentation",
-  "meeting",
-  "training",
-  "administration",
-  "commercial",
 ]);
 export const billingStatus = pgEnum("billing_status", [
   "billable",
@@ -852,7 +824,8 @@ export const activities = pgTable("activities", {
     .notNull()
     .unique()
     .references(() => workItems.id),
-  activityType: activityType("activity_type").notNull().default("general"),
+  /** Catalog-validated (Settings → Actividades → Tipos de actividad, catalog_items kind "activity_type"), not an enum — admins can add custom types. "general", "meeting" and "reminder" are system-protected (Today's quick-create + recurrence key off them literally). */
+  activityType: text("activity_type").notNull().default("general"),
   recurrenceTemplateId: integer("recurrence_template_id"),
   archivedAt: timestamp("archived_at"),
   // Conversion tombstone: set when this activity became a ticket. The row is
@@ -893,7 +866,8 @@ export const timeEntries = pgTable(
       .references(() => users.id),
     date: date("date").notNull(),
     durationMinutes: integer("duration_minutes").notNull(),
-    timeType: timeType("time_type").notNull().default("technical_work"),
+    /** Catalog-validated (Settings → Actividades → Tipos de trabajo, catalog_items kind "time_entry_type"), not an enum — admins can add custom types. "technical_work" is system-protected (NOT NULL default). */
+    timeType: text("time_type").notNull().default("technical_work"),
     billingStatus: billingStatus("billing_status").notNull().default("pending_review"),
     modality: timeModality("modality").notNull().default("not_applicable"),
     description: text("description").notNull(),

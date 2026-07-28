@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { activities } from "@/db/schema";
 
 /** Domain constants and pure rules for Activities — see docs/features/activities.md. */
 
-export const ACTIVITY_TYPES = activities.activityType.enumValues;
-export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+/**
+ * Activity type is a catalog (Settings → Actividades → Tipos de actividad,
+ * catalog_items kind "activity_type"), not an enum — see getCatalogNames.
+ * Validated per-org at the action layer, not with a static Zod enum.
+ */
 
 /** Activity subset of the shared work_item_status enum. */
 export const ACTIVITY_STATUSES = [
@@ -23,7 +25,6 @@ export const ACTIVITY_WORKFLOW_STATUSES = ACTIVITY_STATUSES.filter(
   (s) => s !== "archived",
 );
 
-export const activityTypeSchema = z.enum(ACTIVITY_TYPES);
 export const activityStatusSchema = z.enum(ACTIVITY_STATUSES);
 export const activityWorkflowStatusSchema = z.enum(
   ACTIVITY_WORKFLOW_STATUSES as [ActivityStatus, ...ActivityStatus[]],

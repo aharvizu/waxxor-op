@@ -228,6 +228,20 @@ export const CATALOG_KINDS = {
     wired: false,
     note: "Catálogo preparado; el etiquetado de actividades llega con una fase posterior de Activities.",
   },
+  activity_type: {
+    label: "Tipos de actividad",
+    hasChildren: false,
+    childLabel: null,
+    wired: true,
+    note: "Alimenta el campo Tipo al crear/editar una Actividad (Watson, recurrencias, conversión desde Ticket/Proyecto).",
+  },
+  time_entry_type: {
+    label: "Tipos de trabajo",
+    hasChildren: false,
+    childLabel: null,
+    wired: true,
+    note: "Alimenta el campo Tipo al registrar tiempo en Actividades y Tickets.",
+  },
   project_color: {
     label: "Colores de proyecto",
     hasChildren: false,
@@ -251,6 +265,18 @@ export const CATALOG_KIND_KEYS = Object.keys(CATALOG_KINDS) as CatalogKind[];
 export function isCatalogKind(value: string): value is CatalogKind {
   return value in CATALOG_KINDS;
 }
+
+/**
+ * Names that other features key off literally (Today's quick-create,
+ * NOT NULL column defaults) and that would silently break if renamed or
+ * deleted through the generic catalog manager — unlike ticket_category,
+ * which nothing else pattern-matches on. Only rename/delete are blocked;
+ * color, description and active/inactive stay fully editable.
+ */
+export const SYSTEM_PROTECTED_CATALOG_NAMES: Partial<Record<CatalogKind, string[]>> = {
+  activity_type: ["general", "meeting", "reminder"],
+  time_entry_type: ["technical_work"],
+};
 
 /** Config payload for project_template catalog items. */
 export const projectTemplateConfigSchema = z.object({

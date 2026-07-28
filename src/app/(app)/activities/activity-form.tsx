@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
-import { inputClass, labelClass } from "@/components/ui";
+import { useActionState, useState } from "react";
+import { Plus } from "lucide-react";
+import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { Modal } from "@/components/modal";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { ACTIVITY_TYPES } from "@/lib/activities";
 import { activityTypeMeta } from "@/lib/labels";
 import { createActivity, updateActivityDetails } from "./actions";
 
@@ -34,12 +35,15 @@ const priorities = [
 export function ActivityForm({
   activity,
   companies,
+  activityTypeOptions,
   submitLabel,
   defaultType,
   defaultCompanyId,
 }: {
   activity?: ActivityFormDefaults;
   companies: Option[];
+  /** Active names from the org's activity-type catalog (Settings → Actividades). */
+  activityTypeOptions: string[];
   submitLabel: string;
   /** Optional preselected type for the create form (e.g. from Today's + Crear). */
   defaultType?: string;
@@ -55,9 +59,7 @@ export function ActivityForm({
   const value = (name: string, saved: string) => failed?.values?.[name] ?? saved;
   const typeDefault =
     activity?.activityType ??
-    ((ACTIVITY_TYPES as readonly string[]).includes(defaultType ?? "")
-      ? (defaultType as string)
-      : "general");
+    (activityTypeOptions.includes(defaultType ?? "") ? (defaultType as string) : "general");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -98,10 +100,14 @@ export function ActivityForm({
           <select
             id="activityType"
             name="activityType"
+            required
             defaultValue={value("activityType", typeDefault)}
             className={inputClass}
           >
-            {ACTIVITY_TYPES.map((t) => (
+            {typeDefault && !activityTypeOptions.includes(typeDefault) ? (
+              <option value={typeDefault}>{activityTypeMeta[typeDefault]?.label ?? typeDefault}</option>
+            ) : null}
+            {activityTypeOptions.map((t) => (
               <option key={t} value={t}>
                 {activityTypeMeta[t]?.label ?? t}
               </option>
@@ -200,5 +206,40 @@ export function ActivityForm({
       </div>
       <SubmitButton>{submitLabel}</SubmitButton>
     </form>
+  );
+}
+
+/** Trigger + modal for the Activities list header — creation redirects to the new activity on success, which closes this by leaving the route. */
+export function NewActivityButton({
+  companies,
+  activityTypeOptions,
+  defaultCompanyId,
+}: {
+  companies: Option[];
+  activityTypeOptions: string[];
+  defaultCompanyId?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        New activity
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="New activity"
+        description="Only the title is required — client, assignee and dates are optional."
+        className="max-w-2xl"
+      >
+        <ActivityForm
+          companies={companies}
+          activityTypeOptions={activityTypeOptions}
+          submitLabel="Create activity"
+          defaultCompanyId={defaultCompanyId}
+        />
+      </Modal>
+    </>
   );
 }

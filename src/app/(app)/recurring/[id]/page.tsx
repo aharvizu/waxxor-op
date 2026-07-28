@@ -21,6 +21,7 @@ import {
   upcomingOccurrences,
 } from "@/lib/recurrence-data";
 import { RECURRENCE_MAX_CONSECUTIVE_FAILURES } from "@/lib/recurrence";
+import { getCatalogNames } from "@/lib/settings-data";
 import { requireUser } from "@/lib/session";
 import {
   Badge,
@@ -302,11 +303,13 @@ async function ConfiguracionTab({
   def: NonNullable<Awaited<ReturnType<typeof getRecurrenceDetail>>>["def"];
   isSuperAdmin: boolean;
 }) {
-  const [companyRows, projectRows, listRows, userRows] = await Promise.all([
+  const [companyRows, projectRows, listRows, userRows, activityTypeOptions, categoryOptions] = await Promise.all([
     db.select({ id: companies.id, name: companies.name }).from(companies).where(eq(companies.organizationId, orgId)).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, orgId)).orderBy(asc(projects.name)),
     db.select({ id: projectLists.id, name: projectLists.name, projectId: projectLists.projectId }).from(projectLists).where(eq(projectLists.organizationId, orgId)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, orgId), ne(users.role, "client"))).orderBy(asc(users.name)),
+    getCatalogNames(orgId, "activity_type"),
+    getCatalogNames(orgId, "ticket_category"),
   ]);
   const projectListsByProject: Record<number, { id: number; name: string }[]> = {};
   for (const l of listRows) (projectListsByProject[l.projectId] ??= []).push({ id: l.id, name: l.name });
@@ -328,6 +331,8 @@ async function ConfiguracionTab({
           projects={projectRows}
           projectListsByProject={projectListsByProject}
           internalUsers={userRows}
+          activityTypeOptions={activityTypeOptions}
+          categoryOptions={categoryOptions}
           defaults={{
             id: def.id,
             name: def.name,

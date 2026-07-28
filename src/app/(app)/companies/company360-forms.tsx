@@ -1,10 +1,28 @@
 "use client";
 
-import { useActionState, useId } from "react";
-import { buttonGhostClass, buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
+import { Fragment, useActionState, useEffect, useId, useState } from "react";
+import Link from "next/link";
+import * as Popover from "@radix-ui/react-popover";
+import { AlertTriangle, Pencil, Plus, X } from "lucide-react";
+import {
+  Badge,
+  buttonClass,
+  buttonGhostClass,
+  buttonSecondaryClass,
+  Card,
+  cx,
+  inputClass,
+  labelClass,
+  THead,
+  Table,
+  Td,
+  Th,
+} from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { Modal } from "@/components/modal";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
+import { fmtDate, fmtMoney } from "@/lib/format";
 import {
   CLIENT_STATUSES,
   CONTACT_TYPES,
@@ -13,6 +31,7 @@ import {
   CONTRACT_TYPES,
   SERVICE_CATEGORIES,
   SUPPORT_COVERAGES,
+  type ClientAlert,
 } from "@/lib/company360";
 import {
   clientServiceStatusMeta,
@@ -47,8 +66,11 @@ type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 /* ----------------------------------------------------------- primitives */
 
-function useForm(action: Action, defaults?: Record<string, unknown>) {
+function useForm(action: Action, defaults?: Record<string, unknown>, onSuccess?: () => void) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  useEffect(() => {
+    if (state?.ok) onSuccess?.();
+  }, [state, onSuccess]);
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
   const value = (name: string) => {
@@ -186,6 +208,84 @@ export function RowAction({
   );
 }
 
+/**
+ * Compact bell instead of an always-expanded list of banners (was pushing
+ * the whole page down and never went away, since these are recomputed live
+ * from real data — not stored events — so a plain click-to-navigate never
+ * "cleared" them). Dismiss is per-session (component stays mounted across
+ * `?tab=` navigations on this page): clicking a row — or its × — hides it
+ * here without pretending the underlying condition was resolved. Reappears
+ * on a fresh visit if it's still true, same as before (2026-07-28).
+ */
+export function CompanyAlerts({ alerts }: { alerts: ClientAlert[] }) {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const visible = alerts.filter((a) => !dismissed.has(a.key));
+  const dismiss = (key: string) => setDismissed((prev) => new Set(prev).add(key));
+
+  if (visible.length === 0) return null;
+  const highCount = visible.filter((a) => a.severity === "high").length;
+
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className={cx(
+            buttonSecondaryClass,
+            "mb-6 h-9 gap-1.5",
+            highCount > 0
+              ? "border-red-600/30 text-red-700 dark:text-red-300"
+              : "border-amber-600/30 text-amber-700 dark:text-amber-300",
+          )}
+        >
+          <AlertTriangle className="size-4" />
+          {visible.length} {visible.length === 1 ? "alerta" : "alertas"}
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={8}
+          avoidCollisions
+          className="z-20 w-96 max-w-[calc(100vw-2rem)] max-h-[min(28rem,80vh)] overflow-y-auto rounded-xl border border-edge bg-surface p-2 shadow-overlay outline-none"
+        >
+          <ul className="space-y-1">
+            {visible.map((a) => (
+              <li key={a.key} className="flex items-start gap-1">
+                <Link
+                  href={a.href}
+                  onClick={() => dismiss(a.key)}
+                  className={cx(
+                    "flex-1 rounded-lg border px-3 py-2 text-sm transition-colors",
+                    a.severity === "high"
+                      ? "border-red-600/20 bg-red-50 text-red-800 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300"
+                      : a.severity === "medium"
+                        ? "border-amber-600/20 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-400/10 dark:text-amber-300"
+                        : "border-edge bg-subtle text-muted hover:bg-subtle/70",
+                  )}
+                >
+                  <span className="block font-medium">{a.title}</span>
+                  <span className="block text-xs opacity-80">{a.detail}</span>
+                </Link>
+                <button
+                  type="button"
+                  aria-label="Descartar alerta"
+                  onClick={() => dismiss(a.key)}
+                  className="mt-0.5 shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-subtle hover:text-fg"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
 /** <details> disclosure so creation forms behave like a lightweight drawer. */
 export function Disclosure({ label, children }: { label: string; children: React.ReactNode }) {
   const id = useId();
@@ -305,13 +405,16 @@ export type ContactDefaults = {
 export function ContactForm({
   companyId,
   contact,
+  onSuccess,
 }: {
   companyId: number;
   contact?: ContactDefaults;
+  onSuccess?: () => void;
 }) {
   const { state, formAction, errors, value } = useForm(
     contact ? updateContact : createContact,
     contact,
+    onSuccess,
   );
   return (
     <form action={formAction} className="space-y-4">
@@ -359,10 +462,37 @@ export function ContactForm({
   );
 }
 
+/** Short trigger + modal — editing lives on the contact's own page (`/contacts/[id]`), not here. */
+export function AddContactButton({ companyId }: { companyId: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        Agregar contacto
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Agregar contacto"
+        description="Un nuevo contacto de esta empresa."
+      >
+        <ContactForm companyId={companyId} onSuccess={() => setOpen(false)} />
+      </Modal>
+    </>
+  );
+}
+
 /* -------------------------------------------------------- service catalog */
 
-export function ServiceCatalogForm({ companyId }: { companyId?: number } = {}) {
-  const { state, formAction, errors, value } = useForm(createService);
+export function ServiceCatalogForm({
+  companyId,
+  onSuccess,
+}: {
+  companyId?: number;
+  onSuccess?: () => void;
+} = {}) {
+  const { state, formAction, errors, value } = useForm(createService, undefined, onSuccess);
   return (
     <form action={formAction} className="space-y-4">
       {companyId ? <input type="hidden" name="companyId" value={companyId} /> : null}
@@ -378,10 +508,11 @@ export function ServiceCatalogForm({ companyId }: { companyId?: number } = {}) {
             options={SERVICE_CATEGORIES.map((c) => ({ value: c, label: c }))}
           />
         </Field>
-        <Field label="Tarifa remota por defecto" name="defaultRemoteRate" errors={errors}>
+        {/* No tarifa/rate here is required — un servicio puede ser un licenciamiento o renovación sin tarifa fija. */}
+        <Field label="Tarifa remota por defecto (opcional)" name="defaultRemoteRate" errors={errors}>
           <TextInput name="defaultRemoteRate" value={value} errors={errors} />
         </Field>
-        <Field label="Tarifa en sitio por defecto" name="defaultOnsiteRate" errors={errors}>
+        <Field label="Tarifa en sitio por defecto (opcional)" name="defaultOnsiteRate" errors={errors}>
           <TextInput name="defaultOnsiteRate" value={value} errors={errors} />
         </Field>
       </div>
@@ -423,14 +554,17 @@ export function ClientServiceForm({
   companyId,
   servicesCatalog,
   clientService,
+  onSuccess,
 }: {
   companyId: number;
   servicesCatalog: Option[];
   clientService?: ClientServiceDefaults;
+  onSuccess?: () => void;
 }) {
   const { state, formAction, errors, value } = useForm(
     clientService ? updateClientService : addClientService,
     clientService,
+    onSuccess,
   );
   return (
     <form action={formAction} className="space-y-4">
@@ -471,10 +605,11 @@ export function ClientServiceForm({
         <Field label="Ciclo de facturación" name="billingCycle" errors={errors}>
           <TextInput name="billingCycle" value={value} errors={errors} />
         </Field>
-        <Field label="Costo (interno)" name="cost" errors={errors}>
+        {/* Opcional a propósito: licenciamientos/renovaciones no siempre tienen tarifa fija. */}
+        <Field label="Costo interno (opcional)" name="cost" errors={errors}>
           <TextInput name="cost" value={value} errors={errors} />
         </Field>
-        <Field label="Precio al cliente" name="clientPrice" errors={errors}>
+        <Field label="Precio al cliente (opcional)" name="clientPrice" errors={errors}>
           <TextInput name="clientPrice" value={value} errors={errors} />
         </Field>
         <Field label="Inicio" name="startDate" errors={errors}>
@@ -502,6 +637,140 @@ export function ClientServiceForm({
       </Field>
       <SubmitButton>{clientService ? "Guardar servicio" : "Registrar servicio"}</SubmitButton>
     </form>
+  );
+}
+
+/** Short trigger + modal. Nests the "crear en catálogo" escape hatch when needed, same as before. */
+export function AddServiceButton({
+  companyId,
+  servicesCatalog,
+}: {
+  companyId: number;
+  servicesCatalog: Option[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
+        <Plus className="size-4" />
+        Contratar servicio
+      </button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Contratar servicio"
+        description="Servicio administrado, licenciamiento o renovación para esta empresa."
+      >
+        {servicesCatalog.length === 0 ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              Aún no hay servicios en el catálogo de la organización. Crea uno primero.
+            </p>
+            <ServiceCatalogForm companyId={companyId} />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <Disclosure label="+ Nuevo servicio en catálogo">
+              <ServiceCatalogForm companyId={companyId} />
+            </Disclosure>
+            <ClientServiceForm
+              companyId={companyId}
+              servicesCatalog={servicesCatalog}
+              onSuccess={() => setOpen(false)}
+            />
+          </div>
+        )}
+      </Modal>
+    </>
+  );
+}
+
+export type ServiceListRow = {
+  cs: ClientServiceDefaults;
+  serviceName: string;
+  derivedStatus: "active" | "expiring" | "expired" | "cancelled" | "archived";
+};
+
+/** Row-level edit via a Pencil icon — the edit form expands inline, right below its own row. */
+export function ServicesTable({
+  companyId,
+  servicesCatalog,
+  rows,
+}: {
+  companyId: number;
+  servicesCatalog: Option[];
+  rows: ServiceListRow[];
+}) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  return (
+    <Card className="overflow-visible">
+      <Table>
+        <THead>
+          <tr>
+            <Th>Servicio</Th>
+            <Th>Tipo</Th>
+            <Th>Estado</Th>
+            <Th>Cobertura</Th>
+            <Th>Proveedor</Th>
+            <Th>Precio</Th>
+            <Th>Renovación</Th>
+            <Th>Acciones</Th>
+          </tr>
+        </THead>
+        <tbody className="divide-y divide-edge">
+          {rows.map(({ cs, serviceName, derivedStatus }) => (
+            <Fragment key={cs.id}>
+              <tr>
+                <Td className="font-medium text-fg">{serviceName}</Td>
+                <Td>
+                  <Badge tone={clientServiceTypeMeta[cs.serviceType]?.tone ?? "slate"}>
+                    {clientServiceTypeMeta[cs.serviceType]?.label ?? cs.serviceType}
+                  </Badge>
+                </Td>
+                <Td>
+                  <Badge tone={clientServiceStatusMeta[derivedStatus]?.tone ?? "slate"}>
+                    {clientServiceStatusMeta[derivedStatus]?.label ?? derivedStatus}
+                  </Badge>
+                </Td>
+                <Td>
+                  <Badge tone={supportCoverageMeta[cs.supportCoverage]?.tone ?? "slate"}>
+                    {supportCoverageMeta[cs.supportCoverage]?.label ?? cs.supportCoverage}
+                  </Badge>
+                </Td>
+                <Td className="text-muted">{cs.provider ?? "—"}</Td>
+                <Td className="tabular-nums text-muted">{cs.clientPrice ? fmtMoney(cs.clientPrice) : "—"}</Td>
+                <Td className="text-muted">{cs.renewalDate ? fmtDate(cs.renewalDate) : "—"}</Td>
+                <Td>
+                  <button
+                    type="button"
+                    aria-label="Editar servicio"
+                    onClick={() => setEditingId((id) => (id === cs.id ? null : cs.id))}
+                    className={cx(
+                      "flex size-7 items-center justify-center rounded-md transition-colors",
+                      editingId === cs.id ? "bg-primary-soft text-primary" : "text-faint hover:bg-subtle hover:text-fg",
+                    )}
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                </Td>
+              </tr>
+              {editingId === cs.id ? (
+                <tr>
+                  <td colSpan={8} className="border-t border-edge bg-subtle/40 p-4">
+                    <ClientServiceForm
+                      companyId={companyId}
+                      servicesCatalog={servicesCatalog}
+                      clientService={cs}
+                      onSuccess={() => setEditingId(null)}
+                    />
+                  </td>
+                </tr>
+              ) : null}
+            </Fragment>
+          ))}
+        </tbody>
+      </Table>
+    </Card>
   );
 }
 

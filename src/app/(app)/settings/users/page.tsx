@@ -19,7 +19,7 @@ import {
 } from "@/components/ui";
 import {
   CopyLinkButton,
-  InviteUserForm,
+  NewUserButton,
   RegenerateInvitationButton,
   UserActivationControl,
 } from "../settings-forms";
@@ -41,90 +41,79 @@ export default async function UsersSettingsPage() {
       <PageHeader
         title="Usuarios"
         subtitle="Alta, invitaciones, roles, activación y reasignación de responsables."
+        action={<NewUserButton roles={ROLES.map((r) => ({ value: r, label: roleMeta[r]?.label ?? r }))} />}
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="p-5 xl:col-span-1">
-          <CardHeader
-            title="Invitar usuario"
-            description="Crea la cuenta y comparte el enlace de activación (Watson no envía correos)."
-          />
-          <InviteUserForm
-            roles={ROLES.map((r) => ({ value: r, label: roleMeta[r]?.label ?? r }))}
-          />
-        </Card>
-
-        <Card className="xl:col-span-2">
-          <CardHeader title={`Equipo (${rows.length})`} />
-          <Table>
-            <THead>
-              <tr>
-                <Th>Usuario</Th>
-                <Th>Rol</Th>
-                <Th>Estado</Th>
-                <Th>Acciones</Th>
-              </tr>
-            </THead>
-            <tbody>
-              {rows.map((u) => (
-                <tr key={u.id} className="border-t border-edge">
-                  <Td>
-                    <span className="flex items-center gap-2.5">
-                      <Avatar name={u.name} />
-                      <span>
-                        <Link href={`/settings/users/${u.id}`} className="font-medium text-fg hover:underline">
-                          {u.name}
-                        </Link>
-                        <span className="block text-xs text-muted">{u.email}</span>
-                      </span>
+      <Card className="overflow-visible">
+        <CardHeader title={`Equipo (${rows.length})`} />
+        <Table>
+          <THead>
+            <tr>
+              <Th>Usuario</Th>
+              <Th>Rol</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </tr>
+          </THead>
+          <tbody>
+            {rows.map((u) => (
+              <tr key={u.id} className="border-t border-edge">
+                <Td>
+                  <span className="flex items-center gap-2.5">
+                    <Avatar name={u.name} />
+                    <span>
+                      <Link href={`/settings/users/${u.id}`} className="font-medium text-fg hover:underline">
+                        {u.name}
+                      </Link>
+                      <span className="block text-xs text-muted">{u.email}</span>
                     </span>
-                  </Td>
-                  <Td>
-                    <Badge tone={roleMeta[u.role]?.tone ?? "slate"}>
-                      {roleMeta[u.role]?.label ?? u.role}
-                    </Badge>
-                  </Td>
-                  <Td>
+                  </span>
+                </Td>
+                <Td>
+                  <Badge tone={roleMeta[u.role]?.tone ?? "slate"}>
+                    {roleMeta[u.role]?.label ?? u.role}
+                  </Badge>
+                </Td>
+                <Td>
+                  {u.invitationToken ? (
+                    <Badge tone="amber">Invitación pendiente</Badge>
+                  ) : u.isActive ? (
+                    <Badge tone="green">Activo</Badge>
+                  ) : (
+                    <Badge tone="red">Desactivado</Badge>
+                  )}
+                </Td>
+                <Td>
+                  <span className="flex flex-wrap items-center gap-1.5">
                     {u.invitationToken ? (
-                      <Badge tone="amber">Invitación pendiente</Badge>
-                    ) : u.isActive ? (
-                      <Badge tone="green">Activo</Badge>
+                      <>
+                        <CopyLinkButton path={`/invite/${u.invitationToken}`} />
+                        <RegenerateInvitationButton userId={u.id} />
+                      </>
+                    ) : null}
+                    {String(u.id) !== me.id ? (
+                      <UserActivationControl
+                        userId={u.id}
+                        isActive={u.isActive}
+                        reassignTargets={activeInternal
+                          .filter((t) => t.id !== u.id)
+                          .map((t) => ({ id: t.id, name: t.name }))}
+                      />
                     ) : (
-                      <Badge tone="red">Desactivado</Badge>
+                      <span className="text-xs text-muted">Tu cuenta</span>
                     )}
-                  </Td>
-                  <Td>
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      {u.invitationToken ? (
-                        <>
-                          <CopyLinkButton path={`/invite/${u.invitationToken}`} />
-                          <RegenerateInvitationButton userId={u.id} />
-                        </>
-                      ) : null}
-                      {String(u.id) !== me.id ? (
-                        <UserActivationControl
-                          userId={u.id}
-                          isActive={u.isActive}
-                          reassignTargets={activeInternal
-                            .filter((t) => t.id !== u.id)
-                            .map((t) => ({ id: t.id, name: t.name }))}
-                        />
-                      ) : (
-                        <span className="text-xs text-muted">Tu cuenta</span>
-                      )}
-                    </span>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-          <p className="border-t border-edge px-5 py-3 text-xs text-muted">
-            Editar nombre, email, rol o contraseña y la eliminación permanente (solo si el usuario no
-            tiene trabajo referenciado) viven en la ficha de cada usuario. Desactivar bloquea el
-            inicio de sesión sin borrar historial; al desactivar puedes reasignar su trabajo abierto.
-          </p>
-        </Card>
-      </div>
+                  </span>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+        <p className="border-t border-edge px-5 py-3 text-xs text-muted">
+          Editar nombre, email, rol o contraseña y la eliminación permanente (solo si el usuario no
+          tiene trabajo referenciado) viven en la ficha de cada usuario. Desactivar bloquea el
+          inicio de sesión sin borrar historial; al desactivar puedes reasignar su trabajo abierto.
+        </p>
+      </Card>
     </div>
   );
 }

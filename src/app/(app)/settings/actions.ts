@@ -32,6 +32,7 @@ import {
   CATALOG_KINDS,
   LOGO_MAX_CHARS,
   SETTINGS_SCHEMAS,
+  SYSTEM_PROTECTED_CATALOG_NAMES,
   type SettingsKey,
   generateApiKey,
   generateInvitationToken,
@@ -315,6 +316,10 @@ export async function updateCatalogItem(
 
     await db.transaction(async (tx) => {
       const before = await loadCatalogItem(tx, user, data.id);
+      const protectedNames = SYSTEM_PROTECTED_CATALOG_NAMES[before.kind as keyof typeof SYSTEM_PROTECTED_CATALOG_NAMES];
+      if (protectedNames?.includes(before.name) && data.name !== before.name) {
+        throw new RuleError(`"${before.name}" es un valor del sistema — no se puede renombrar.`);
+      }
       const config = parseTemplateConfig(before.kind, data.templateLists) ?? before.config;
       await tx
         .update(catalogItems)
@@ -402,6 +407,10 @@ export async function deleteCatalogItem(
     const id = z.coerce.number().int().positive().parse(formData.get("id"));
     await db.transaction(async (tx) => {
       const before = await loadCatalogItem(tx, user, id);
+      const protectedNames = SYSTEM_PROTECTED_CATALOG_NAMES[before.kind as keyof typeof SYSTEM_PROTECTED_CATALOG_NAMES];
+      if (protectedNames?.includes(before.name)) {
+        throw new RuleError(`"${before.name}" es un valor del sistema — no se puede eliminar.`);
+      }
       const [child] = await tx
         .select({ id: catalogItems.id })
         .from(catalogItems)

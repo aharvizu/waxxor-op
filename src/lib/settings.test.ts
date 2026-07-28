@@ -69,8 +69,8 @@ describe("settings schemas", () => {
 });
 
 describe("catalog kinds", () => {
-  it("declares six kinds with unique labels", () => {
-    expect(CATALOG_KIND_KEYS).toHaveLength(6);
+  it("declares eight kinds with unique labels", () => {
+    expect(CATALOG_KIND_KEYS).toHaveLength(8);
     const labels = CATALOG_KIND_KEYS.map((k) => CATALOG_KINDS[k].label);
     expect(new Set(labels).size).toBe(labels.length);
   });

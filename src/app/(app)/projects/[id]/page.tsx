@@ -54,6 +54,7 @@ import {
 } from "@/lib/projects";
 import { getProjectRecurrences } from "@/lib/recurrence-data";
 import { getRelatedArticles } from "@/lib/knowledge-data";
+import { getCatalogNames } from "@/lib/settings-data";
 import { requireUser } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
 import {
@@ -644,9 +645,10 @@ async function TrabajoTab({
   tableMode: boolean;
   now: Date;
 }) {
-  const [tree, dependencies] = await Promise.all([
+  const [tree, dependencies, activityTypeOptions] = await Promise.all([
     getProjectWorkTree(orgId, projectId),
     getProjectDependencies(orgId, projectId),
+    getCatalogNames(orgId, "activity_type"),
   ]);
   const activeLists = tree.lists.filter((l) => l.status !== "archived");
   const listOptions = activeLists.map((l) => ({ id: l.id, name: l.name }));
@@ -689,6 +691,7 @@ async function TrabajoTab({
                 projectId={projectId}
                 lists={listOptions}
                 internalUsers={internalUsers}
+                activityTypeOptions={activityTypeOptions}
                 defaultListId={listOptions[0]?.id}
               />
             </Card>
@@ -777,6 +780,7 @@ async function TrabajoTab({
                   projectId={projectId}
                   lists={listOptions}
                   internalUsers={internalUsers}
+                  activityTypeOptions={activityTypeOptions}
                   defaultListId={a.listId ?? undefined}
                   parentActivityId={a.activityId}
                 />
@@ -839,6 +843,7 @@ async function TrabajoTab({
                 projectId={projectId}
                 lists={listOptions}
                 internalUsers={internalUsers}
+                activityTypeOptions={activityTypeOptions}
                 defaultListId={listOptions[0]?.id}
               />
             </Disclosure>
@@ -959,6 +964,7 @@ async function TrabajoTab({
                             projectId={projectId}
                             lists={listOptions}
                             internalUsers={internalUsers}
+                            activityTypeOptions={activityTypeOptions}
                             defaultListId={list.id}
                           />
                         </div>

@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { Plus } from "lucide-react";
+import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { companies, tickets, timeEntries, users, workItems } from "@/db/schema";
+import { companies, contacts, slaDefinitions, tickets, timeEntries, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
-import { PageHeader, buttonClass } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { getValuesForEntities, getFieldDefinitions } from "@/lib/custom-fields";
 import {
   buildFieldRegistry,
@@ -19,8 +17,10 @@ import {
   type TicketQuickFilterKey,
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
+import { getCatalogNames } from "@/lib/settings-data";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
+import { NewTicketButton } from "./new/new-ticket-form";
 import { TICKET_COLUMN_OPTIONS, TICKET_KANBAN_GROUP_OPTIONS, type TicketRow } from "./ticket-views";
 import { TicketsViewContent } from "./tickets-view-content";
 
@@ -175,15 +175,50 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     .where(eq(users.organizationId, user.organizationId))
     .orderBy(asc(users.name));
 
+  const [companyRows, contactRows, assigneeRows, slaRows, categoryOptions] = await Promise.all([
+    db
+      .select({ id: companies.id, name: companies.name })
+      .from(companies)
+      .where(eq(companies.organizationId, user.organizationId))
+      .orderBy(asc(companies.name)),
+    db
+      .select({ id: contacts.id, name: contacts.firstName, lastName: contacts.lastName, companyId: contacts.companyId })
+      .from(contacts)
+      .where(and(eq(contacts.organizationId, user.organizationId), eq(contacts.isActive, true)))
+      .orderBy(asc(contacts.lastName)),
+    // Excludes clients — assignee is an internal role, unlike `userRows` above (used for filters).
+    db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client")))
+      .orderBy(asc(users.name)),
+    user.role === "superadmin"
+      ? db
+          .select({ id: slaDefinitions.id, name: slaDefinitions.name })
+          .from(slaDefinitions)
+          .where(eq(slaDefinitions.organizationId, user.organizationId))
+          .orderBy(asc(slaDefinitions.name))
+      : Promise.resolve([] as { id: number; name: string }[]),
+    getCatalogNames(user.organizationId, "ticket_category"),
+  ]);
+  const contactOptions = contactRows.map((c) => ({ id: c.id, name: `${c.name} ${c.lastName}`, companyId: c.companyId }));
+  const newTicketPriorities = priorityRows.map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault }));
+
   return (
     <div>
       <PageHeader
         title="Helpdesk"
         subtitle="Tickets operativos: crear, asignar, trabajar, documentar, medir, resolver, confirmar, cerrar."
         action={
-          <Link href="/helpdesk/new" className={buttonClass}>
-            <Plus /> Nuevo ticket
-          </Link>
+          <NewTicketButton
+            companies={companyRows}
+            contacts={contactOptions}
+            users={assigneeRows}
+            slas={slaRows}
+            priorities={newTicketPriorities}
+            categoryOptions={categoryOptions}
+            customFields={customFieldDefs}
+          />
         }
       />
 

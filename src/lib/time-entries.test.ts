@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   BILLING_STATUSES,
   TIME_MODALITIES,
-  TIME_TYPES,
   calculateAmount,
   durationMinutesSchema,
   formatMinutes,
@@ -11,11 +10,6 @@ import {
 } from "./time-entries";
 
 describe("time entry catalogs", () => {
-  it("exposes the twelve time types", () => {
-    expect(TIME_TYPES).toHaveLength(12);
-    expect(TIME_TYPES).toContain("technical_work");
-    expect(TIME_TYPES).toContain("commercial");
-  });
   it("exposes billing statuses and modalities", () => {
     expect(BILLING_STATUSES).toEqual([
       "billable", "non_billable", "included_in_contract", "pending_review",

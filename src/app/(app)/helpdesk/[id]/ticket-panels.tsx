@@ -15,7 +15,6 @@ import {
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { ACTIVITY_TYPES } from "@/lib/activities";
 import { CONFIRMATION_TYPES, TICKET_BILLING_MODALITIES } from "@/lib/tickets";
 import { activityTypeMeta, confirmationTypeMeta } from "@/lib/labels";
 import {
@@ -345,6 +344,7 @@ export function ResolveForm({
   hasTime,
   billingPending,
   billingStatuses,
+  categoryOptions,
 }: {
   ticketId: number;
   category: string | null;
@@ -352,6 +352,8 @@ export function ResolveForm({
   hasTime: boolean;
   billingPending: boolean;
   billingStatuses: Option[];
+  /** Active names from the org's ticket-category catalog — the only selectable values (Settings → Tickets). */
+  categoryOptions: string[];
 }) {
   const [state, formAction] = useForm(resolveTicket);
   const [next, setNext] = useState("pending_confirmation");
@@ -375,7 +377,19 @@ export function ResolveForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Category</label>
-          <input name="category" required defaultValue={category ?? ""} list="ticket-category-options" className={inputClass} />
+          <select name="category" required defaultValue={category ?? ""} className={inputClass}>
+            <option value="" disabled>
+              — Select —
+            </option>
+            {category && !categoryOptions.includes(category) ? (
+              <option value={category}>{category}</option>
+            ) : null}
+            {categoryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
           <FieldError errors={errors.category} />
         </div>
         <div>
@@ -763,10 +777,13 @@ export function RelatedActivityForms({
   ticketId,
   users,
   linkable,
+  activityTypeOptions,
 }: {
   ticketId: number;
   users: Option[];
   linkable: Option[];
+  /** Active names from the org's activity-type catalog (Settings → Actividades). */
+  activityTypeOptions: string[];
 }) {
   const [createState, createAction] = useForm(createRelatedActivity);
   const [linkState, linkAction] = useForm(linkActivity);
@@ -790,7 +807,7 @@ export function RelatedActivityForms({
         <FieldError errors={createErrors.title} />
         <div className="grid grid-cols-2 gap-3">
           <select name="activityType" defaultValue="general" aria-label="Type" className={inputClass}>
-            {ACTIVITY_TYPES.map((t) => (
+            {activityTypeOptions.map((t) => (
               <option key={t} value={t}>
                 {activityTypeMeta[t]?.label ?? t}
               </option>

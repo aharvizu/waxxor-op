@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACTIVITY_STATUSES,
-  ACTIVITY_TYPES,
   activityStatusSchema,
-  activityTypeSchema,
   activityWorkflowStatusSchema,
   completedAtFor,
   isActivityStatus,
@@ -11,18 +9,6 @@ import {
 } from "./activities";
 
 describe("activity type and status validation", () => {
-  it("exposes the twelve initial types", () => {
-    expect(ACTIVITY_TYPES).toEqual([
-      "general", "follow_up", "meeting", "research", "documentation",
-      "training", "review", "implementation", "preventive",
-      "administrative", "commercial", "reminder",
-    ]);
-    for (const t of ACTIVITY_TYPES) {
-      expect(activityTypeSchema.safeParse(t).success).toBe(true);
-    }
-    expect(activityTypeSchema.safeParse("party").success).toBe(false);
-  });
-
   it("exposes the seven initial statuses", () => {
     expect(ACTIVITY_STATUSES).toEqual([
       "pending", "in_progress", "waiting", "blocked",
