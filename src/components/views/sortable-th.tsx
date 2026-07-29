@@ -40,7 +40,7 @@ export function SortableTh({
         type="button"
         onClick={() => onSort(sortKey)}
         className={cx(
-          "flex w-full items-center gap-1 px-5 py-3 text-left transition-colors hover:text-fg",
+          "flex w-full items-center gap-1 px-5 py-3 text-left text-[11px] font-semibold tracking-wider text-muted uppercase transition-colors hover:text-fg",
           active && "text-fg",
         )}
       >

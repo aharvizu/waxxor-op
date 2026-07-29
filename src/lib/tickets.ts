@@ -88,9 +88,14 @@ export const TICKET_BILLING_MODALITIES = tickets.billingModality.enumValues;
 export const ticketBillingModalitySchema = z.enum(TICKET_BILLING_MODALITIES);
 
 /**
- * Closure requirements (pure): resolution, category, confirmation type, and
- * either active time or an explicit reason for the audited time exception.
- * Returns the list of missing requirements ([] = closable).
+ * Closure requirements (pure): resolution, category, confirmation type,
+ * either active time or an explicit reason for the audited time exception,
+ * and no still-open related Activity (2026-07-29 — closing a ticket while a
+ * linked follow-up Activity is still pending/in_progress/waiting/blocked
+ * loses track of it; the caller resolves "still open" as not
+ * completed/cancelled/archived and passes the count in, since that's a real
+ * query this pure function can't do itself). Returns the list of missing
+ * requirements ([] = closable).
  */
 export function closureBlockers(state: {
   resolution: string | null;
@@ -98,6 +103,7 @@ export function closureBlockers(state: {
   confirmationType: string | null;
   activeTimeMinutes: number;
   timeExceptionReason: string | null;
+  openRelatedActivities: number;
 }): string[] {
   const missing: string[] = [];
   if (!state.resolution?.trim()) missing.push("resolution");
@@ -106,6 +112,7 @@ export function closureBlockers(state: {
   if (state.activeTimeMinutes <= 0 && !state.timeExceptionReason?.trim()) {
     missing.push("time_or_exception");
   }
+  if (state.openRelatedActivities > 0) missing.push("open_related_activities");
   return missing;
 }
 

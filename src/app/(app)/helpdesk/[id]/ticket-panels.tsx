@@ -882,13 +882,32 @@ export function UnlinkButton({ ticketId, activityId }: { ticketId: number; activ
 
 /* -------------------------------------------------------------- files */
 
+/**
+ * The bare `<input type="file">` used to render with no border/background at
+ * all (just `text-sm text-muted`) — its native "Choose File" button and "No
+ * file chosen" label were nearly impossible to make out (2026-07-29). Hidden
+ * input + a real styled trigger label, same pattern already used for chat
+ * attachments in inbox-forms.tsx, instead of relying on the OS's own file
+ * input rendering.
+ */
 export function UploadForm({ ticketId }: { ticketId: number }) {
   const [state, formAction] = useForm(uploadAttachment);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const [fileName, setFileName] = useState<string | null>(null);
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3">
       <input type="hidden" name="id" value={ticketId} />
-      <input type="file" name="file" required className="text-sm text-muted" />
+      <label className={cx(buttonSecondaryClass, "h-9 cursor-pointer")}>
+        Choose file
+        <input
+          type="file"
+          name="file"
+          required
+          className="hidden"
+          onChange={(e) => setFileName(e.currentTarget.files?.[0]?.name ?? null)}
+        />
+      </label>
+      <span className="text-sm text-muted">{fileName ?? "No file chosen"}</span>
       <SubmitButton>
         <Paperclip /> Attach
       </SubmitButton>

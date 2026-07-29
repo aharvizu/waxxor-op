@@ -19,7 +19,7 @@ import {
 import { getLastViewId } from "@/lib/last-view";
 import { getCatalogNames } from "@/lib/settings-data";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
-import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
+import { ensureInitialViews, listViews, savedViewConfigSchema } from "@/lib/views";
 import { NewTicketButton } from "./new/new-ticket-form";
 import { TICKET_COLUMN_OPTIONS, TICKET_KANBAN_GROUP_OPTIONS, type TicketRow } from "./ticket-views";
 import { TicketsViewContent } from "./tickets-view-content";
@@ -86,13 +86,11 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     options: billingRows.map((b) => ({ value: String(b.id), label: b.name })),
   };
 
-  const favoriteIds = await getFavoriteIds(user.organizationId, userId, "tickets");
-
   const conditions = [eq(tickets.organizationId, user.organizationId)];
   const filterSql = buildFilterSql(filters, fieldRegistry, "tickets", tickets.id);
   if (filterSql) conditions.push(filterSql);
   if (quick) {
-    const qSql = ticketQuickFilterSql(quick, userId, favoriteIds);
+    const qSql = ticketQuickFilterSql(quick, userId);
     if (qSql) conditions.push(qSql);
   }
   if (search.trim()) {
@@ -161,11 +159,9 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
 
   const ticketIds = rawRows.map((r) => r.id);
   const cfValuesByEntity = await getValuesForEntities(user.organizationId, "tickets", ticketIds);
-  const favoriteSet = new Set(favoriteIds);
 
   const rows: TicketRow[] = rawRows.map((r) => ({
     ...r,
-    isFavorite: favoriteSet.has(r.id),
     customFields: cfValuesByEntity.get(r.id) ?? {},
   }));
 

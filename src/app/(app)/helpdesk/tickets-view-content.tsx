@@ -122,13 +122,12 @@ export function TicketsViewContent({
           columns={config.columns.filter((c) => c.visible).map((c) => c.key)}
           registry={registry}
           users={users}
-          basePath={basePath}
           statusOptions={statuses}
           priorityOptions={priorities}
           density={config.density}
         />
       ) : view.viewType === "list" ? (
-        <ListView rows={rows} basePath={basePath} statuses={statusMap} priorities={priorityMap} />
+        <ListView rows={rows} statuses={statusMap} priorities={priorityMap} />
       ) : view.viewType === "kanban" ? (
         <KanbanView
           rows={rows}

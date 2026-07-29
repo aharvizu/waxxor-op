@@ -148,6 +148,11 @@ export async function convertActivity(
   const { data, error } = parseForm(convertSchema, formData);
   if (error) return error;
 
+  const validCategories = await getCatalogNames(user.organizationId, "ticket_category");
+  if (!validCategories.includes(data.category)) {
+    return businessError("Selecciona una categoría del catálogo.");
+  }
+
   const companyId = await orgCompanyId(user.organizationId, data.companyId);
   const assigneeId = await orgUserId(user.organizationId, data.assigneeId);
 

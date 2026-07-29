@@ -90,11 +90,11 @@ export function ActivitiesViewContent({
       />
 
       {view.viewType === "table" ? (
-        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} basePath={basePath} density={config.density} />
+        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} density={config.density} />
       ) : view.viewType === "kanban" ? (
         <KanbanView rows={rows} />
       ) : (
-        <ListView rows={rows} basePath={basePath} />
+        <ListView rows={rows} />
       )}
     </>
   );

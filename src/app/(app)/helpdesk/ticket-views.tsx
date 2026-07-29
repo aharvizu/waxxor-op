@@ -1,11 +1,14 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 import { formatMinutes } from "@/lib/time-entries";
 import { Badge, Card, EmptyState, THead, Table, Td, Th, cx } from "@/components/ui";
 import { LifeBuoy, Plus } from "lucide-react";
+import { compareValues, nextSortState, SortableTh, type SortState } from "@/components/views/sortable-th";
 import { TicketRowActions } from "./ticket-row-actions";
-import { FavoriteToggle } from "@/components/views/favorite-toggle";
 import { TicketKanban } from "./ticket-kanban";
 
 export type TicketRow = {
@@ -28,7 +31,6 @@ export type TicketRow = {
   updatedAt: Date;
   createdAt: Date;
   minutes: number;
-  isFavorite: boolean;
   customFields: Record<string, unknown>;
 };
 
@@ -140,6 +142,13 @@ export const TICKET_KANBAN_GROUP_OPTIONS = [
   { key: "priority", label: "Prioridad" },
 ];
 
+/** Maps a column key to its sortable value — most columns mirror a TicketRow field directly, but `dueAt`/`cf_*` are aliases over resolutionTargetAt/customFields. */
+function ticketSortValue(r: TicketRow, key: string): unknown {
+  if (key === "dueAt") return r.resolutionTargetAt;
+  if (key.startsWith("cf_")) return r.customFields[key.slice(3)];
+  return r[key as keyof TicketRow];
+}
+
 function EmptyTickets({ createHref = "/helpdesk/new" }: { createHref?: string }) {
   return (
     <EmptyState icon={<LifeBuoy />} title="Sin tickets" action={<Link href={createHref} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"><Plus className="size-4" /> Nuevo ticket</Link>}>
@@ -155,7 +164,6 @@ export function TableView({
   columns,
   registry,
   users,
-  basePath,
   statusOptions,
   priorityOptions,
   density,
@@ -164,11 +172,17 @@ export function TableView({
   columns: string[];
   registry: Record<string, ColumnDef>;
   users: { id: number; name: string }[];
-  basePath: string;
   statusOptions: TicketStatusOption[];
   priorityOptions: TicketPriorityOption[];
   density: "compact" | "comfortable" | "spacious";
 }) {
+  const [sort, setSort] = useState<SortState>(null);
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const factor = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => factor * compareValues(ticketSortValue(a, sort.key), ticketSortValue(b, sort.key)));
+  }, [rows, sort]);
+
   if (rows.length === 0) return <EmptyTickets />;
   const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => registry[c]);
   return (
@@ -176,15 +190,15 @@ export function TableView({
       <Table density={density}>
         <THead>
           <tr>
-            <Th> </Th>
-            {activeColumns.map((c) => <Th key={c}>{registry[c].label}</Th>)}
+            {activeColumns.map((c) => (
+              <SortableTh key={c} label={registry[c].label} sortKey={c} sort={sort} onSort={(key) => setSort((prev) => nextSortState(prev, key))} />
+            ))}
             <Th>Acciones</Th>
           </tr>
         </THead>
         <tbody className="divide-y divide-edge">
-          {rows.map((r) => (
+          {sortedRows.map((r) => (
             <tr key={r.id} className="group transition-colors hover:bg-subtle">
-              <Td><FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} /></Td>
               {activeColumns.map((c) => <Td key={c}>{registry[c].render(r)}</Td>)}
               <Td>
                 <TicketRowActions
@@ -209,12 +223,10 @@ export function TableView({
 
 export function ListView({
   rows,
-  basePath,
   statuses,
   priorities,
 }: {
   rows: TicketRow[];
-  basePath: string;
   statuses: Map<number, TicketStatusOption>;
   priorities: Map<number, TicketPriorityOption>;
 }) {
@@ -224,7 +236,6 @@ export function ListView({
       <ul className="divide-y divide-edge">
         {rows.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 text-sm">
-            <FavoriteToggle module="tickets" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
             <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">
               {r.folio} · {r.title}

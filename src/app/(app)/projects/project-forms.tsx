@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   buttonGhostClass,
   buttonSecondaryClass,
@@ -1034,12 +1034,24 @@ export function CommentEditor({
 
 /* ----------------------------------------------------------------- files */
 
+/** Same fix as UploadForm in helpdesk/[id]/ticket-panels.tsx — the bare file input had no visible button. */
 export function ProjectUploadForm({ projectId }: { projectId: number }) {
   const [state, formAction] = useActionState<ActionState, FormData>(uploadProjectFile, null);
+  const [fileName, setFileName] = useState<string | null>(null);
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3">
       <input type="hidden" name="projectId" value={projectId} />
-      <input type="file" name="file" required className="text-sm text-muted" />
+      <label className={cx(buttonSecondaryClass, "h-9 cursor-pointer")}>
+        Elegir archivo
+        <input
+          type="file"
+          name="file"
+          required
+          className="hidden"
+          onChange={(e) => setFileName(e.currentTarget.files?.[0]?.name ?? null)}
+        />
+      </label>
+      <span className="text-sm text-muted">{fileName ?? "Ningún archivo seleccionado"}</span>
       <SubmitButton>Subir archivo</SubmitButton>
       <FormAlert state={state} />
     </form>

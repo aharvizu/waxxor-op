@@ -8,6 +8,7 @@ import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, CardHeader, PageHeader, buttonGhostClass } from "@/components/ui";
 import { activityStatusMeta } from "@/lib/labels";
+import { getCatalogNames } from "@/lib/settings-data";
 import { ConvertForm } from "./convert-form";
 
 export const metadata: Metadata = { title: "Convert to ticket" };
@@ -39,7 +40,7 @@ export default async function ConvertActivityPage({
   // Archived activities cannot be converted — send the user back to restore first.
   if (row.activity.archivedAt) redirect(`/activities/${activityId}`);
 
-  const [companyRows, userRows] = await Promise.all([
+  const [companyRows, userRows, categoryOptions] = await Promise.all([
     db
       .select({ id: companies.id, name: companies.name })
       .from(companies)
@@ -50,6 +51,7 @@ export default async function ConvertActivityPage({
       .from(users)
       .where(eq(users.organizationId, user.organizationId))
       .orderBy(asc(users.name)),
+    getCatalogNames(user.organizationId, "ticket_category"),
   ]);
 
   return (
@@ -80,6 +82,7 @@ export default async function ConvertActivityPage({
             inProject={row.activity.projectId !== null}
             companies={companyRows}
             users={userRows}
+            categoryOptions={categoryOptions}
           />
         </div>
       </Card>

@@ -28,6 +28,7 @@ export function ConvertForm({
   inProject,
   companies,
   users,
+  categoryOptions,
 }: {
   activityId: number;
   companyId: number | null;
@@ -37,6 +38,8 @@ export function ConvertForm({
   inProject: boolean;
   companies: Option[];
   users: Option[];
+  /** Active names from the org's ticket-category catalog (Settings → Tickets). */
+  categoryOptions: string[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     convertActivity,
@@ -89,16 +92,24 @@ export function ConvertForm({
           <label htmlFor="category" className={labelClass}>
             Category
           </label>
-          <input
+          <select
             id="category"
             name="category"
             required
-            placeholder="e.g. Networking"
             defaultValue={value("category", "")}
             aria-invalid={errors.category ? true : undefined}
             aria-describedby={errors.category ? "category-error" : undefined}
             className={inputClass}
-          />
+          >
+            <option value="" disabled>
+              — Select —
+            </option>
+            {categoryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
           <FieldError id="category-error" errors={errors.category} />
         </div>
         <div>

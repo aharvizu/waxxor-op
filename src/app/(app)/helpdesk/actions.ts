@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNull, ne, notInArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -599,7 +599,12 @@ const BLOCKER_MESSAGES: Record<string, string> = {
   confirmation_type: "a confirmation type",
   time_or_exception:
     "at least one active time entry (or an explicit time exception with a reason)",
+  open_related_activities:
+    "no related Activity still open (complete, cancel or unlink it first)",
 };
+
+/** Activity statuses that count as "still open" — anything short of completed/cancelled/archived. */
+const OPEN_ACTIVITY_STATUSES = ["completed", "cancelled", "archived"] as const;
 
 /** Shared closing routine — call inside a transaction. */
 async function performClose(
@@ -615,6 +620,11 @@ async function performClose(
 ) {
   const minutes = await activeMinutes(tx, row.item.id);
   const confirmationType = input.confirmationType ?? row.ticket.confirmationType;
+  const [{ value: openRelatedActivities }] = await tx
+    .select({ value: count() })
+    .from(activities)
+    .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+    .where(and(eq(activities.parentTicketId, row.ticket.id), notInArray(workItems.status, [...OPEN_ACTIVITY_STATUSES])));
   const blockers = closureBlockers({
     resolution: row.ticket.resolution,
     category: row.ticket.category,
@@ -622,6 +632,7 @@ async function performClose(
     activeTimeMinutes: minutes,
     timeExceptionReason:
       input.timeExceptionReason ?? row.ticket.timeExceptionReason,
+    openRelatedActivities,
   });
   if (blockers.length > 0) {
     throw new ClosureBlockedError(

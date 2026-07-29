@@ -1,9 +1,12 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import { activityStatusMeta, activityTypeMeta, ticketPriorityMeta } from "@/lib/labels";
-import { Badge, Card, EmptyState, THead, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Card, EmptyState, THead, Table, Td, cx } from "@/components/ui";
 import { ClipboardCheck, Plus } from "lucide-react";
-import { FavoriteToggle } from "@/components/views/favorite-toggle";
+import { compareValues, nextSortState, SortableTh, type SortState } from "@/components/views/sortable-th";
 import { ActivityKanban } from "./activity-kanban";
 
 export type ActivityRow = {
@@ -17,7 +20,6 @@ export type ActivityRow = {
   companyName: string | null;
   assigneeId: number | null;
   assigneeName: string | null;
-  isFavorite: boolean;
 };
 
 export type ColumnDef = { key: string; label: string; render: (r: ActivityRow) => React.ReactNode };
@@ -77,17 +79,23 @@ function EmptyActivities() {
 
 /* ------------------------------------------------------------------ table */
 
+/** Sorting is client-side over the already-fetched page of rows — see company-views.tsx's doc comment for why. */
 export function TableView({
   rows,
   columns,
-  basePath,
   density,
 }: {
   rows: ActivityRow[];
   columns: string[];
-  basePath: string;
   density: "compact" | "comfortable" | "spacious";
 }) {
+  const [sort, setSort] = useState<SortState>(null);
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const factor = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => factor * compareValues(a[sort.key as keyof ActivityRow], b[sort.key as keyof ActivityRow]));
+  }, [rows, sort]);
+
   if (rows.length === 0) return <EmptyActivities />;
   const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => COLUMN_REGISTRY[c]);
   return (
@@ -95,18 +103,14 @@ export function TableView({
       <Table density={density}>
         <THead>
           <tr>
-            <Th> </Th>
             {activeColumns.map((c) => (
-              <Th key={c}>{COLUMN_REGISTRY[c].label}</Th>
+              <SortableTh key={c} label={COLUMN_REGISTRY[c].label} sortKey={c} sort={sort} onSort={(key) => setSort((prev) => nextSortState(prev, key))} />
             ))}
           </tr>
         </THead>
         <tbody className="divide-y divide-edge">
-          {rows.map((r) => (
+          {sortedRows.map((r) => (
             <tr key={r.id} className="group transition-colors hover:bg-subtle">
-              <Td>
-                <FavoriteToggle module="activities" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
-              </Td>
               {activeColumns.map((c) => (
                 <Td key={c}>{COLUMN_REGISTRY[c].render(r)}</Td>
               ))}
@@ -120,14 +124,13 @@ export function TableView({
 
 /* ------------------------------------------------------------------- list */
 
-export function ListView({ rows, basePath }: { rows: ActivityRow[]; basePath: string }) {
+export function ListView({ rows }: { rows: ActivityRow[] }) {
   if (rows.length === 0) return <EmptyActivities />;
   return (
     <Card className="overflow-hidden">
       <ul className="divide-y divide-edge">
         {rows.map((r) => (
           <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-            <FavoriteToggle module="activities" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
             <Badge tone={activityStatusMeta[r.status]?.tone ?? "slate"}>{activityStatusMeta[r.status]?.label ?? r.status}</Badge>
             <Link href={`/activities/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">
               {r.title}

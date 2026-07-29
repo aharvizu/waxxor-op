@@ -347,14 +347,13 @@ export function buildFilterSql(
  * exactly the ones its five seeded views need — no advanced AND/OR builder
  * or parallel machinery invented for it.
  */
-export type TicketQuickFilterKey = "mine" | "unassigned" | "pending" | "overdue" | "closed_recent" | "favorites";
+export type TicketQuickFilterKey = "mine" | "unassigned" | "pending" | "overdue" | "closed_recent";
 export const TICKET_QUICK_FILTERS: { key: TicketQuickFilterKey; label: string }[] = [
   { key: "mine", label: "Mis elementos" },
   { key: "unassigned", label: "Sin asignar" },
   { key: "pending", label: "Pendientes" },
   { key: "overdue", label: "Vencidos" },
   { key: "closed_recent", label: "Cerrados recientemente" },
-  { key: "favorites", label: "Favoritos" },
 ];
 
 const ACTIVE_TICKET_STATUSES = [
@@ -368,12 +367,8 @@ const ACTIVE_TICKET_STATUSES = [
   "pending_confirmation",
 ] as const;
 
-/** Quick-filter SQL for Tickets. `favorites` needs a caller-supplied set of favorited ticket IDs (see helpdesk actions). */
-export function ticketQuickFilterSql(
-  key: TicketQuickFilterKey,
-  userId: number,
-  favoriteIds: number[] = [],
-): SQL | undefined {
+/** Quick-filter SQL for Tickets. */
+export function ticketQuickFilterSql(key: TicketQuickFilterKey, userId: number): SQL | undefined {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   switch (key) {
@@ -391,8 +386,6 @@ export function ticketQuickFilterSql(
       );
     case "closed_recent":
       return and(inArray(workItems.status, ["closed", "cancelled"]), gte(workItems.updatedAt, weekAgo));
-    case "favorites":
-      return favoriteIds.length > 0 ? inArray(tickets.id, favoriteIds) : sql`false`;
     default:
       return undefined;
   }

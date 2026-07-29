@@ -18,7 +18,7 @@ import {
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
 import { getCatalogNames } from "@/lib/settings-data";
-import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
+import { ensureInitialViews, listViews, savedViewConfigSchema } from "@/lib/views";
 import { NewActivityButton } from "./activity-form";
 import { ACTIVITY_COLUMN_OPTIONS, ACTIVITY_KANBAN_GROUP_OPTIONS, type ActivityRow } from "./activity-views";
 import { ActivitiesViewContent } from "./activities-view-content";
@@ -59,7 +59,6 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   }
 
   const fieldRegistry = await buildFieldRegistry(ACTIVITY_FIELDS, []);
-  const favoriteIds = await getFavoriteIds(user.organizationId, userId, "activities");
 
   // Structural baseline (not a view/filter concern): converted activities
   // live in Helpdesk now, and archived ones are hidden unless restored.
@@ -109,8 +108,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     .orderBy(desc(workItems.updatedAt))
     .limit(limit);
 
-  const favoriteSet = new Set(favoriteIds);
-  const rows: ActivityRow[] = rawRows.map((r) => ({ ...r, isFavorite: favoriteSet.has(r.id) }));
+  const rows: ActivityRow[] = rawRows;
 
   const orgUsers = await db
     .select({ id: users.id, name: users.name })

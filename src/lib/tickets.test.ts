@@ -119,6 +119,7 @@ describe("closure rules", () => {
     confirmationType: "phone",
     activeTimeMinutes: 30,
     timeExceptionReason: null,
+    openRelatedActivities: 0,
   };
 
   it("closable when everything is present", () => {
@@ -136,6 +137,11 @@ describe("closure rules", () => {
     expect(
       closureBlockers({ ...ready, activeTimeMinutes: 0, timeExceptionReason: "Handled by vendor" }),
     ).toEqual([]);
+  });
+
+  it("blocks while a related Activity is still open", () => {
+    expect(closureBlockers({ ...ready, openRelatedActivities: 1 })).toContain("open_related_activities");
+    expect(closureBlockers({ ...ready, openRelatedActivities: 0 })).toEqual([]);
   });
 });
 
