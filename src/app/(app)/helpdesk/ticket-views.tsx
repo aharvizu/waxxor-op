@@ -158,6 +158,7 @@ export function TableView({
   basePath,
   statusOptions,
   priorityOptions,
+  density,
 }: {
   rows: TicketRow[];
   columns: string[];
@@ -166,12 +167,13 @@ export function TableView({
   basePath: string;
   statusOptions: TicketStatusOption[];
   priorityOptions: TicketPriorityOption[];
+  density: "compact" | "comfortable" | "spacious";
 }) {
   if (rows.length === 0) return <EmptyTickets />;
   const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => registry[c]);
   return (
     <Card className="overflow-visible">
-      <Table>
+      <Table density={density}>
         <THead>
           <tr>
             <Th> </Th>

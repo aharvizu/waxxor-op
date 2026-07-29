@@ -7,14 +7,15 @@ import { useViewConfig } from "@/components/views/use-view-config";
 import type { PublicFieldDefinition, FilterGroup } from "@/lib/filters";
 import type { SavedView } from "@/lib/views";
 import type { Role } from "@/lib/roles";
-import { KanbanView, ListView, TableView, type ProjectRow } from "./project-views";
+import { COMPANY_COLUMN_OPTIONS, KanbanView, ListView, TableView, type CompanyRow } from "./company-views";
 
 /**
- * Client-side owner of the Views Engine experience for Projects. Mirrors
- * helpdesk/tickets-view-content.tsx — plain, already-fetched data props
- * only, no functions cross the server/client boundary.
+ * Client-side owner of the Views Engine experience for Empresas. Mirrors
+ * activities-view-content.tsx / tickets-view-content.tsx — plain,
+ * already-fetched data props only, no functions cross the server/client
+ * boundary.
  */
-export function ProjectsViewContent({
+export function CompaniesViewContent({
   views,
   activeViewId,
   currentUserId,
@@ -27,8 +28,6 @@ export function ProjectsViewContent({
   activeQuick,
   activeFilters,
   activeSearch,
-  columnOptions,
-  kanbanGroupOptions,
 }: {
   views: SavedView[];
   activeViewId: number;
@@ -36,14 +35,12 @@ export function ProjectsViewContent({
   currentUserRole: Role;
   orgUsers: { id: number; name: string }[];
   basePath: string;
-  rows: ProjectRow[];
+  rows: CompanyRow[];
   fields: Record<string, PublicFieldDefinition>;
   quickFilters: { key: string; label: string }[];
   activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
-  columnOptions: { key: string; label: string }[];
-  kanbanGroupOptions: { key: string; label: string }[];
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
@@ -60,7 +57,7 @@ export function ProjectsViewContent({
         activeViewId={view.id}
         currentUserId={currentUserId}
         currentUserRole={currentUserRole}
-        module="projects"
+        module="companies"
         basePath={basePath}
         orgUsers={orgUsers}
         pendingChanges={{ status, canEditDirectly, save, discard, saveAsNewPersonal }}
@@ -84,16 +81,15 @@ export function ProjectsViewContent({
         retry={retry}
         discard={discard}
         saveAsNewPersonal={saveAsNewPersonal}
-        columnOptions={view.viewType === "table" ? columnOptions : []}
-        groupByOptions={view.viewType === "kanban" ? kanbanGroupOptions : []}
+        columnOptions={view.viewType === "table" ? COMPANY_COLUMN_OPTIONS : []}
       />
 
       {view.viewType === "table" ? (
-        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} basePath={basePath} density={config.density} />
+        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} density={config.density} />
       ) : view.viewType === "kanban" ? (
-        <KanbanView rows={rows} groupField={config.kanban.groupField === "healthStatus" ? "healthStatus" : "status"} />
+        <KanbanView rows={rows} />
       ) : (
-        <ListView rows={rows} basePath={basePath} />
+        <ListView rows={rows} />
       )}
     </>
   );

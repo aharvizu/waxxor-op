@@ -233,17 +233,32 @@ export function Avatar({
  * sites used to remember this individually and half didn't, which broke wide
  * tables on narrow screens (UX audit, 2026-07-20). Fixing it once here beats
  * fixing it at every call site.
+ *
+ * `density` (optional, Views Engine only — every other caller omits it and
+ * keeps today's spacing): the toolbar's Densidad selector wrote
+ * `config.density` since the Motor shipped, but nothing ever read it back —
+ * confirmed dead across every module, not just one (2026-07-29). Applied as
+ * child-selector overrides here instead of a Td/Td prop so the fix doesn't
+ * touch the many non-Views-Engine tables that also use Td/Th.
  */
 export function Table({
   children,
   className,
+  density,
 }: {
   children: ReactNode;
   className?: string;
+  density?: "compact" | "comfortable" | "spacious";
 }) {
+  const densityClass =
+    density === "compact"
+      ? "[&_td]:py-1.5 [&_th]:py-1.5"
+      : density === "spacious"
+        ? "[&_td]:py-5 [&_th]:py-4"
+        : undefined;
   return (
     <div className="overflow-x-auto">
-      <table className={cx("w-full text-sm", className)}>{children}</table>
+      <table className={cx("w-full text-sm", densityClass, className)}>{children}</table>
     </div>
   );
 }

@@ -120,12 +120,22 @@ function EmptyProjects() {
 
 /* ------------------------------------------------------------------ table */
 
-export function TableView({ rows, columns, basePath }: { rows: ProjectRow[]; columns: string[]; basePath: string }) {
+export function TableView({
+  rows,
+  columns,
+  basePath,
+  density,
+}: {
+  rows: ProjectRow[];
+  columns: string[];
+  basePath: string;
+  density: "compact" | "comfortable" | "spacious";
+}) {
   if (rows.length === 0) return <EmptyProjects />;
   const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => COLUMN_REGISTRY[c]);
   return (
     <Card className="overflow-visible">
-      <Table>
+      <Table density={density}>
         <THead>
           <tr>
             <Th> </Th>

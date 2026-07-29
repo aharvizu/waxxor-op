@@ -125,6 +125,7 @@ export function TicketsViewContent({
           basePath={basePath}
           statusOptions={statuses}
           priorityOptions={priorities}
+          density={config.density}
         />
       ) : view.viewType === "list" ? (
         <ListView rows={rows} basePath={basePath} statuses={statusMap} priorities={priorityMap} />

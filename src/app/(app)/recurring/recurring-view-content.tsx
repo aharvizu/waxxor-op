@@ -92,7 +92,7 @@ export function RecurringViewContent({
       ) : view.viewType === "list" ? (
         <ListView rows={rows} basePath={basePath} />
       ) : (
-        <TableView rows={rows} basePath={basePath} />
+        <TableView rows={rows} basePath={basePath} density={config.density} />
       )}
     </>
   );

@@ -1,7 +1,19 @@
 import { and, eq, gt, gte, ilike, inArray, isNull, isNotNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { activities, customFieldValues, projectMembers, projects, recurrenceDefinitions, tickets, workItems } from "@/db/schema";
+import {
+  activities,
+  clientServices,
+  companies,
+  contacts,
+  contracts,
+  customFieldValues,
+  projectMembers,
+  projects,
+  recurrenceDefinitions,
+  tickets,
+  workItems,
+} from "@/db/schema";
 
 /**
  * Generic AND/OR filter engine (Part 2, dynamic config 2026-07-20). Field
@@ -124,6 +136,73 @@ export const RECURRENCE_FIELDS: Record<string, FieldDefinition> = {
   nextRunAt: { key: "nextRunAt", label: "Próxima ejecución", type: "date", column: recurrenceDefinitions.nextRunAt },
   createdAt: { key: "createdAt", label: "Creado", type: "date", column: recurrenceDefinitions.createdAt },
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: recurrenceDefinitions.updatedAt },
+};
+
+/**
+ * Companies' aggregate "columns" — correlated subqueries, not real table
+ * columns. Exported so the Empresas list page's own select clause uses the
+ * exact same expressions as the field registry below (one definition, not
+ * two copies that could drift).
+ */
+export const COMPANY_OPEN_TICKETS_SQL = sql<number>`(select count(*)::int from ${workItems} w
+  where w.company_id = ${companies.id} and w.type = 'ticket'
+  and w.status in ('new','assigned','in_progress','waiting_customer','waiting_third_party','scheduled','reopened'))`;
+
+export const COMPANY_PENDING_BILLING_SQL = sql<number>`(select count(*)::int from ${tickets} t
+  join ${workItems} w on w.id = t.work_item_id
+  where w.company_id = ${companies.id} and t.billing_status = 'pending_review')`;
+
+export const COMPANY_ACTIVE_SERVICES_SQL = sql<number>`(select count(*)::int from ${clientServices} cs
+  where cs.company_id = ${companies.id} and cs.status = 'active')`;
+
+export const COMPANY_NEXT_RENEWAL_SQL = sql<string | null>`(select min(d) from (
+  select cs.renewal_date as d from ${clientServices} cs
+    where cs.company_id = ${companies.id} and cs.status = 'active' and cs.renewal_date is not null
+  union all
+  select ct.end_date from ${contracts} ct
+    where ct.company_id = ${companies.id} and ct.status = 'active' and ct.end_date is not null
+) r)`;
+
+export const COMPANY_LAST_TOUCH_SQL = sql<Date | null>`(select max(w.updated_at) from ${workItems} w
+  where w.company_id = ${companies.id})`;
+
+/** Companies field registry. Aggregate fields (open tickets, pending billing, …) are correlated subqueries — see the exported SQL above. */
+export const COMPANY_FIELDS: Record<string, FieldDefinition> = {
+  status: { key: "status", label: "Estado", type: "select", column: companies.status },
+  industry: { key: "industry", label: "Industria", type: "text", column: companies.industry },
+  website: { key: "website", label: "Sitio web", type: "text", column: companies.website },
+  email: { key: "email", label: "Correo", type: "text", column: companies.email },
+  phone: { key: "phone", label: "Teléfono", type: "text", column: companies.phone },
+  city: { key: "city", label: "Ciudad", type: "text", column: companies.city },
+  state: { key: "state", label: "Estado/provincia", type: "text", column: companies.state },
+  country: { key: "country", label: "País", type: "text", column: companies.country },
+  accountOwnerId: { key: "accountOwnerId", label: "Responsable de cuenta", type: "user", column: companies.accountOwnerId },
+  defaultTechnicianId: { key: "defaultTechnicianId", label: "Técnico por defecto", type: "user", column: companies.defaultTechnicianId },
+  openTickets: { key: "openTickets", label: "Tickets abiertos", type: "number", column: COMPANY_OPEN_TICKETS_SQL },
+  pendingBilling: { key: "pendingBilling", label: "Facturación pendiente", type: "number", column: COMPANY_PENDING_BILLING_SQL },
+  activeServices: { key: "activeServices", label: "Servicios activos", type: "number", column: COMPANY_ACTIVE_SERVICES_SQL },
+  nextRenewal: { key: "nextRenewal", label: "Próxima renovación", type: "date", column: COMPANY_NEXT_RENEWAL_SQL },
+  lastTouchAt: { key: "lastTouchAt", label: "Último contacto", type: "date", column: COMPANY_LAST_TOUCH_SQL },
+  createdAt: { key: "createdAt", label: "Creado", type: "date", column: companies.createdAt },
+  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: companies.updatedAt },
+};
+
+/** Contacts' aggregate "column" — same one-definition-not-two rationale as the Companies aggregates above. */
+export const CONTACT_OPEN_TICKETS_SQL = sql<number>`(select count(*)::int from ${workItems} w
+  where w.contact_id = ${contacts.id} and w.type = 'ticket'
+  and w.status in ('new','assigned','in_progress','waiting_customer','waiting_third_party','scheduled','reopened'))`;
+
+/** Contacts field registry. */
+export const CONTACT_FIELDS: Record<string, FieldDefinition> = {
+  contactType: { key: "contactType", label: "Tipo", type: "select", column: contacts.contactType },
+  isActive: { key: "isActive", label: "Activo", type: "boolean", column: contacts.isActive },
+  isPrimary: { key: "isPrimary", label: "Principal", type: "boolean", column: contacts.isPrimary },
+  companyId: { key: "companyId", label: "Empresa", type: "company", column: contacts.companyId },
+  jobTitle: { key: "jobTitle", label: "Puesto", type: "text", column: contacts.jobTitle },
+  department: { key: "department", label: "Departamento", type: "text", column: contacts.department },
+  openTickets: { key: "openTickets", label: "Tickets abiertos", type: "number", column: CONTACT_OPEN_TICKETS_SQL },
+  createdAt: { key: "createdAt", label: "Creado", type: "date", column: contacts.createdAt },
+  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: contacts.updatedAt },
 };
 
 /** Loads a module's field registry with its active custom fields appended as filterable "select"/"text"/etc fields. */
@@ -386,6 +465,54 @@ export const RECURRENCE_QUICK_FILTERS: { key: RecurrenceQuickFilterKey; label: s
   { key: "errors", label: "Con errores" },
   { key: "paused", label: "Pausadas" },
 ];
+
+export type CompanyQuickFilterKey = "mine" | "renewal" | "open_tickets" | "pending_billing";
+export const COMPANY_QUICK_FILTERS: { key: CompanyQuickFilterKey; label: string }[] = [
+  { key: "mine", label: "Mis cuentas" },
+  { key: "renewal", label: "Renovación ≤ 30 días" },
+  { key: "open_tickets", label: "Tickets abiertos" },
+  { key: "pending_billing", label: "Facturación pendiente" },
+];
+
+/** Quick-filter SQL for Companies — the same three conditions the list already offered as fixed pills, plus "Mis cuentas". */
+export function companyQuickFilterSql(key: CompanyQuickFilterKey, userId: number): SQL | undefined {
+  switch (key) {
+    case "mine":
+      return eq(companies.accountOwnerId, userId);
+    case "renewal":
+      return sql`${COMPANY_NEXT_RENEWAL_SQL} <= current_date + 30`;
+    case "open_tickets":
+      return sql`${COMPANY_OPEN_TICKETS_SQL} > 0`;
+    case "pending_billing":
+      return sql`${COMPANY_PENDING_BILLING_SQL} > 0`;
+    default:
+      return undefined;
+  }
+}
+
+export type ContactQuickFilterKey = "active" | "inactive" | "primary" | "open_tickets";
+export const CONTACT_QUICK_FILTERS: { key: ContactQuickFilterKey; label: string }[] = [
+  { key: "active", label: "Activos" },
+  { key: "inactive", label: "Archivados" },
+  { key: "primary", label: "Principales" },
+  { key: "open_tickets", label: "Con tickets abiertos" },
+];
+
+/** Quick-filter SQL for Contacts. */
+export function contactQuickFilterSql(key: ContactQuickFilterKey): SQL | undefined {
+  switch (key) {
+    case "active":
+      return eq(contacts.isActive, true);
+    case "inactive":
+      return eq(contacts.isActive, false);
+    case "primary":
+      return eq(contacts.isPrimary, true);
+    case "open_tickets":
+      return sql`${CONTACT_OPEN_TICKETS_SQL} > 0`;
+    default:
+      return undefined;
+  }
+}
 
 /** Quick-filter SQL for Recurring. */
 export function recurrenceQuickFilterSql(key: RecurrenceQuickFilterKey, userId: number): SQL | undefined {

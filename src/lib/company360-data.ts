@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   activities,
@@ -86,87 +86,6 @@ export async function getOrgRenewals(orgId: number, horizonDays = 90): Promise<R
     items.push({ source: "contract", ...r, date: r.date! });
   }
   return items.sort((a, b) => a.date.localeCompare(b.date));
-}
-
-/**
- * Client directory rows: search across name/legal name/contacts/services and
- * per-row aggregates as correlated subqueries (one round trip, no N+1).
- */
-export async function getClientsDirectory(
-  orgId: number,
-  opts: { q?: string; status?: string; filter?: "renewal" | "open_tickets" | "pending_billing" } = {},
-) {
-  const conditions = [eq(companies.organizationId, orgId)];
-  if (opts.status && ["active", "inactive", "prospect_legacy", "archived"].includes(opts.status)) {
-    conditions.push(eq(companies.status, opts.status as typeof companies.$inferSelect.status));
-  } else if (!opts.status) {
-    conditions.push(ne(companies.status, "archived"));
-  }
-  if (opts.q) {
-    const term = `%${opts.q.trim()}%`;
-    conditions.push(
-      sql`(
-        ${companies.name} ilike ${term}
-        or coalesce(${companies.legalName}, '') ilike ${term}
-        or coalesce(${companies.industry}, '') ilike ${term}
-        or coalesce(${companies.email}, '') ilike ${term}
-        or coalesce(${companies.phone}, '') ilike ${term}
-        or exists (select 1 from ${contacts} c where c.company_id = ${companies.id}
-          and (c.first_name || ' ' || c.last_name ilike ${term}
-            or coalesce(c.email, '') ilike ${term}
-            or coalesce(c.phone, '') ilike ${term}
-            or coalesce(c.mobile, '') ilike ${term}))
-        or exists (select 1 from ${clientServices} cs join ${services} s on s.id = cs.service_id
-          where cs.company_id = ${companies.id} and s.name ilike ${term})
-      )`,
-    );
-  }
-
-  const openTickets = sql<number>`(select count(*)::int from ${workItems} w
-    where w.company_id = ${companies.id} and w.type = 'ticket'
-    and w.status in ('new','assigned','in_progress','waiting_customer','waiting_third_party','scheduled','reopened'))`;
-  const pendingBilling = sql<number>`(select count(*)::int from ${tickets} t
-    join ${workItems} w on w.id = t.work_item_id
-    where w.company_id = ${companies.id} and t.billing_status = 'pending_review')`;
-  const nextRenewal = sql<string | null>`(select min(d) from (
-    select cs.renewal_date as d from ${clientServices} cs
-      where cs.company_id = ${companies.id} and cs.status = 'active' and cs.renewal_date is not null
-    union all
-    select ct.end_date from ${contracts} ct
-      where ct.company_id = ${companies.id} and ct.status = 'active' and ct.end_date is not null
-  ) r)`;
-
-  if (opts.filter === "renewal") {
-    conditions.push(sql`${nextRenewal} <= current_date + 30`);
-  } else if (opts.filter === "open_tickets") {
-    conditions.push(sql`${openTickets} > 0`);
-  } else if (opts.filter === "pending_billing") {
-    conditions.push(sql`${pendingBilling} > 0`);
-  }
-
-  return db
-    .select({
-      id: companies.id,
-      name: companies.name,
-      status: companies.status,
-      email: companies.email,
-      phone: companies.phone,
-      primaryContact: sql<string | null>`(select c.first_name || ' ' || c.last_name
-        from ${contacts} c where c.id = ${companies.primaryContactId})`,
-      accountOwnerName: users.name,
-      activeServices: sql<number>`(select count(*)::int from ${clientServices} cs
-        where cs.company_id = ${companies.id} and cs.status = 'active')`,
-      openTickets,
-      pendingBilling,
-      nextRenewal,
-      lastTouchAt: sql<Date | null>`(select max(w.updated_at) from ${workItems} w
-        where w.company_id = ${companies.id})`,
-    })
-    .from(companies)
-    .leftJoin(users, eq(companies.accountOwnerId, users.id))
-    .where(and(...conditions))
-    .orderBy(asc(companies.name))
-    .limit(200);
 }
 
 /** Header + summary aggregates for one client, in parallel single-pass queries. */

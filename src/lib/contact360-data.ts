@@ -20,53 +20,6 @@ import {
  * conversations.contactId, both real FKs added in that same migration.
  */
 
-export async function getContactsDirectory(
-  orgId: number,
-  opts: { q?: string; companyId?: number; status?: string } = {},
-) {
-  const conditions = [eq(contacts.organizationId, orgId)];
-  if (opts.companyId) conditions.push(eq(contacts.companyId, opts.companyId));
-  if (opts.status === "active") conditions.push(eq(contacts.isActive, true));
-  else if (opts.status === "inactive") conditions.push(eq(contacts.isActive, false));
-  if (opts.q) {
-    const term = `%${opts.q.trim()}%`;
-    conditions.push(
-      sql`(
-        ${contacts.firstName} || ' ' || ${contacts.lastName} ilike ${term}
-        or coalesce(${contacts.email}, '') ilike ${term}
-        or coalesce(${contacts.phone}, '') ilike ${term}
-        or coalesce(${contacts.mobile}, '') ilike ${term}
-        or coalesce(${contacts.jobTitle}, '') ilike ${term}
-        or ${companies.name} ilike ${term}
-      )`,
-    );
-  }
-
-  return db
-    .select({
-      id: contacts.id,
-      firstName: contacts.firstName,
-      lastName: contacts.lastName,
-      jobTitle: contacts.jobTitle,
-      department: contacts.department,
-      email: contacts.email,
-      phone: contacts.phone,
-      mobile: contacts.mobile,
-      contactType: contacts.contactType,
-      isPrimary: contacts.isPrimary,
-      isActive: contacts.isActive,
-      companyId: contacts.companyId,
-      companyName: companies.name,
-      openTickets: sql<number>`(select count(*)::int from ${workItems} w
-        where w.contact_id = ${contacts.id} and w.type = 'ticket'
-        and w.status in ('new','assigned','in_progress','waiting_customer','waiting_third_party','scheduled','reopened'))`,
-    })
-    .from(contacts)
-    .innerJoin(companies, eq(contacts.companyId, companies.id))
-    .where(and(...conditions))
-    .orderBy(desc(contacts.isPrimary), asc(contacts.lastName))
-    .limit(200);
-}
 
 export async function getContactSummary(orgId: number, contactId: number) {
   const [row] = await db

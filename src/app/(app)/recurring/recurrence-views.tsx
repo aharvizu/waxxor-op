@@ -52,11 +52,19 @@ function EmptyRecurring() {
 
 /* ------------------------------------------------------------------ table */
 
-export function TableView({ rows, basePath }: { rows: RecurrenceRow[]; basePath: string }) {
+export function TableView({
+  rows,
+  basePath,
+  density,
+}: {
+  rows: RecurrenceRow[];
+  basePath: string;
+  density: "compact" | "comfortable" | "spacious";
+}) {
   if (rows.length === 0) return <EmptyRecurring />;
   return (
     <Card className="overflow-visible">
-      <Table>
+      <Table density={density}>
         <THead>
           <tr>
             <Th> </Th>
