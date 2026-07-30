@@ -8,8 +8,11 @@ import { formatMinutes } from "@/lib/time-entries";
 import { Badge, Card, EmptyState, THead, Table, Td, Th, cx } from "@/components/ui";
 import { LifeBuoy, Plus } from "lucide-react";
 import { compareValues, nextSortState, SortableTh, type SortState } from "@/components/views/sortable-th";
+import { toCatalogMap } from "@/lib/catalog-map";
 import { TicketRowActions } from "./ticket-row-actions";
 import { TicketKanban } from "./ticket-kanban";
+
+export { toCatalogMap };
 
 export type TicketRow = {
   id: number;
@@ -39,10 +42,6 @@ export type TicketRow = {
 export type TicketStatusOption = { id: number; name: string; color: string | null; category: TicketStatusCategoryValue; isActive: boolean };
 export type TicketPriorityOption = { id: number; name: string; color: string | null; isActive: boolean };
 export type TicketBillingOption = { id: number; name: string; color: string | null };
-
-export function toCatalogMap<T extends { id: number }>(rows: T[]): Map<number, T> {
-  return new Map(rows.map((r) => [r.id, r]));
-}
 
 /** Renders a catalog entry (status/priority/billing) as a hex-colored chip —
  * same pattern as settings/sla/sla-forms.tsx's DefinitionRow — since the

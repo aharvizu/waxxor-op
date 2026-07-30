@@ -24,9 +24,9 @@ import {
   ticketPriorityMeta,
 } from "@/lib/labels";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
+import { toCatalogMap } from "@/lib/catalog-map";
 import {
   CatalogChip,
-  toCatalogMap,
   type TicketBillingOption,
   type TicketPriorityOption,
   type TicketStatusOption,
