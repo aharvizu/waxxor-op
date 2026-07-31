@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { DragList } from "@/components/drag-list";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
@@ -140,19 +141,14 @@ export function FormConfigEditor({
                   />
                 )}
                 {unplaced.length > 0 ? (
-                  <select
-                    defaultValue=""
-                    onChange={(e) => {
-                      if (e.target.value) addFieldToSection(section.key, e.target.value);
-                      e.target.value = "";
+                  <SearchableSelect
+                    value=""
+                    onValueChange={(v) => {
+                      if (v) addFieldToSection(section.key, v);
                     }}
-                    className={cx(inputClass, "h-8 w-auto text-xs")}
-                  >
-                    <option value="">+ Agregar campo…</option>
-                    {unplaced.map((f) => (
-                      <option key={f.key} value={f.key}>{f.label}</option>
-                    ))}
-                  </select>
+                    className="h-8 w-auto text-xs"
+                    options={[{ value: "", label: "+ Agregar campo…" }, ...unplaced.map((f) => ({ value: f.key, label: f.label }))]}
+                  />
                 ) : null}
               </div>
             ) : null}

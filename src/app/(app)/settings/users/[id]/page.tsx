@@ -8,6 +8,7 @@ import { ROLES } from "@/lib/roles";
 import { requireRole } from "@/lib/session";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { Card, CardHeader, PageHeader, buttonDangerClass, inputClass, labelClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { deleteUser, updateUser } from "../user-detail-actions";
 
@@ -86,18 +87,12 @@ export default async function UserPage({
               <label htmlFor="role" className={labelClass}>
                 Role
               </label>
-              <select
+              <SearchableSelect
                 id="role"
                 name="role"
                 defaultValue={user.role}
-                className={inputClass}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {roleMeta[r]?.label ?? r}
-                  </option>
-                ))}
-              </select>
+                options={ROLES.map((r) => ({ value: r, label: roleMeta[r]?.label ?? r }))}
+              />
             </div>
             <div>
               <label htmlFor="title" className={labelClass}>

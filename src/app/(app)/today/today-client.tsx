@@ -21,6 +21,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import type { ActionState } from "@/lib/action-result";
 import { OPEN_COMMAND_EVENT } from "@/components/shell/command-center";
 import { Dropdown, MenuLabel, menuItemClass } from "@/components/shell/dropdown";
@@ -60,31 +61,33 @@ export function TodayControls({
     >
       <input type="hidden" name="filter" value={filter} />
       <input type="hidden" name="group" value={group} />
-      <select
+      <SearchableSelect
         name="scope"
         key={scope}
         defaultValue={scope}
         aria-label="Alcance"
         disabled={!canChooseScope}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className={cx(inputClass, "h-9 w-auto")}
-      >
-        <option value="mine">Mi trabajo</option>
-        <option value="team">Mi equipo</option>
-        <option value="org">Toda la organización</option>
-      </select>
-      <select
+        submitOnChange
+        className="h-9 w-auto"
+        options={[
+          { value: "mine", label: "Mi trabajo" },
+          { value: "team", label: "Mi equipo" },
+          { value: "org", label: "Toda la organización" },
+        ]}
+      />
+      <SearchableSelect
         name="view"
         key={view}
         defaultValue={view}
         aria-label="Vista"
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className={cx(inputClass, "h-9 w-auto")}
-      >
-        <option value="list">Lista inteligente</option>
-        <option value="agenda">Agenda</option>
-        <option value="table">Tabla compacta</option>
-      </select>
+        submitOnChange
+        className="h-9 w-auto"
+        options={[
+          { value: "list", label: "Lista inteligente" },
+          { value: "agenda", label: "Agenda" },
+          { value: "table", label: "Tabla compacta" },
+        ]}
+      />
       <input
         type="date"
         name="date"
@@ -180,16 +183,17 @@ export function ReminderMarkButtons({
         <input type="hidden" name="entityType" value={entityType} />
         <input type="hidden" name="entityId" value={entityId} />
         <input type="hidden" name="mark" value="snoozed" />
-        <select
+        <SearchableSelect
           name="snoozeDays"
           defaultValue="1"
           aria-label="Posponer días"
-          className={cx(inputClass, "h-7 w-auto px-1.5 text-xs")}
-        >
-          <option value="1">1d</option>
-          <option value="3">3d</option>
-          <option value="7">7d</option>
-        </select>
+          className="h-7 w-auto px-1.5 text-xs"
+          options={[
+            { value: "1", label: "1d" },
+            { value: "3", label: "3d" },
+            { value: "7", label: "7d" },
+          ]}
+        />
         <button
           type="submit"
           title="Posponer alerta"

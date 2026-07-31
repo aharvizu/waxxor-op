@@ -34,8 +34,8 @@ import {
   Th,
   buttonSecondaryClass,
   cx,
-  inputClass,
 } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { ThresholdForm } from "../reports/report-forms";
 
 export const metadata: Metadata = { title: "Indicators" };
@@ -129,19 +129,24 @@ export default async function IndicatorsPage({
       {view !== "thresholds" ? (
         <form method="get" className="mb-6 flex flex-wrap items-center gap-3">
           <input type="hidden" name="view" value={view} />
-          <select name="period" defaultValue={periodRule} className={cx(inputClass, "w-auto")}>
-            {PERIOD_RULES.filter((r) => r !== "custom").map((r) => (
-              <option key={r} value={r}>{PERIOD_LABELS[r] ?? r}</option>
-            ))}
-          </select>
-          <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
-            <option value="">Toda la organización</option>
-            {companyRows.map((c) => <option key={c.id} value={c.id}>Empresa: {c.name}</option>)}
-          </select>
-          <select name="userId" defaultValue={params.userId ?? ""} className={cx(inputClass, "w-auto")}>
-            <option value="">Todos los usuarios</option>
-            {userRows.map((u) => <option key={u.id} value={u.id}>Usuario: {u.name}</option>)}
-          </select>
+          <SearchableSelect
+            name="period"
+            defaultValue={periodRule}
+            className="w-auto"
+            options={PERIOD_RULES.filter((r) => r !== "custom").map((r) => ({ value: r, label: PERIOD_LABELS[r] ?? r }))}
+          />
+          <SearchableSelect
+            name="companyId"
+            defaultValue={params.companyId ?? ""}
+            className="w-auto"
+            options={[{ value: "", label: "Toda la organización" }, ...companyRows.map((c) => ({ value: String(c.id), label: `Empresa: ${c.name}` }))]}
+          />
+          <SearchableSelect
+            name="userId"
+            defaultValue={params.userId ?? ""}
+            className="w-auto"
+            options={[{ value: "", label: "Todos los usuarios" }, ...userRows.map((u) => ({ value: String(u.id), label: `Usuario: ${u.name}` }))]}
+          />
           <button type="submit" className={buttonSecondaryClass}>Aplicar</button>
           {periodIncomplete ? (
             <span className="rounded-md border border-warning/30 bg-warning/5 px-2 py-1 text-xs text-fg">

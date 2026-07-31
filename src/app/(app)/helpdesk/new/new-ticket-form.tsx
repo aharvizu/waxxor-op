@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { CustomFieldsForm } from "@/components/custom-fields-form";
 import type { ActionState } from "@/lib/action-result";
@@ -65,45 +66,34 @@ export function NewTicketForm({
           <label htmlFor="companyId" className={labelClass}>
             Client
           </label>
-          <select
+          <SearchableSelect
             id="companyId"
             name="companyId"
             value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">— None —</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={setCompanyId}
+            options={[{ value: "", label: "— None —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label htmlFor="priorityId" className={labelClass}>
             Priority
           </label>
-          <select id="priorityId" name="priorityId" defaultValue={priorities.find((p) => p.isDefault)?.id ?? ""} className={inputClass}>
-            {priorities.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            id="priorityId"
+            name="priorityId"
+            defaultValue={String(priorities.find((p) => p.isDefault)?.id ?? "")}
+            options={priorities.map((p) => ({ value: String(p.id), label: p.name }))}
+          />
         </div>
         <div>
           <label htmlFor="assigneeId" className={labelClass}>
             Assignee
           </label>
-          <select id="assigneeId" name="assigneeId" className={inputClass}>
-            <option value="">Unassigned</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            id="assigneeId"
+            name="assigneeId"
+            options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+          />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -111,50 +101,44 @@ export function NewTicketForm({
           <label htmlFor="category" className={labelClass}>
             Category
           </label>
-          <select
+          <SearchableSelect
             id="category"
             name="category"
             required
             defaultValue=""
             aria-invalid={errors.category ? true : undefined}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              — Select —
-            </option>
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "— Select —", disabled: true },
+              ...categoryOptions.map((c) => ({ value: c, label: c })),
+            ]}
+          />
           <FieldError errors={errors.category} />
         </div>
         <div>
           <label htmlFor="channel" className={labelClass}>
             Channel (optional)
           </label>
-          <select id="channel" name="channel" defaultValue="" className={inputClass}>
-            <option value="">—</option>
-            {["email", "phone", "whatsapp", "portal", "in_person", "internal"].map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            id="channel"
+            name="channel"
+            defaultValue=""
+            options={[
+              { value: "", label: "—" },
+              ...["email", "phone", "whatsapp", "portal", "in_person", "internal"].map((c) => ({ value: c, label: c })),
+            ]}
+          />
         </div>
         <div>
           <label htmlFor="contactId" className={labelClass}>
             Contact (optional)
           </label>
-          <select id="contactId" name="contactId" defaultValue="" className={inputClass}>
-            <option value="">— None —</option>
-            {suggestedContacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            key={companyId}
+            id="contactId"
+            name="contactId"
+            defaultValue=""
+            options={[{ value: "", label: "— None —" }, ...suggestedContacts.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label htmlFor="contact" className={labelClass}>
@@ -168,14 +152,11 @@ export function NewTicketForm({
           <label htmlFor="slaDefinitionId" className={labelClass}>
             SLA (SuperAdmin — leave empty for the priority default)
           </label>
-          <select id="slaDefinitionId" name="slaDefinitionId" className={inputClass}>
-            <option value="">Automatic (default for priority)</option>
-            {slas.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            id="slaDefinitionId"
+            name="slaDefinitionId"
+            options={[{ value: "", label: "Automatic (default for priority)" }, ...slas.map((s) => ({ value: String(s.id), label: s.name }))]}
+          />
         </div>
       ) : null}
       <div>

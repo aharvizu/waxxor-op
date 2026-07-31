@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { DragList } from "@/components/drag-list";
 import {
@@ -77,11 +78,12 @@ export function CustomFieldCreateForm({ module }: { module: ConfigModule }) {
         </div>
         <div>
           <label className={labelClass}>Tipo</label>
-          <select name="fieldType" required className={inputClass}>
-            {Object.entries(FIELD_TYPE_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="fieldType"
+            required
+            defaultValue={Object.keys(FIELD_TYPE_LABELS)[0]}
+            options={Object.entries(FIELD_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l }))}
+          />
         </div>
         <div>
           <label className={labelClass}>Grupo (sección)</label>

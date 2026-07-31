@@ -19,7 +19,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import { fmtDateTime } from "@/lib/format";
-import { AutoSubmitSelect } from "./knowledge-forms";
+import { SearchableSelect } from "@/components/searchable-select";
 
 export const metadata: Metadata = { title: "Base de conocimiento" };
 
@@ -75,18 +75,21 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
         {params.favorites ? <input type="hidden" name="favorites" value={params.favorites} /> : null}
         {params.tag ? <input type="hidden" name="tag" value={params.tag} /> : null}
         <input name="q" defaultValue={params.q ?? ""} placeholder="Buscar título, problema o solución…" className={cx(inputClass, "md:col-span-2")} />
-        <AutoSubmitSelect name="status" defaultValue={params.status ?? ""} className={inputClass}>
-          <option value="">Estado: todos</option>
-          {Object.entries(knowledgeStatusMeta).map(([k, m]) => (
-            <option key={k} value={k}>{m.label}</option>
-          ))}
-        </AutoSubmitSelect>
-        <AutoSubmitSelect name="categoryId" defaultValue={params.categoryId ?? ""} className={inputClass}>
-          <option value="">Categoría: todas</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </AutoSubmitSelect>
+        <SearchableSelect
+          name="status"
+          defaultValue={params.status ?? ""}
+          submitOnChange
+          options={[
+            { value: "", label: "Estado: todos" },
+            ...Object.entries(knowledgeStatusMeta).map(([k, m]) => ({ value: k, label: m.label })),
+          ]}
+        />
+        <SearchableSelect
+          name="categoryId"
+          defaultValue={params.categoryId ?? ""}
+          submitOnChange
+          options={[{ value: "", label: "Categoría: todas" }, ...categories.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
       </form>
 
       <div className="mb-4 flex flex-wrap gap-1.5 text-xs">

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Star } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { cx, inputClass, labelClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
@@ -54,12 +55,11 @@ export function ArticleForm({
       </div>
       <div>
         <label className={labelClass}>Categoría</label>
-        <select name="categoryId" defaultValue={article?.categoryId ?? ""} className={inputClass}>
-          <option value="">— Sin categoría —</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          name="categoryId"
+          defaultValue={article?.categoryId ? String(article.categoryId) : ""}
+          options={[{ value: "", label: "— Sin categoría —" }, ...categories.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
       </div>
       <div>
         <label className={labelClass}>Problema</label>
@@ -176,37 +176,5 @@ export function ArticleWorkflowPanel({
         <WorkflowActionForm articleId={articleId} action={restoreArticle} label="Restaurar a borrador" />
       ) : null}
     </div>
-  );
-}
-
-/**
- * GET-form filter select that submits its enclosing <form> on change. A bare
- * onChange handler can't be passed to a <select> rendered by a Server
- * Component (React throws "Event handlers cannot be passed to Client
- * Component props") — this client leaf is the fix. `e.currentTarget.form`
- * resolves via native DOM nesting, so this still submits whichever <form>
- * the select is placed inside (no ref needed), used by the Knowledge Base
- * filter bar to keep q/status/categoryId in one combined submission.
- */
-export function AutoSubmitSelect({
-  name,
-  defaultValue,
-  className,
-  children,
-}: {
-  name: string;
-  defaultValue: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <select
-      name={name}
-      defaultValue={defaultValue}
-      className={className}
-      onChange={(e) => e.currentTarget.form?.requestSubmit()}
-    >
-      {children}
-    </select>
   );
 }

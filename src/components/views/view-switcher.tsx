@@ -6,6 +6,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { Copy, Download, Lock, LayoutGrid, List, Plus, Star, Table2, Trash2, UserCog, Users } from "lucide-react";
 import { DragList } from "@/components/drag-list";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { cx, inputClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
 import type { ConfigModule, SavedView, ViewType } from "@/lib/views";
@@ -171,16 +172,26 @@ function ViewCreateForm({
       <input type="hidden" name="path" value={basePath} />
       <FormAlert state={state} />
       <input name="name" required placeholder="Nombre de la vista" className={cx(inputClass, "h-8 w-40 text-xs")} autoFocus />
-      <select name="viewType" defaultValue="table" className={cx(inputClass, "h-8 w-auto text-xs")}>
-        <option value="list">Lista</option>
-        <option value="table">Tabla</option>
-        <option value="kanban">Kanban</option>
-      </select>
-      <select name="scope" defaultValue="personal" className={cx(inputClass, "h-8 w-auto text-xs")}>
-        <option value="personal">Personal</option>
-        <option value="team">Equipo</option>
-        {canOrgScope ? <option value="organization">Organización</option> : null}
-      </select>
+      <SearchableSelect
+        name="viewType"
+        defaultValue="table"
+        className="h-8 w-auto text-xs"
+        options={[
+          { value: "list", label: "Lista" },
+          { value: "table", label: "Tabla" },
+          { value: "kanban", label: "Kanban" },
+        ]}
+      />
+      <SearchableSelect
+        name="scope"
+        defaultValue="personal"
+        className="h-8 w-auto text-xs"
+        options={[
+          { value: "personal", label: "Personal" },
+          { value: "team", label: "Equipo" },
+          ...(canOrgScope ? [{ value: "organization", label: "Organización" }] : []),
+        ]}
+      />
       <button type="submit" className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-hover">
         Crear
       </button>

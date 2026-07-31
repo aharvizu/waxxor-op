@@ -4,7 +4,8 @@ import { projectHealthMeta, projectPriorityMeta, projectStatusMeta } from "@/lib
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
-import { Card, CardHeader, PageHeader, inputClass, labelClass } from "@/components/ui";
+import { Card, CardHeader, PageHeader, labelClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { EnumCatalog } from "../enum-catalog";
 import { CatalogManager, SettingSectionForm } from "../settings-forms";
 
@@ -38,19 +39,19 @@ export default async function ProjectsSettingsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Salud inicial (healthStatus)</label>
-                <select name="defaultHealth" defaultValue={defaults.defaultHealth} className={inputClass}>
-                  {HEALTH_DEFAULT_OPTIONS.map((h) => (
-                    <option key={h} value={h}>{projectHealthMeta[h]?.label ?? h}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  name="defaultHealth"
+                  defaultValue={defaults.defaultHealth}
+                  options={HEALTH_DEFAULT_OPTIONS.map((h) => ({ value: h, label: projectHealthMeta[h]?.label ?? h }))}
+                />
               </div>
               <div>
                 <label className={labelClass}>Prioridad inicial</label>
-                <select name="defaultPriority" defaultValue={defaults.defaultPriority} className={inputClass}>
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p} value={p}>{projectPriorityMeta[p]?.label ?? p}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  name="defaultPriority"
+                  defaultValue={defaults.defaultPriority}
+                  options={PRIORITY_OPTIONS.map((p) => ({ value: p, label: projectPriorityMeta[p]?.label ?? p }))}
+                />
               </div>
             </div>
           </SettingSectionForm>

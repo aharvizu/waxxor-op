@@ -20,6 +20,7 @@ import {
   inputClass,
   labelClass,
 } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { ScrollText } from "lucide-react";
 
 export const metadata: Metadata = { title: "Configuración · Auditoría" };
@@ -90,30 +91,32 @@ export default async function AuditSettingsPage({
         <form method="get" className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <div>
             <label className={labelClass}>Entidad</label>
-            <select name="entityType" defaultValue={filters.entityType ?? ""} className={inputClass}>
-              <option value="">Todas</option>
-              {entityTypes.map((t) => (
-                <option key={t.entityType} value={t.entityType}>{t.entityType}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="entityType"
+              defaultValue={filters.entityType ?? ""}
+              options={[{ value: "", label: "Todas" }, ...entityTypes.map((t) => ({ value: t.entityType, label: t.entityType }))]}
+            />
           </div>
           <div>
             <label className={labelClass}>Acción</label>
-            <select name="action" defaultValue={filters.action ?? ""} className={inputClass}>
-              <option value="">Todas</option>
-              <option value="create">create</option>
-              <option value="update">update</option>
-              <option value="delete">delete</option>
-            </select>
+            <SearchableSelect
+              name="action"
+              defaultValue={filters.action ?? ""}
+              options={[
+                { value: "", label: "Todas" },
+                { value: "create", label: "create" },
+                { value: "update", label: "update" },
+                { value: "delete", label: "delete" },
+              ]}
+            />
           </div>
           <div>
             <label className={labelClass}>Actor</label>
-            <select name="userId" defaultValue={filters.userId ?? ""} className={inputClass}>
-              <option value="">Todos</option>
-              {actors.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="userId"
+              defaultValue={filters.userId ?? ""}
+              options={[{ value: "", label: "Todos" }, ...actors.map((a) => ({ value: String(a.id), label: a.name }))]}
+            />
           </div>
           <div>
             <label className={labelClass}>ID de entidad</label>

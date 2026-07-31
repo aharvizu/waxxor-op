@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { companies } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, PageHeader, inputClass, labelClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { createQuote } from "../actions";
 
@@ -42,14 +43,12 @@ export default async function NewQuotePage() {
               <label htmlFor="companyId" className={labelClass}>
                 Client
               </label>
-              <select id="companyId" name="companyId" required className={inputClass}>
-                <option value="">Select a client…</option>
-                {companyRows.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                id="companyId"
+                name="companyId"
+                required
+                options={[{ value: "", label: "Select a client…" }, ...companyRows.map((c) => ({ value: String(c.id), label: c.name }))]}
+              />
             </div>
             <div>
               <label htmlFor="validUntil" className={labelClass}>
@@ -63,11 +62,16 @@ export default async function NewQuotePage() {
               <label htmlFor="currency" className={labelClass}>
                 Currency
               </label>
-              <select id="currency" name="currency" defaultValue="USD" className={inputClass}>
-                <option value="USD">USD</option>
-                <option value="MXN">MXN</option>
-                <option value="EUR">EUR</option>
-              </select>
+              <SearchableSelect
+                id="currency"
+                name="currency"
+                defaultValue="USD"
+                options={[
+                  { value: "USD", label: "USD" },
+                  { value: "MXN", label: "MXN" },
+                  { value: "EUR", label: "EUR" },
+                ]}
+              />
             </div>
             <div>
               <label htmlFor="taxRate" className={labelClass}>

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { buttonClass, buttonSecondaryClass, cx, inputClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
 import type { SavedView, ViewScope } from "@/lib/views";
@@ -77,11 +78,12 @@ export function TransferOwnerForm({
       <input type="hidden" name="path" value={basePath} />
       <FormAlert state={state} />
       <p className="text-xs font-medium text-fg">Cambiar propietario</p>
-      <select name="newOwnerId" defaultValue={view.userId ?? ""} className={cx(inputClass, "h-8 w-full text-xs")}>
-        {orgUsers.map((u) => (
-          <option key={u.id} value={u.id}>{u.name}</option>
-        ))}
-      </select>
+      <SearchableSelect
+        name="newOwnerId"
+        defaultValue={String(view.userId ?? orgUsers[0]?.id ?? "")}
+        className="h-8 w-full text-xs"
+        options={orgUsers.map((u) => ({ value: String(u.id), label: u.name }))}
+      />
       <div className="flex justify-end gap-1.5 pt-1">
         <button type="button" onClick={onClose} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>Cancelar</button>
         <button type="submit" className={cx(buttonClass, "h-7 px-2 text-xs")}>Transferir</button>
@@ -144,11 +146,16 @@ export function EditViewForm({
       ) : null}
       <p className="text-xs font-medium text-fg">Editar vista</p>
       <input value={name} onChange={(e) => setName(e.target.value)} className={cx(inputClass, "h-8 w-full text-xs")} />
-      <select value={scope} onChange={(e) => setScope(e.target.value as ViewScope)} className={cx(inputClass, "h-8 w-full text-xs")}>
-        <option value="personal">Personal</option>
-        <option value="team">Equipo</option>
-        {canOrgScope ? <option value="organization">Organización</option> : null}
-      </select>
+      <SearchableSelect
+        value={scope}
+        onValueChange={(v) => setScope(v as ViewScope)}
+        className="h-8 w-full text-xs"
+        options={[
+          { value: "personal", label: "Personal" },
+          { value: "team", label: "Equipo" },
+          ...(canOrgScope ? [{ value: "organization", label: "Organización" }] : []),
+        ]}
+      />
       <div className="flex justify-end gap-1.5 pt-1">
         <button type="button" onClick={onClose} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>Cancelar</button>
         <button type="button" onClick={handleSave} disabled={busy} className={cx(buttonClass, "h-7 px-2 text-xs disabled:opacity-60")}>

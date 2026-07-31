@@ -6,10 +6,9 @@ import {
   buttonClass,
   buttonSecondaryClass,
   buttonSuccessClass,
-  cx,
-  inputClass,
 } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import type { ActionState } from "@/lib/action-result";
 import { ACTIVITY_WORKFLOW_STATUSES } from "@/lib/activities";
 import { activityStatusMeta } from "@/lib/labels";
@@ -51,37 +50,26 @@ export function WorkflowCard({
     <div>
       <form action={formAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="id" value={activityId} />
-        <select
+        <SearchableSelect
           name="status"
           key={status}
           defaultValue={status}
           disabled={archived}
           aria-label="Status"
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className={cx(inputClass, "h-9 w-auto disabled:opacity-50")}
-        >
-          {ACTIVITY_WORKFLOW_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {activityStatusMeta[s]?.label ?? s}
-            </option>
-          ))}
-        </select>
-        <select
+          submitOnChange
+          className="h-9 w-auto disabled:opacity-50"
+          options={ACTIVITY_WORKFLOW_STATUSES.map((s) => ({ value: s, label: activityStatusMeta[s]?.label ?? s }))}
+        />
+        <SearchableSelect
           name="assigneeId"
           key={assigneeId ?? "none"}
-          defaultValue={assigneeId ?? ""}
+          defaultValue={assigneeId ? String(assigneeId) : ""}
           disabled={archived}
           aria-label="Assignee"
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className={cx(inputClass, "h-9 w-auto disabled:opacity-50")}
-        >
-          <option value="">Unassigned</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
+          submitOnChange
+          className="h-9 w-auto disabled:opacity-50"
+          options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+        />
       </form>
       {state && !state.ok ? <FormAlert state={state} className="mt-2" /> : null}
     </div>

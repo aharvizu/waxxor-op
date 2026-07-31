@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Paperclip, Pencil, Pin, Star, Trash2 } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import {
   buttonSecondaryClass,
@@ -90,11 +91,12 @@ export function Composer({
           </button>
         ))}
         {kind !== "note" ? (
-          <select name="channel" defaultValue="internal" className={cx(inputClass, "h-7 w-auto text-xs")}>
-            {CHANNEL_OPTIONS.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="channel"
+            defaultValue="internal"
+            className="h-7 w-auto text-xs"
+            options={CHANNEL_OPTIONS}
+          />
         ) : (
           <input type="hidden" name="channel" value="internal" />
         )}
@@ -315,17 +317,18 @@ export function StatusSelectForm({
   return (
     <form ref={formRef} action={formAction} className="inline-flex items-center gap-1.5">
       <input type="hidden" name="conversationId" value={conversationId} />
-      <select
+      <SearchableSelect
         name="status"
         defaultValue={status}
-        onChange={() => formRef.current?.requestSubmit()}
-        className={cx(inputClass, "h-7 w-auto text-xs")}
-      >
-        <option value="open">Abierta</option>
-        <option value="pending">Pendiente</option>
-        <option value="closed">Cerrada</option>
-        <option value="archived">Archivada</option>
-      </select>
+        submitOnChange
+        className="h-7 w-auto text-xs"
+        options={[
+          { value: "open", label: "Abierta" },
+          { value: "pending", label: "Pendiente" },
+          { value: "closed", label: "Cerrada" },
+          { value: "archived", label: "Archivada" },
+        ]}
+      />
       {state && !state.ok ? <span className="text-xs text-danger">{state.message}</span> : null}
     </form>
   );
@@ -375,21 +378,19 @@ export function NewConversationForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Empresa (opcional)</label>
-          <select name="companyId" defaultValue={prefill?.companyId ?? ""} className={inputClass}>
-            <option value="">— Sin empresa —</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="companyId"
+            defaultValue={prefill?.companyId ? String(prefill.companyId) : ""}
+            options={[{ value: "", label: "— Sin empresa —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label className={labelClass}>Proyecto (opcional)</label>
-          <select name="projectId" defaultValue={prefill?.projectId ?? ""} className={inputClass}>
-            <option value="">— Sin proyecto —</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="projectId"
+            defaultValue={prefill?.projectId ? String(prefill.projectId) : ""}
+            options={[{ value: "", label: "— Sin proyecto —" }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+          />
         </div>
       </div>
       <div>
@@ -427,18 +428,18 @@ export function LinkConversationForm({
       {current.ticketId ? <input type="hidden" name="ticketId" value={current.ticketId} /> : null}
       {current.workItemId ? <input type="hidden" name="workItemId" value={current.workItemId} /> : null}
       <div className="grid grid-cols-1 gap-2">
-        <select name="companyId" defaultValue={current.companyId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
-          <option value="">— Sin empresa —</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <select name="projectId" defaultValue={current.projectId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
-          <option value="">— Sin proyecto —</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          name="companyId"
+          defaultValue={current.companyId ? String(current.companyId) : ""}
+          className="h-8 text-xs"
+          options={[{ value: "", label: "— Sin empresa —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
+        <SearchableSelect
+          name="projectId"
+          defaultValue={current.projectId ? String(current.projectId) : ""}
+          className="h-8 text-xs"
+          options={[{ value: "", label: "— Sin proyecto —" }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+        />
       </div>
       <SubmitButton className="h-7 px-2 text-xs">Actualizar vínculos</SubmitButton>
     </form>
@@ -457,11 +458,12 @@ export function AddParticipantForm({
   return (
     <form action={formAction} className="flex items-center gap-1.5">
       <input type="hidden" name="conversationId" value={conversationId} />
-      <select name="userId" className={cx(inputClass, "h-7 w-auto text-xs")}>
-        {candidates.map((u) => (
-          <option key={u.id} value={u.id}>{u.name}</option>
-        ))}
-      </select>
+      <SearchableSelect
+        name="userId"
+        defaultValue={String(candidates[0].id)}
+        className="h-7 w-auto text-xs"
+        options={candidates.map((u) => ({ value: String(u.id), label: u.name }))}
+      />
       <SubmitButton className="h-7 px-2 text-xs">Agregar</SubmitButton>
       {state && !state.ok ? <span className="text-xs text-danger">{state.message}</span> : null}
     </form>

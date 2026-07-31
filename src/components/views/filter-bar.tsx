@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { Filter, Plus, Search, Trash2 } from "lucide-react";
+import { SearchableSelect } from "@/components/searchable-select";
 import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
 import { FILTER_OPERATORS, type PublicFieldDefinition, type FilterCondition, type FilterGroup } from "@/lib/filters";
 
@@ -159,14 +160,15 @@ export function FilterBar({
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-fg">
                 Coincidir
-                <select
+                <SearchableSelect
                   value={draft.logic}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, logic: e.target.value as "AND" | "OR" }))}
-                  className={cx(inputClass, "h-7 w-auto text-xs")}
-                >
-                  <option value="AND">Todas (AND)</option>
-                  <option value="OR">Cualquiera (OR)</option>
-                </select>
+                  onValueChange={(v) => setDraft((prev) => ({ ...prev, logic: v as "AND" | "OR" }))}
+                  className="h-7 w-auto text-xs"
+                  options={[
+                    { value: "AND", label: "Todas (AND)" },
+                    { value: "OR", label: "Cualquiera (OR)" },
+                  ]}
+                />
               </div>
             </div>
 
@@ -176,36 +178,26 @@ export function FilterBar({
                 const field = fields[c.field];
                 return (
                   <div key={i} className="flex flex-wrap items-center gap-1.5">
-                    <select
+                    <SearchableSelect
                       value={c.field}
-                      onChange={(e) => patchCondition(i, { field: e.target.value })}
-                      className={cx(inputClass, "h-8 w-auto min-w-28 text-xs")}
-                    >
-                      {Object.values(fields).map((f) => (
-                        <option key={f.key} value={f.key}>{f.label}</option>
-                      ))}
-                    </select>
-                    <select
+                      onValueChange={(v) => patchCondition(i, { field: v })}
+                      className="h-8 w-auto min-w-28 text-xs"
+                      options={Object.values(fields).map((f) => ({ value: f.key, label: f.label }))}
+                    />
+                    <SearchableSelect
                       value={c.operator}
-                      onChange={(e) => patchCondition(i, { operator: e.target.value as FilterCondition["operator"] })}
-                      className={cx(inputClass, "h-8 w-auto text-xs")}
-                    >
-                      {FILTER_OPERATORS.map((op) => (
-                        <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
-                      ))}
-                    </select>
+                      onValueChange={(v) => patchCondition(i, { operator: v as FilterCondition["operator"] })}
+                      className="h-8 w-auto text-xs"
+                      options={FILTER_OPERATORS.map((op) => ({ value: op, label: OPERATOR_LABELS[op] ?? op }))}
+                    />
                     {c.operator !== "is_empty" && c.operator !== "is_not_empty" ? (
                       field?.type === "select" && field.options ? (
-                        <select
+                        <SearchableSelect
                           value={typeof c.value === "string" ? c.value : ""}
-                          onChange={(e) => patchCondition(i, { value: e.target.value })}
-                          className={cx(inputClass, "h-8 w-auto text-xs")}
-                        >
-                          <option value="">—</option>
-                          {field.options.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
+                          onValueChange={(v) => patchCondition(i, { value: v })}
+                          className="h-8 w-auto text-xs"
+                          options={[{ value: "", label: "—" }, ...field.options]}
+                        />
                       ) : (
                         <input
                           value={typeof c.value === "string" || typeof c.value === "number" ? String(c.value) : ""}

@@ -7,7 +7,8 @@ import { ticketPriorityMeta } from "@/lib/labels";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
-import { Badge, Card, CardHeader, PageHeader, inputClass, labelClass } from "@/components/ui";
+import { Badge, Card, CardHeader, PageHeader, labelClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { CatalogManager, SettingSectionForm } from "../settings-forms";
 
 export const metadata: Metadata = { title: "Configuración · Empresas" };
@@ -51,29 +52,19 @@ export default async function CompaniesSettingsPage() {
           <SettingSectionForm settingKey="companies.defaults">
             <div>
               <label className={labelClass}>Responsable de cuenta por defecto</label>
-              <select
+              <SearchableSelect
                 name="defaultAccountOwnerId"
-                defaultValue={defaults.defaultAccountOwnerId ?? ""}
-                className={inputClass}
-              >
-                <option value="">Sin valor por defecto</option>
-                {internalUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+                defaultValue={defaults.defaultAccountOwnerId ? String(defaults.defaultAccountOwnerId) : ""}
+                options={[{ value: "", label: "Sin valor por defecto" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+              />
             </div>
             <div>
               <label className={labelClass}>Técnico por defecto</label>
-              <select
+              <SearchableSelect
                 name="defaultTechnicianId"
-                defaultValue={defaults.defaultTechnicianId ?? ""}
-                className={inputClass}
-              >
-                <option value="">Sin valor por defecto</option>
-                {internalUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+                defaultValue={defaults.defaultTechnicianId ? String(defaults.defaultTechnicianId) : ""}
+                options={[{ value: "", label: "Sin valor por defecto" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+              />
             </div>
           </SettingSectionForm>
         </Card>

@@ -10,6 +10,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import type { TicketPriorityRow } from "@/lib/ticket-catalogs";
@@ -55,13 +56,11 @@ function DefinitionFields({
         </div>
         <div>
           <label className={labelClass}>Priority it applies to</label>
-          <select name="priorityId" defaultValue={defaults?.priorityId ?? ""} className={inputClass}>
-            {priorities.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="priorityId"
+            defaultValue={String(defaults?.priorityId ?? priorities[0]?.id ?? "")}
+            options={priorities.map((p) => ({ value: String(p.id), label: p.name }))}
+          />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -264,22 +263,16 @@ export function CalendarForm({
       <FormAlert state={state} />
       <div>
         <label className={labelClass}>Timezone (IANA)</label>
-        <select
+        <SearchableSelect
           name="timezone"
           required
           defaultValue={calendar.timezone}
           aria-invalid={errors.timezone ? true : undefined}
-          className={inputClass}
-        >
-          {!timezones.includes(calendar.timezone) ? (
-            <option value={calendar.timezone}>{calendar.timezone}</option>
-          ) : null}
-          {timezones.map((tz) => (
-            <option key={tz} value={tz}>
-              {tz}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...(!timezones.includes(calendar.timezone) ? [{ value: calendar.timezone, label: calendar.timezone }] : []),
+            ...timezones.map((tz) => ({ value: tz, label: tz })),
+          ]}
+        />
         <FieldError errors={errors.timezone} />
       </div>
       <div>

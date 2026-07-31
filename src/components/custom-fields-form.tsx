@@ -1,4 +1,5 @@
 import { inputClass, labelClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import type { CustomFieldDefinition } from "@/lib/custom-fields";
 
 /**
@@ -64,12 +65,12 @@ function CustomFieldInput({ field, value, error }: { field: CustomFieldDefinitio
     case "select":
     case "radio":
       control = (
-        <select name={name} defaultValue={str} disabled={disabled} className={inputClass}>
-          <option value="">—</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          name={name}
+          defaultValue={str}
+          disabled={disabled}
+          options={[{ value: "", label: "—" }, ...options]}
+        />
       );
       break;
     case "multiselect":

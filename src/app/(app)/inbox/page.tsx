@@ -22,6 +22,7 @@ import {
   cx,
   inputClass,
 } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   AddParticipantForm,
   AutoMarkRead,
@@ -163,18 +164,23 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           <form method="get" className="grid grid-cols-2 gap-2">
             {params.view ? <input type="hidden" name="view" value={params.view} /> : null}
             {params.q ? <input type="hidden" name="q" value={params.q} /> : null}
-            <select name="status" defaultValue={params.status ?? ""} className={cx(inputClass, "h-8 text-xs")}>
-              <option value="">Estado: todos</option>
-              <option value="open">Abiertas</option>
-              <option value="pending">Pendientes</option>
-              <option value="closed">Cerradas</option>
-            </select>
-            <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "h-8 text-xs")}>
-              <option value="">Empresa: todas</option>
-              {companyRows.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="status"
+              defaultValue={params.status ?? ""}
+              className="h-8 text-xs"
+              options={[
+                { value: "", label: "Estado: todos" },
+                { value: "open", label: "Abiertas" },
+                { value: "pending", label: "Pendientes" },
+                { value: "closed", label: "Cerradas" },
+              ]}
+            />
+            <SearchableSelect
+              name="companyId"
+              defaultValue={params.companyId ?? ""}
+              className="h-8 text-xs"
+              options={[{ value: "", label: "Empresa: todas" }, ...companyRows.map((c) => ({ value: String(c.id), label: c.name }))]}
+            />
             <button type="submit" className="col-span-2 h-8 rounded-lg border border-edge text-xs text-muted hover:text-fg">
               Aplicar filtros
             </button>

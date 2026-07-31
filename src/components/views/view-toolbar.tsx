@@ -2,7 +2,8 @@
 
 import * as Popover from "@radix-ui/react-popover";
 import { AlertCircle, Check, Columns3, Copy, Loader2, RotateCcw } from "lucide-react";
-import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
+import { buttonSecondaryClass, cx } from "@/components/ui";
 import type { SavedViewConfig, ViewType } from "@/lib/views";
 import type { ViewSaveStatus } from "./use-view-config";
 
@@ -95,42 +96,37 @@ export function ViewToolbar({
       {viewType === "kanban" && groupByOptions.length > 0 ? (
         <div className="flex items-center gap-1.5">
           <span className="text-faint">Agrupar por:</span>
-          <select
+          <SearchableSelect
             value={config.kanban.groupField ?? groupByOptions[0]?.key ?? ""}
-            onChange={(e) => setConfig((prev) => ({ ...prev, kanban: { ...prev.kanban, groupField: e.target.value } }))}
-            className={cx(inputClass, "h-7 w-auto text-xs")}
-          >
-            {groupByOptions.map((g) => (
-              <option key={g.key} value={g.key}>{g.label}</option>
-            ))}
-          </select>
+            onValueChange={(v) => setConfig((prev) => ({ ...prev, kanban: { ...prev.kanban, groupField: v } }))}
+            className="h-7 w-auto text-xs"
+            options={groupByOptions.map((g) => ({ value: g.key, label: g.label }))}
+          />
         </div>
       ) : null}
 
       <div className="flex items-center gap-1.5">
         <span className="text-faint">Densidad:</span>
-        <select
+        <SearchableSelect
           value={config.density}
-          onChange={(e) => setConfig((prev) => ({ ...prev, density: e.target.value as SavedViewConfig["density"] }))}
-          className={cx(inputClass, "h-7 w-auto text-xs")}
-        >
-          <option value="compact">Compacta</option>
-          <option value="comfortable">Cómoda</option>
-          <option value="spacious">Amplia</option>
-        </select>
+          onValueChange={(v) => setConfig((prev) => ({ ...prev, density: v as SavedViewConfig["density"] }))}
+          className="h-7 w-auto text-xs"
+          options={[
+            { value: "compact", label: "Compacta" },
+            { value: "comfortable", label: "Cómoda" },
+            { value: "spacious", label: "Amplia" },
+          ]}
+        />
       </div>
 
       <div className="flex items-center gap-1.5">
         <span className="text-faint">Por página:</span>
-        <select
-          value={config.pageSize}
-          onChange={(e) => setConfig((prev) => ({ ...prev, pageSize: Number(e.target.value) }))}
-          className={cx(inputClass, "h-7 w-auto text-xs")}
-        >
-          {[25, 50, 100, 200].map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          value={String(config.pageSize)}
+          onValueChange={(v) => setConfig((prev) => ({ ...prev, pageSize: Number(v) }))}
+          className="h-7 w-auto text-xs"
+          options={[25, 50, 100, 200].map((n) => ({ value: String(n), label: String(n) }))}
+        />
       </div>
 
       {status !== "clean" ? (

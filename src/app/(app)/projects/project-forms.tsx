@@ -9,6 +9,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import {
@@ -138,14 +139,15 @@ function SelectInput({
   allowEmpty?: string;
 }) {
   return (
-    <select id={name} name={name} defaultValue={value(name)} className={inputClass}>
-      {allowEmpty !== undefined ? <option value="">{allowEmpty}</option> : null}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <SearchableSelect
+      id={name}
+      name={name}
+      defaultValue={value(name)}
+      options={[
+        ...(allowEmpty !== undefined ? [{ value: "", label: allowEmpty }] : []),
+        ...options,
+      ]}
+    />
   );
 }
 
@@ -341,14 +343,12 @@ export function ProjectForm({
           </Field>
           {templates.length > 0 ? (
             <Field label="Plantilla (crea sus listas)" name="templateId" errors={errors}>
-              <select id="templateId" name="templateId" defaultValue="" className={inputClass}>
-                <option value="">— Sin plantilla —</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                id="templateId"
+                name="templateId"
+                defaultValue=""
+                options={[{ value: "", label: "— Sin plantilla —" }, ...templates.map((t) => ({ value: String(t.id), label: t.name }))]}
+              />
             </Field>
           ) : null}
           <div>
@@ -376,23 +376,18 @@ export function StatusSelect({ projectId, current }: { projectId: number; curren
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={projectId} />
-      <select
+      <SearchableSelect
         name="status"
         defaultValue={PROJECT_WORKFLOW_STATUSES.includes(current as never) ? current : ""}
-        className={cx(inputClass, "h-8 w-auto text-xs")}
+        className="h-8 w-auto text-xs"
         aria-label="Cambiar estado"
-      >
-        {!PROJECT_WORKFLOW_STATUSES.includes(current as never) ? (
-          <option value="" disabled>
-            {projectStatusMeta[current]?.label ?? current}
-          </option>
-        ) : null}
-        {PROJECT_WORKFLOW_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {projectStatusMeta[s]?.label ?? s}
-          </option>
-        ))}
-      </select>
+        options={[
+          ...(!PROJECT_WORKFLOW_STATUSES.includes(current as never)
+            ? [{ value: "", label: projectStatusMeta[current]?.label ?? current, disabled: true }]
+            : []),
+          ...PROJECT_WORKFLOW_STATUSES.map((s) => ({ value: s, label: projectStatusMeta[s]?.label ?? s })),
+        ]}
+      />
       <button type="submit" className={cx(buttonGhostClass, "h-8 px-2 text-xs")}>
         Cambiar
       </button>
@@ -414,19 +409,16 @@ export function HealthSelect({
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={projectId} />
-      <select
+      <SearchableSelect
         name="healthStatus"
         defaultValue={current}
-        className={cx(inputClass, "h-8 w-auto text-xs")}
+        className="h-8 w-auto text-xs"
         aria-label="Cambiar salud"
-      >
-        {PROJECT_HEALTHS.map((s) => (
-          <option key={s} value={s}>
-            {projectHealthMeta[s]?.label ?? s}
-            {s === suggested ? " (sugerido)" : ""}
-          </option>
-        ))}
-      </select>
+        options={PROJECT_HEALTHS.map((s) => ({
+          value: s,
+          label: `${projectHealthMeta[s]?.label ?? s}${s === suggested ? " (sugerido)" : ""}`,
+        }))}
+      />
       <button type="submit" className={cx(buttonGhostClass, "h-8 px-2 text-xs")}>
         Cambiar
       </button>
@@ -625,18 +617,13 @@ export function MoveToListForm({
   return (
     <form action={formAction} className="flex items-center gap-1">
       <input type="hidden" name="id" value={activityId} />
-      <select
+      <SearchableSelect
         name="listId"
         defaultValue={currentListId ? String(currentListId) : ""}
-        className={cx(inputClass, "h-7 w-auto text-xs")}
+        className="h-7 w-auto text-xs"
         aria-label="Mover a lista"
-      >
-        {lists.map((l) => (
-          <option key={l.id} value={l.id}>
-            {l.name}
-          </option>
-        ))}
-      </select>
+        options={lists.map((l) => ({ value: String(l.id), label: l.name }))}
+      />
       <button type="submit" className={cx(buttonGhostClass, "h-7 px-2 text-xs")}>
         Mover
       </button>
@@ -829,19 +816,13 @@ export function MilestoneLinkForm({
       ) : null}
       <form action={formAction} className="flex items-center gap-2">
         <input type="hidden" name="milestoneId" value={milestoneId} />
-        <select
+        <SearchableSelect
           name="activityId"
           defaultValue={value("activityId")}
-          className={cx(inputClass, "h-8 w-auto text-xs")}
+          className="h-8 w-auto text-xs"
           aria-label="Vincular actividad"
-        >
-          <option value="">— Vincular actividad —</option>
-          {activities.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+          options={[{ value: "", label: "— Vincular actividad —" }, ...activities.map((a) => ({ value: String(a.id), label: a.name }))]}
+        />
         <button type="submit" className={cx(buttonGhostClass, "h-8 px-2 text-xs")}>
           Vincular
         </button>
@@ -954,19 +935,13 @@ export function DependencyForm({
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="blockedActivityId" value={blockedActivityId} />
-      <select
+      <SearchableSelect
         name="blockerActivityId"
         defaultValue={value("blockerActivityId")}
-        className={cx(inputClass, "h-8 w-auto text-xs")}
+        className="h-8 w-auto text-xs"
         aria-label="Bloqueada por"
-      >
-        <option value="">— Bloqueada por… —</option>
-        {candidates.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+        options={[{ value: "", label: "— Bloqueada por… —" }, ...candidates.map((c) => ({ value: String(c.id), label: c.name }))]}
+      />
       <button type="submit" className={cx(buttonGhostClass, "h-8 px-2 text-xs")}>
         Agregar
       </button>

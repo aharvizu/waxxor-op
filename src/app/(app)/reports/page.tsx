@@ -20,8 +20,8 @@ import {
   buttonClass,
   buttonSecondaryClass,
   cx,
-  inputClass,
 } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { RowAction } from "./report-forms";
 
 export const metadata: Metadata = { title: "Reports" };
@@ -167,22 +167,30 @@ export default async function ReportsPage({
 
       <form method="get" className="mb-6 flex flex-wrap items-center gap-3">
         {params.view ? <input type="hidden" name="view" value={params.view} /> : null}
-        <select name="reportType" defaultValue={params.reportType ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Tipo</option>
-          {REPORT_TYPES.map((t) => <option key={t} value={t}>{reportTypeMeta[t]?.label ?? t}</option>)}
-        </select>
-        <select name="companyId" defaultValue={params.companyId ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Empresa</option>
-          {companyRows.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select name="projectId" defaultValue={params.projectId ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Proyecto</option>
-          {projectRows.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select name="responsibleId" defaultValue={params.responsibleId ?? ""} className={cx(inputClass, "w-auto")}>
-          <option value="">Responsable</option>
-          {userRows.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-        </select>
+        <SearchableSelect
+          name="reportType"
+          defaultValue={params.reportType ?? ""}
+          className="w-auto"
+          options={[{ value: "", label: "Tipo" }, ...REPORT_TYPES.map((t) => ({ value: t, label: reportTypeMeta[t]?.label ?? t }))]}
+        />
+        <SearchableSelect
+          name="companyId"
+          defaultValue={params.companyId ?? ""}
+          className="w-auto"
+          options={[{ value: "", label: "Empresa" }, ...companyRows.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
+        <SearchableSelect
+          name="projectId"
+          defaultValue={params.projectId ?? ""}
+          className="w-auto"
+          options={[{ value: "", label: "Proyecto" }, ...projectRows.map((p) => ({ value: String(p.id), label: p.name }))]}
+        />
+        <SearchableSelect
+          name="responsibleId"
+          defaultValue={params.responsibleId ?? ""}
+          className="w-auto"
+          options={[{ value: "", label: "Responsable" }, ...userRows.map((u) => ({ value: String(u.id), label: u.name }))]}
+        />
         <button type="submit" className={buttonSecondaryClass}>Filtrar</button>
       </form>
 

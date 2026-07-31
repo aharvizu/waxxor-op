@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { inputClass, labelClass } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { reportTypeMeta } from "@/lib/labels";
@@ -38,11 +39,11 @@ export function TemplateEditor({
         </div>
         <div>
           <label className={labelClass}>Tipo</label>
-          <select name="reportType" defaultValue={template?.reportType ?? "monthly_service"} className={inputClass}>
-            {REPORT_TYPES.map((t) => (
-              <option key={t} value={t}>{reportTypeMeta[t]?.label ?? t}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="reportType"
+            defaultValue={template?.reportType ?? "monthly_service"}
+            options={REPORT_TYPES.map((t) => ({ value: t, label: reportTypeMeta[t]?.label ?? t }))}
+          />
         </div>
       </div>
       <div>

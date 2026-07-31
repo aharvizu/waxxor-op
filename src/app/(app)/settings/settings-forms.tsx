@@ -5,6 +5,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import {
   Badge,
@@ -421,11 +422,12 @@ export function InviteUserForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label htmlFor={`${id}-role`} className={labelClass}>Rol</label>
-          <select id={`${id}-role`} name="role" className={inputClass} defaultValue="technician">
-            {roles.map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            id={`${id}-role`}
+            name="role"
+            defaultValue="technician"
+            options={roles.map((r) => ({ value: r.value, label: r.label }))}
+          />
         </div>
         <div>
           <label htmlFor={`${id}-title`} className={labelClass}>Puesto (opcional)</label>
@@ -494,12 +496,12 @@ export function UserActivationControl({
       <input type="hidden" name="activate" value={isActive ? "false" : "true"} />
       {isActive ? (
         <>
-          <select name="reassignToId" className={cx(inputClass, "h-7 w-auto text-xs")} defaultValue="">
-            <option value="">Sin reasignar trabajo</option>
-            {reassignTargets.map((t) => (
-              <option key={t.id} value={t.id}>Reasignar a {t.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="reassignToId"
+            className="h-7 w-auto text-xs"
+            defaultValue=""
+            options={[{ value: "", label: "Sin reasignar trabajo" }, ...reassignTargets.map((t) => ({ value: String(t.id), label: `Reasignar a ${t.name}` }))]}
+          />
           <button type="submit" className={cx(buttonDangerClass, "h-7 px-2 text-xs")}>
             Confirmar desactivación
           </button>

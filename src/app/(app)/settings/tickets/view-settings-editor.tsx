@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
@@ -73,38 +74,45 @@ export function ViewSettingsEditor({
         <div>
           <label className={labelClass}>Orden por defecto</label>
           <div className="flex gap-2">
-            <select value={sortField} onChange={(e) => setSortField(e.target.value)} className={inputClass}>
-              <option value="">Sin ordenamiento</option>
-              {fieldOptions.map((f) => (
-                <option key={f.key} value={f.key}>{f.label}</option>
-              ))}
-            </select>
-            <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as "asc" | "desc")} className={cx(inputClass, "w-auto")}>
-              <option value="asc">Ascendente</option>
-              <option value="desc">Descendente</option>
-            </select>
+            <SearchableSelect
+              value={sortField}
+              onValueChange={setSortField}
+              options={[{ value: "", label: "Sin ordenamiento" }, ...fieldOptions.map((f) => ({ value: f.key, label: f.label }))]}
+            />
+            <SearchableSelect
+              value={sortDirection}
+              onValueChange={(v) => setSortDirection(v as "asc" | "desc")}
+              className="w-auto"
+              options={[
+                { value: "asc", label: "Ascendente" },
+                { value: "desc", label: "Descendente" },
+              ]}
+            />
           </div>
         </div>
         <div>
           <label className={labelClass}>Vista inicial</label>
-          <select name="initialViewType" defaultValue={initial.initialViewType} className={inputClass}>
-            <option value="list">Lista</option>
-            <option value="table">Tabla</option>
-            <option value="kanban">Kanban</option>
-            <option value="calendar">Calendario</option>
-            <option value="timeline">Timeline</option>
-          </select>
+          <SearchableSelect
+            name="initialViewType"
+            defaultValue={initial.initialViewType}
+            options={[
+              { value: "list", label: "Lista" },
+              { value: "table", label: "Tabla" },
+              { value: "kanban", label: "Kanban" },
+              { value: "calendar", label: "Calendario" },
+              { value: "timeline", label: "Timeline" },
+            ]}
+          />
         </div>
       </div>
 
       <div>
         <label className={labelClass}>Agrupación por defecto</label>
-        <select name="defaultGroupBy" defaultValue={initial.defaultGroupBy ?? ""} className={inputClass}>
-          <option value="">Sin agrupar</option>
-          {fieldOptions.map((f) => (
-            <option key={f.key} value={f.key}>{f.label}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          name="defaultGroupBy"
+          defaultValue={initial.defaultGroupBy ?? ""}
+          options={[{ value: "", label: "Sin agrupar" }, ...fieldOptions.map((f) => ({ value: f.key, label: f.label }))]}
+        />
       </div>
 
       <div>
@@ -112,16 +120,18 @@ export function ViewSettingsEditor({
         <div className="space-y-2">
           {filters.map((f, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
-              <select value={f.field} onChange={(e) => patchFilter(i, { field: e.target.value })} className={cx(inputClass, "w-auto")}>
-                {fieldOptions.map((opt) => (
-                  <option key={opt.key} value={opt.key}>{opt.label}</option>
-                ))}
-              </select>
-              <select value={f.operator} onChange={(e) => patchFilter(i, { operator: e.target.value })} className={cx(inputClass, "w-auto")}>
-                {FILTER_OPERATORS.map((op) => (
-                  <option key={op} value={op}>{op}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={f.field}
+                onValueChange={(v) => patchFilter(i, { field: v })}
+                className="w-auto"
+                options={fieldOptions.map((opt) => ({ value: opt.key, label: opt.label }))}
+              />
+              <SearchableSelect
+                value={f.operator}
+                onValueChange={(v) => patchFilter(i, { operator: v })}
+                className="w-auto"
+                options={FILTER_OPERATORS.map((op) => ({ value: op, label: op }))}
+              />
               <input
                 value={typeof f.value === "string" ? f.value : ""}
                 onChange={(e) => patchFilter(i, { value: e.target.value })}

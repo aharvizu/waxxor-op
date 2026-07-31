@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { activityTypeMeta } from "@/lib/labels";
@@ -97,45 +98,35 @@ export function ActivityForm({
           <label htmlFor="activityType" className={labelClass}>
             Type
           </label>
-          <select
+          <SearchableSelect
             id="activityType"
             name="activityType"
             required
             defaultValue={value("activityType", typeDefault)}
-            className={inputClass}
-          >
-            {typeDefault && !activityTypeOptions.includes(typeDefault) ? (
-              <option value={typeDefault}>{activityTypeMeta[typeDefault]?.label ?? typeDefault}</option>
-            ) : null}
-            {activityTypeOptions.map((t) => (
-              <option key={t} value={t}>
-                {activityTypeMeta[t]?.label ?? t}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...(typeDefault && !activityTypeOptions.includes(typeDefault)
+                ? [{ value: typeDefault, label: activityTypeMeta[typeDefault]?.label ?? typeDefault }]
+                : []),
+              ...activityTypeOptions.map((t) => ({ value: t, label: activityTypeMeta[t]?.label ?? t })),
+            ]}
+          />
         </div>
         <div>
           <label htmlFor="priority" className={labelClass}>
             Priority
           </label>
-          <select
+          <SearchableSelect
             id="priority"
             name="priority"
             defaultValue={value("priority", activity?.priority ?? "medium")}
-            className={inputClass}
-          >
-            {priorities.map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
+            options={priorities.map(([v, label]) => ({ value: v, label }))}
+          />
         </div>
         <div>
           <label htmlFor="companyId" className={labelClass}>
             Client
           </label>
-          <select
+          <SearchableSelect
             id="companyId"
             name="companyId"
             defaultValue={value(
@@ -146,15 +137,11 @@ export function ActivityForm({
                   ? String(defaultCompanyId)
                   : "",
             )}
-            className={inputClass}
-          >
-            <option value="">— None —</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "— None —" },
+              ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+            ]}
+          />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

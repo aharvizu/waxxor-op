@@ -7,6 +7,7 @@ import { CURRENCIES, LANGUAGES } from "@/lib/settings";
 import { getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
 import { Card, CardHeader, PageHeader, inputClass, labelClass } from "@/components/ui";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SettingSectionForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Configuración · Organización" };
@@ -49,19 +50,19 @@ export default async function OrganizationSettingsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Moneda</label>
-                  <select name="currency" defaultValue={profile.currency} className={inputClass}>
-                    {CURRENCIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    name="currency"
+                    defaultValue={profile.currency}
+                    options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Idioma</label>
-                  <select name="language" defaultValue={profile.language} className={inputClass}>
-                    {LANGUAGES.map((l) => (
-                      <option key={l} value={l}>{l === "es" ? "Español" : "English"}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    name="language"
+                    defaultValue={profile.language}
+                    options={LANGUAGES.map((l) => ({ value: l, label: l === "es" ? "Español" : "English" }))}
+                  />
                 </div>
               </div>
               <div>

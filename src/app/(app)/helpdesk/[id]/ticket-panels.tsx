@@ -13,6 +13,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { CONFIRMATION_TYPES, TICKET_BILLING_MODALITIES } from "@/lib/tickets";
@@ -85,25 +86,18 @@ export function StatusSelect({
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={ticketId} />
-      <select
+      <SearchableSelect
         name="statusId"
         key={statusId}
-        defaultValue={inDropdown ? statusId : ""}
+        defaultValue={inDropdown ? String(statusId) : ""}
         disabled={disabled}
         aria-label="Change status"
-        className={cx(inputClass, "h-8 w-auto text-xs")}
-      >
-        {!inDropdown ? (
-          <option value="" disabled>
-            {currentStatusName}
-          </option>
-        ) : null}
-        {statuses.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+        className="h-8 w-auto text-xs"
+        options={[
+          ...(!inDropdown ? [{ value: "", label: currentStatusName, disabled: true }] : []),
+          ...statuses.map((s) => ({ value: String(s.id), label: s.name })),
+        ]}
+      />
       {!disabled ? (
         <button type="submit" className={cx(buttonSecondaryClass, "h-8 px-2.5 text-xs")}>
           Set
@@ -244,13 +238,13 @@ export function Composer({ ticketId }: { ticketId: number }) {
           </label>
         ))}
         {kind !== "note" && kind !== "call" ? (
-          <select name="channel" defaultValue="manual" aria-label="Channel" className={cx(inputClass, "h-8 w-auto text-xs")}>
-            {CHANNELS.filter((c) => c !== "internal").map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="channel"
+            defaultValue="manual"
+            aria-label="Channel"
+            className="h-8 w-auto text-xs"
+            options={CHANNELS.filter((c) => c !== "internal").map((c) => ({ value: c, label: c }))}
+          />
         ) : null}
       </div>
       <textarea
@@ -377,19 +371,16 @@ export function ResolveForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Category</label>
-          <select name="category" required defaultValue={category ?? ""} className={inputClass}>
-            <option value="" disabled>
-              — Select —
-            </option>
-            {category && !categoryOptions.includes(category) ? (
-              <option value={category}>{category}</option>
-            ) : null}
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="category"
+            required
+            defaultValue={category ?? ""}
+            options={[
+              { value: "", label: "— Select —", disabled: true },
+              ...(category && !categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
+              ...categoryOptions.map((c) => ({ value: c, label: c })),
+            ]}
+          />
           <FieldError errors={errors.category} />
         </div>
         <div>
@@ -399,15 +390,15 @@ export function ResolveForm({
       </div>
       <div>
         <label className={labelClass}>After resolving</label>
-        <select
+        <SearchableSelect
           name="nextStatus"
           value={next}
-          onChange={(e) => setNext(e.target.value)}
-          className={inputClass}
-        >
-          <option value="pending_confirmation">Pending confirmation (follow up with the client)</option>
-          <option value="closed">Close now (confirmation already done)</option>
-        </select>
+          onValueChange={setNext}
+          options={[
+            { value: "pending_confirmation", label: "Pending confirmation (follow up with the client)" },
+            { value: "closed", label: "Close now (confirmation already done)" },
+          ]}
+        />
       </div>
       {next === "closed" ? (
         <CloseFields hasTime={hasTime} billingPending={billingPending} billingStatuses={billingStatuses} errors={errors} />
@@ -433,16 +424,15 @@ function CloseFields({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelClass}>Confirmation type</label>
-          <select name="confirmationType" required defaultValue="" className={inputClass}>
-            <option value="" disabled>
-              How was it confirmed…
-            </option>
-            {CONFIRMATION_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {confirmationTypeMeta[t]?.label ?? t}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="confirmationType"
+            required
+            defaultValue=""
+            options={[
+              { value: "", label: "How was it confirmed…", disabled: true },
+              ...CONFIRMATION_TYPES.map((t) => ({ value: t, label: confirmationTypeMeta[t]?.label ?? t })),
+            ]}
+          />
           <FieldError errors={errors.confirmationType} />
         </div>
         <div>
@@ -465,14 +455,14 @@ function CloseFields({
       {billingPending ? (
         <div>
           <label className={labelClass}>Billing decision (still pending review)</label>
-          <select name="billingStatusId" defaultValue="" className={inputClass}>
-            <option value="">Keep pending review</option>
-            {billingStatuses.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="billingStatusId"
+            defaultValue=""
+            options={[
+              { value: "", label: "Keep pending review" },
+              ...billingStatuses.map((s) => ({ value: String(s.id), label: s.name })),
+            ]}
+          />
         </div>
       ) : null}
     </>
@@ -536,23 +526,19 @@ export function BillingForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Billing status</label>
-          <select name="billingStatusId" defaultValue={defaults.billingStatusId} className={inputClass}>
-            {billingStatuses.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="billingStatusId"
+            defaultValue={String(defaults.billingStatusId)}
+            options={billingStatuses.map((s) => ({ value: String(s.id), label: s.name }))}
+          />
         </div>
         <div>
           <label className={labelClass}>Modality</label>
-          <select name="billingModality" defaultValue={defaults.billingModality} className={inputClass}>
-            {TICKET_BILLING_MODALITIES.map((m) => (
-              <option key={m} value={m}>
-                {m.replace("_", " ")}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="billingModality"
+            defaultValue={defaults.billingModality}
+            options={TICKET_BILLING_MODALITIES.map((m) => ({ value: m, label: m.replace("_", " ") }))}
+          />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -660,14 +646,12 @@ export function SidePanelForm({
         <FormAlert state={assignState} />
         <label className={labelClass}>Assignee</label>
         <div className="flex gap-2">
-          <select name="assigneeId" key={defaults.assigneeId ?? "none"} defaultValue={defaults.assigneeId ?? ""} className={inputClass}>
-            <option value="">Unassigned</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="assigneeId"
+            key={defaults.assigneeId ?? "none"}
+            defaultValue={defaults.assigneeId ? String(defaults.assigneeId) : ""}
+            options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+          />
           <SubmitButton className="h-9 px-3 text-xs">Set</SubmitButton>
         </div>
       </form>
@@ -677,13 +661,12 @@ export function SidePanelForm({
         <FormAlert state={priorityState} />
         <label className={labelClass}>Priority</label>
         <div className="flex gap-2">
-          <select name="priorityId" key={defaults.priorityId} defaultValue={defaults.priorityId} className={inputClass}>
-            {priorities.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="priorityId"
+            key={defaults.priorityId}
+            defaultValue={String(defaults.priorityId)}
+            options={priorities.map((p) => ({ value: String(p.id), label: p.name }))}
+          />
           <SubmitButton className="h-9 px-3 text-xs">Set</SubmitButton>
         </div>
       </form>
@@ -695,30 +678,21 @@ export function SidePanelForm({
         <FormAlert state={detailsState} />
         <div>
           <label className={labelClass}>Client</label>
-          <select
+          <SearchableSelect
             name="companyId"
             value={companyId}
-            onChange={(e) => setCompanyId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">— None —</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={setCompanyId}
+            options={[{ value: "", label: "— None —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label className={labelClass}>Contact</label>
-          <select name="contactId" defaultValue={defaults.contactId ?? ""} className={inputClass}>
-            <option value="">— None —</option>
-            {suggestedContacts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            key={companyId}
+            name="contactId"
+            defaultValue={defaults.contactId ? String(defaults.contactId) : ""}
+            options={[{ value: "", label: "— None —" }, ...suggestedContacts.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label className={labelClass}>Contact note</label>
@@ -727,17 +701,17 @@ export function SidePanelForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Category</label>
-            <select name="category" defaultValue={defaults.category ?? ""} className={inputClass}>
-              <option value="">— None —</option>
-              {defaults.category && !categoryOptions.includes(defaults.category) ? (
-                <option value={defaults.category}>{defaults.category}</option>
-              ) : null}
-              {categoryOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="category"
+              defaultValue={defaults.category ?? ""}
+              options={[
+                { value: "", label: "— None —" },
+                ...(defaults.category && !categoryOptions.includes(defaults.category)
+                  ? [{ value: defaults.category, label: defaults.category }]
+                  : []),
+                ...categoryOptions.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </div>
           <div>
             <label className={labelClass}>Subcategory</label>
@@ -747,22 +721,23 @@ export function SidePanelForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Channel</label>
-            <select name="channel" defaultValue={defaults.channel ?? ""} className={inputClass}>
-              <option value="">—</option>
-              {CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="channel"
+              defaultValue={defaults.channel ?? ""}
+              options={[{ value: "", label: "—" }, ...CHANNELS.map((c) => ({ value: c, label: c }))]}
+            />
           </div>
           <div>
             <label className={labelClass}>Modality</label>
-            <select name="modality" defaultValue={defaults.modality ?? ""} className={inputClass}>
-              <option value="">—</option>
-              <option value="remote">remote</option>
-              <option value="onsite">onsite</option>
-            </select>
+            <SearchableSelect
+              name="modality"
+              defaultValue={defaults.modality ?? ""}
+              options={[
+                { value: "", label: "—" },
+                { value: "remote", label: "remote" },
+                { value: "onsite", label: "onsite" },
+              ]}
+            />
           </div>
         </div>
         <SubmitButton className="h-9 px-3 text-xs">Save details</SubmitButton>
@@ -806,30 +781,26 @@ export function RelatedActivityForms({
         />
         <FieldError errors={createErrors.title} />
         <div className="grid grid-cols-2 gap-3">
-          <select name="activityType" defaultValue="general" aria-label="Type" className={inputClass}>
-            {activityTypeOptions.map((t) => (
-              <option key={t} value={t}>
-                {activityTypeMeta[t]?.label ?? t}
-              </option>
-            ))}
-          </select>
-          <select name="priority" defaultValue="medium" aria-label="Priority" className={inputClass}>
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="activityType"
+            defaultValue="general"
+            aria-label="Type"
+            options={activityTypeOptions.map((t) => ({ value: t, label: activityTypeMeta[t]?.label ?? t }))}
+          />
+          <SearchableSelect
+            name="priority"
+            defaultValue="medium"
+            aria-label="Priority"
+            options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <select name="assigneeId" defaultValue="" aria-label="Assignee" className={inputClass}>
-            <option value="">Unassigned</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="assigneeId"
+            defaultValue=""
+            aria-label="Assignee"
+            options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+          />
           <input name="dueDate" type="date" aria-label="Due date" className={inputClass} />
         </div>
         <SubmitButton>Create</SubmitButton>
@@ -842,16 +813,15 @@ export function RelatedActivityForms({
         <input type="hidden" name="id" value={ticketId} />
         <FormAlert state={linkState} />
         <div className="text-sm font-semibold text-fg">Link existing activity</div>
-        <select name="activityId" required defaultValue="" className={inputClass}>
-          <option value="" disabled>
-            {linkable.length === 0 ? "No eligible activities" : "Pick an activity…"}
-          </option>
-          {linkable.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
+        <SearchableSelect
+          name="activityId"
+          required
+          defaultValue=""
+          options={[
+            { value: "", label: linkable.length === 0 ? "No eligible activities" : "Pick an activity…", disabled: true },
+            ...linkable.map((a) => ({ value: String(a.id), label: a.name })),
+          ]}
+        />
         <p className="text-xs text-muted">
           Archived, converted, already-linked and project activities are not eligible.
         </p>

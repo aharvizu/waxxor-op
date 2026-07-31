@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { fmtDate, fmtMoney } from "@/lib/format";
@@ -140,14 +141,15 @@ function SelectInput({
   allowEmpty?: string;
 }) {
   return (
-    <select id={name} name={name} defaultValue={value(name)} className={inputClass}>
-      {allowEmpty !== undefined ? <option value="">{allowEmpty}</option> : null}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <SearchableSelect
+      id={name}
+      name={name}
+      defaultValue={value(name)}
+      options={[
+        ...(allowEmpty !== undefined ? [{ value: "", label: allowEmpty }] : []),
+        ...options,
+      ]}
+    />
   );
 }
 

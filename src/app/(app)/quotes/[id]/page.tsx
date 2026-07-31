@@ -17,6 +17,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { SearchableSelect } from "@/components/searchable-select";
 import { PrintButton } from "@/components/print-button";
 import { fmtDate, fmtMoney } from "@/lib/format";
 import { quoteStatusMeta } from "@/lib/labels";
@@ -232,13 +233,12 @@ export default async function QuotePage({
               <label htmlFor="status" className={labelClass}>
                 Quote status
               </label>
-              <select id="status" name="status" defaultValue={q.status} className={inputClass}>
-                {Object.entries(quoteStatusMeta).map(([key, meta]) => (
-                  <option key={key} value={key}>
-                    {meta.label}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                id="status"
+                name="status"
+                defaultValue={q.status}
+                options={Object.entries(quoteStatusMeta).map(([key, meta]) => ({ value: key, label: meta.label }))}
+              />
             </div>
             <SubmitButton>Update</SubmitButton>
           </form>

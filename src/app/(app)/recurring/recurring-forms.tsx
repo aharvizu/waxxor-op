@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import { buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { activityTypeMeta } from "@/lib/labels";
@@ -129,10 +130,14 @@ export function ReactivateForm({ id }: { id: number }) {
       <input type="hidden" name="id" value={id} />
       <FormAlert state={state} />
       <label className={labelClass}>Al reactivar</label>
-      <select name="mode" defaultValue="next_future" className={inputClass}>
-        <option value="next_future">Continuar desde la siguiente fecha futura</option>
-        <option value="recalculate">Recalcular desde hoy</option>
-      </select>
+      <SearchableSelect
+        name="mode"
+        defaultValue="next_future"
+        options={[
+          { value: "next_future", label: "Continuar desde la siguiente fecha futura" },
+          { value: "recalculate", label: "Recalcular desde hoy" },
+        ]}
+      />
       <SubmitButton>Reactivar</SubmitButton>
     </form>
   );
@@ -456,41 +461,47 @@ export function RecurrenceWizard({
             <input id="name" name="name" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
           </Field>
           <Field label={`Empresa${targetType === "ticket" ? " (requerido)" : " (opcional)"}`} name="companyId" errors={errors}>
-            <select id="companyId" name="companyId" value={companyId} onChange={(e) => setClientId(e.target.value)} className={inputClass}>
-              <option value="">— Sin cliente / interno —</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <SearchableSelect
+              id="companyId"
+              name="companyId"
+              value={companyId}
+              onValueChange={setClientId}
+              options={[{ value: "", label: "— Sin cliente / interno —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+            />
           </Field>
           {targetType === "project_activity" ? (
             <>
               <Field label="Proyecto" name="projectId" errors={errors}>
-                <select
+                <SearchableSelect
                   id="projectId"
                   name="projectId"
                   value={projectId}
-                  onChange={(e) => {
-                    setProjectId(e.target.value);
+                  onValueChange={(v) => {
+                    setProjectId(v);
                     setProjectListId("");
                   }}
-                  className={inputClass}
-                >
-                  <option value="">— Selecciona —</option>
-                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                  options={[{ value: "", label: "— Selecciona —" }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+                />
               </Field>
               <Field label="Lista" name="projectListId" errors={errors}>
-                <select id="projectListId" name="projectListId" value={projectListId} onChange={(e) => setProjectListId(e.target.value)} className={inputClass}>
-                  <option value="">— Selecciona —</option>
-                  {projectLists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
+                <SearchableSelect
+                  id="projectListId"
+                  name="projectListId"
+                  value={projectListId}
+                  onValueChange={setProjectListId}
+                  options={[{ value: "", label: "— Selecciona —" }, ...projectLists.map((l) => ({ value: String(l.id), label: l.name }))]}
+                />
               </Field>
             </>
           ) : null}
           <Field label="Responsable" name="assigneeId" errors={errors}>
-            <select id="assigneeId" name="assigneeId" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} className={inputClass}>
-              <option value="">— Sin asignar —</option>
-              {internalUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <SearchableSelect
+              id="assigneeId"
+              name="assigneeId"
+              value={assigneeId}
+              onValueChange={setAssigneeId}
+              options={[{ value: "", label: "— Sin asignar —" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+            />
           </Field>
         </div>
         <Field label="Descripción de la recurrencia (opcional)" name="description" errors={errors}>
@@ -518,23 +529,31 @@ export function RecurrenceWizard({
           </div>
           <div>
             <label className={labelClass}>Prioridad</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value)} className={inputClass}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
+            <SearchableSelect
+              value={priority}
+              onValueChange={setPriority}
+              options={[
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+                { value: "critical", label: "Critical" },
+              ]}
+            />
           </div>
           {targetType === "activity" || targetType === "project_activity" ? (
             <>
               <div>
                 <label className={labelClass}>Tipo de actividad</label>
-                <select value={activityType} onChange={(e) => setActivityType(e.target.value)} className={inputClass}>
-                  {activityType && !activityTypeOptions.includes(activityType) ? (
-                    <option value={activityType}>{activityTypeMeta[activityType]?.label ?? activityType}</option>
-                  ) : null}
-                  {activityTypeOptions.map((t) => <option key={t} value={t}>{activityTypeMeta[t]?.label ?? t}</option>)}
-                </select>
+                <SearchableSelect
+                  value={activityType}
+                  onValueChange={setActivityType}
+                  options={[
+                    ...(activityType && !activityTypeOptions.includes(activityType)
+                      ? [{ value: activityType, label: activityTypeMeta[activityType]?.label ?? activityType }]
+                      : []),
+                    ...activityTypeOptions.map((t) => ({ value: t, label: activityTypeMeta[t]?.label ?? t })),
+                  ]}
+                />
               </div>
               <div>
                 <label className={labelClass}>Vence N días después de la ocurrencia</label>
@@ -553,12 +572,16 @@ export function RecurrenceWizard({
             <>
               <div>
                 <label className={labelClass}>Periodo del reporte</label>
-                <select value={reportPeriodRule} onChange={(e) => setReportPeriodRule(e.target.value)} className={inputClass}>
-                  <option value="previous_month">Mes anterior</option>
-                  <option value="previous_week">Semana anterior</option>
-                  <option value="previous_quarter">Trimestre anterior</option>
-                  <option value="current_month">Mes actual</option>
-                </select>
+                <SearchableSelect
+                  value={reportPeriodRule}
+                  onValueChange={setReportPeriodRule}
+                  options={[
+                    { value: "previous_month", label: "Mes anterior" },
+                    { value: "previous_week", label: "Semana anterior" },
+                    { value: "previous_quarter", label: "Trimestre anterior" },
+                    { value: "current_month", label: "Mes actual" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={labelClass}>Fecha límite N días después</label>
@@ -574,32 +597,35 @@ export function RecurrenceWizard({
             <>
               <div>
                 <label className={labelClass}>Categoría</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} required className={inputClass}>
-                  <option value="" disabled>
-                    — Selecciona —
-                  </option>
-                  {category && !categoryOptions.includes(category) ? (
-                    <option value={category}>{category}</option>
-                  ) : null}
-                  {categoryOptions.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={category}
+                  onValueChange={setCategory}
+                  required
+                  options={[
+                    { value: "", label: "— Selecciona —", disabled: true },
+                    ...(category && !categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
+                    ...categoryOptions.map((c) => ({ value: c, label: c })),
+                  ]}
+                />
               </div>
               <div>
                 <label className={labelClass}>Canal</label>
-                <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputClass}>
-                  {["email", "phone", "whatsapp", "portal", "in_person", "internal"].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <SearchableSelect
+                  value={channel}
+                  onValueChange={setChannel}
+                  options={["email", "phone", "whatsapp", "portal", "in_person", "internal"].map((c) => ({ value: c, label: c }))}
+                />
               </div>
               <div>
                 <label className={labelClass}>Modalidad</label>
-                <select value={modality} onChange={(e) => setModality(e.target.value)} className={inputClass}>
-                  <option value="remote">Remota</option>
-                  <option value="onsite">En sitio</option>
-                </select>
+                <SearchableSelect
+                  value={modality}
+                  onValueChange={setModality}
+                  options={[
+                    { value: "remote", label: "Remota" },
+                    { value: "onsite", label: "En sitio" },
+                  ]}
+                />
               </div>
               <div>
                 <label className={labelClass}>Vence N días después</label>
@@ -616,15 +642,20 @@ export function RecurrenceWizard({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className={labelClass}>Frecuencia</label>
-            <select name="frequency" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)} className={inputClass}>
-              <option value="daily">Diaria</option>
-              <option value="weekdays">Días laborales (lun–vie)</option>
-              <option value="weekly">Semanal</option>
-              <option value="monthly">Mensual</option>
-              <option value="quarterly">Trimestral</option>
-              <option value="semiannual">Semestral</option>
-              <option value="annual">Anual</option>
-            </select>
+            <SearchableSelect
+              name="frequency"
+              value={frequency}
+              onValueChange={(v) => setFrequency(v as Frequency)}
+              options={[
+                { value: "daily", label: "Diaria" },
+                { value: "weekdays", label: "Días laborales (lun–vie)" },
+                { value: "weekly", label: "Semanal" },
+                { value: "monthly", label: "Mensual" },
+                { value: "quarterly", label: "Trimestral" },
+                { value: "semiannual", label: "Semestral" },
+                { value: "annual", label: "Anual" },
+              ]}
+            />
           </div>
           {frequency !== "weekdays" ? (
             <div>
@@ -638,9 +669,12 @@ export function RecurrenceWizard({
           </div>
           <div className="sm:col-span-3">
             <label className={labelClass}>Zona horaria</label>
-            <select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass}>
-              {[...new Set([timezone, ...COMMON_TIMEZONES])].map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-            </select>
+            <SearchableSelect
+              name="timezone"
+              value={timezone}
+              onValueChange={setTimezone}
+              options={[...new Set([timezone, ...COMMON_TIMEZONES])].map((tz) => ({ value: tz, label: tz }))}
+            />
           </div>
 
           {frequency === "weekly" || frequency === "custom" ? (

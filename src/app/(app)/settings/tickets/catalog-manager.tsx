@@ -5,6 +5,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { ChevronRight, Plus } from "lucide-react";
 import { DragList } from "@/components/drag-list";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge, buttonDangerClass, buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
@@ -124,13 +125,11 @@ function CategoryOrLevelField({ kind, defaultCategory, defaultLevel }: { kind: T
   return (
     <div className="w-44">
       <label className={labelClass}>Categoría semántica</label>
-      <select name="category" defaultValue={defaultCategory ?? Object.keys(labels)[0]} className={inputClass}>
-        {Object.entries(labels).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+      <SearchableSelect
+        name="category"
+        defaultValue={defaultCategory ?? Object.keys(labels)[0]}
+        options={Object.entries(labels).map(([value, label]) => ({ value, label }))}
+      />
     </div>
   );
 }
@@ -233,16 +232,15 @@ function DeleteDialog({
       {needsReassign ? (
         <div className="max-w-xs">
           <label className={labelClass}>Reasignar tickets a</label>
-          <select name="reassignToId" required defaultValue="" className={inputClass}>
-            <option value="" disabled>
-              Elegir destino…
-            </option>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect
+            name="reassignToId"
+            required
+            defaultValue=""
+            options={[
+              { value: "", label: "Elegir destino…", disabled: true },
+              ...candidates.map((c) => ({ value: String(c.id), label: c.name })),
+            ]}
+          />
         </div>
       ) : null}
       <div className="flex items-center gap-2">

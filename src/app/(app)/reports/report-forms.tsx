@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { reportTypeMeta } from "@/lib/labels";
@@ -121,11 +122,13 @@ export function CreateReportForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="reportType" className={labelClass}>Tipo</label>
-          <select id="reportType" name="reportType" value={reportType} onChange={(e) => setReportType(e.target.value)} className={inputClass}>
-            {REPORT_TYPES.map((t) => (
-              <option key={t} value={t}>{reportTypeMeta[t]?.label ?? t}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            id="reportType"
+            name="reportType"
+            value={reportType}
+            onValueChange={setReportType}
+            options={REPORT_TYPES.map((t) => ({ value: t, label: reportTypeMeta[t]?.label ?? t }))}
+          />
         </div>
         <div>
           <label htmlFor="title" className={labelClass}>Nombre</label>
@@ -134,30 +137,39 @@ export function CreateReportForm({
         </div>
         <div>
           <label htmlFor="companyId" className={labelClass}>Empresa{clientRequired ? " (requerido)" : " (opcional)"}</label>
-          <select id="companyId" name="companyId" defaultValue={defaults?.companyId ? String(defaults.companyId) : ""} className={inputClass}>
-            <option value="">— Sin cliente —</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <SearchableSelect
+            id="companyId"
+            name="companyId"
+            defaultValue={defaults?.companyId ? String(defaults.companyId) : ""}
+            options={[{ value: "", label: "— Sin cliente —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label htmlFor="projectId" className={labelClass}>Proyecto{reportType === "project_report" ? " (requerido)" : " (opcional)"}</label>
-          <select id="projectId" name="projectId" defaultValue={defaults?.projectId ? String(defaults.projectId) : ""} className={inputClass}>
-            <option value="">— Sin proyecto —</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <SearchableSelect
+            id="projectId"
+            name="projectId"
+            defaultValue={defaults?.projectId ? String(defaults.projectId) : ""}
+            options={[{ value: "", label: "— Sin proyecto —" }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+          />
         </div>
         <div>
           <label htmlFor="periodRule" className={labelClass}>Periodo</label>
-          <select id="periodRule" name="periodRule" value={periodRule} onChange={(e) => setPeriodRule(e.target.value)} className={inputClass}>
-            {PERIOD_RULES.map((r) => <option key={r} value={r}>{PERIOD_LABELS[r] ?? r}</option>)}
-          </select>
+          <SearchableSelect
+            id="periodRule"
+            name="periodRule"
+            value={periodRule}
+            onValueChange={setPeriodRule}
+            options={PERIOD_RULES.map((r) => ({ value: r, label: PERIOD_LABELS[r] ?? r }))}
+          />
         </div>
         <div>
           <label htmlFor="templateId" className={labelClass}>Plantilla</label>
-          <select id="templateId" name="templateId" className={inputClass}>
-            <option value="">— Secciones por defecto —</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <SearchableSelect
+            id="templateId"
+            name="templateId"
+            options={[{ value: "", label: "— Secciones por defecto —" }, ...templates.map((t) => ({ value: String(t.id), label: t.name }))]}
+          />
         </div>
         {periodRule === "custom" ? (
           <>
@@ -173,17 +185,20 @@ export function CreateReportForm({
         ) : null}
         <div>
           <label htmlFor="responsibleUserId" className={labelClass}>Responsable</label>
-          <select id="responsibleUserId" name="responsibleUserId" className={inputClass}>
-            <option value="">— Yo —</option>
-            {internalUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          <SearchableSelect
+            id="responsibleUserId"
+            name="responsibleUserId"
+            options={[{ value: "", label: "— Yo —" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+          />
         </div>
         <div>
           <label htmlFor="deliveryChannel" className={labelClass}>Canal previsto (opcional)</label>
-          <select id="deliveryChannel" name="deliveryChannel" defaultValue="" className={inputClass}>
-            <option value="">—</option>
-            {["email", "whatsapp", "reunión", "portal", "impreso"].map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <SearchableSelect
+            id="deliveryChannel"
+            name="deliveryChannel"
+            defaultValue=""
+            options={[{ value: "", label: "—" }, ...["email", "whatsapp", "reunión", "portal", "impreso"].map((c) => ({ value: c, label: c }))]}
+          />
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm text-fg">
@@ -283,9 +298,12 @@ export function MarkSentForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelClass}>Canal</label>
-          <select name="deliveryChannel" required className={inputClass}>
-            {["email", "whatsapp", "reunión", "portal", "impreso"].map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <SearchableSelect
+            name="deliveryChannel"
+            required
+            defaultValue="email"
+            options={["email", "whatsapp", "reunión", "portal", "impreso"].map((c) => ({ value: c, label: c }))}
+          />
         </div>
         <div>
           <label className={labelClass}>Fecha de envío</label>
@@ -293,10 +311,10 @@ export function MarkSentForm({
         </div>
         <div>
           <label className={labelClass}>Contacto destinatario</label>
-          <select name="recipientContactId" className={inputClass}>
-            <option value="">—</option>
-            {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <SearchableSelect
+            name="recipientContactId"
+            options={[{ value: "", label: "—" }, ...contacts.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
         </div>
         <div>
           <label className={labelClass}>Notas</label>

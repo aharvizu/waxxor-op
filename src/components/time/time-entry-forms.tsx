@@ -10,6 +10,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { fmtDate, fmtMoney } from "@/lib/format";
@@ -104,51 +105,35 @@ function SessionFields({
         </div>
         <div>
           <label className={labelClass}>Type</label>
-          <select
+          <SearchableSelect
             name="timeType"
             required
             defaultValue={defaults?.timeType ?? "technical_work"}
-            className={inputClass}
-          >
-            {defaults?.timeType && !timeTypeOptions.includes(defaults.timeType) ? (
-              <option value={defaults.timeType}>{typeLabels[defaults.timeType] ?? defaults.timeType}</option>
-            ) : null}
-            {timeTypeOptions.map((t) => (
-              <option key={t} value={t}>
-                {typeLabels[t] ?? t}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...(defaults?.timeType && !timeTypeOptions.includes(defaults.timeType)
+                ? [{ value: defaults.timeType, label: typeLabels[defaults.timeType] ?? defaults.timeType }]
+                : []),
+              ...timeTypeOptions.map((t) => ({ value: t, label: typeLabels[t] ?? t })),
+            ]}
+          />
         </div>
         <div>
           <label className={labelClass}>Billing</label>
-          <select
+          <SearchableSelect
             name="billingStatus"
             defaultValue={defaults?.billingStatus ?? "pending_review"}
-            className={inputClass}
-          >
-            {BILLING_STATUSES.map((b) => (
-              <option key={b} value={b}>
-                {billingLabels[b]?.label ?? b}
-              </option>
-            ))}
-          </select>
+            options={BILLING_STATUSES.map((b) => ({ value: b, label: billingLabels[b]?.label ?? b }))}
+          />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label className={labelClass}>Modality</label>
-          <select
+          <SearchableSelect
             name="modality"
             defaultValue={defaults?.modality ?? "not_applicable"}
-            className={inputClass}
-          >
-            {TIME_MODALITIES.map((m) => (
-              <option key={m} value={m}>
-                {modalityLabels[m] ?? m}
-              </option>
-            ))}
-          </select>
+            options={TIME_MODALITIES.map((m) => ({ value: m, label: modalityLabels[m] ?? m }))}
+          />
         </div>
         <div>
           <label className={labelClass}>Hourly rate (optional)</label>
@@ -373,13 +358,11 @@ export function TimeEntryRow({
           <FormAlert state={editState} />
           <div>
             <label className={labelClass}>Technician</label>
-            <select name="userId" defaultValue={entry.userId} className={inputClass}>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="userId"
+              defaultValue={String(entry.userId)}
+              options={technicians.map((t) => ({ value: String(t.id), label: t.name }))}
+            />
           </div>
           <SessionFields
             errors={errors}

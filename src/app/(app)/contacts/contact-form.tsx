@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { buttonClass, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { CONTACT_TYPES } from "@/lib/company360";
@@ -36,12 +37,13 @@ export function ContactCreateForm({
       <FormAlert state={state} />
       <div>
         <label htmlFor="companyId" className={labelClass}>Empresa principal</label>
-        <select id="companyId" name="companyId" defaultValue={value("companyId")} className={inputClass} required>
-          <option value="">Selecciona una empresa…</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          id="companyId"
+          name="companyId"
+          defaultValue={value("companyId")}
+          required
+          options={[{ value: "", label: "Selecciona una empresa…" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
         <FieldError id="companyId-error" errors={errors.companyId} />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -65,11 +67,12 @@ export function ContactCreateForm({
         </div>
         <div>
           <label htmlFor="contactType" className={labelClass}>Tipo</label>
-          <select id="contactType" name="contactType" defaultValue={value("contactType")} className={inputClass}>
-            {CONTACT_TYPES.map((t) => (
-              <option key={t} value={t}>{contactTypeMeta[t]?.label ?? t}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            id="contactType"
+            name="contactType"
+            defaultValue={value("contactType")}
+            options={CONTACT_TYPES.map((t) => ({ value: t, label: contactTypeMeta[t]?.label ?? t }))}
+          />
         </div>
         <div>
           <label htmlFor="email" className={labelClass}>Correo</label>

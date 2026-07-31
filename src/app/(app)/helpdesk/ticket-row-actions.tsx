@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { cx, inputClass } from "@/components/ui";
 import { FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import type { ActionState } from "@/lib/action-result";
 import { isWorkflowDropdownCategory } from "@/lib/tickets";
 import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
@@ -11,7 +11,7 @@ import { assignTicket, changeTicketStatus, setTicketPriority } from "./actions";
 type Option = { id: number; name: string };
 type StatusOption = Option & { category: TicketStatusCategoryValue; isActive: boolean };
 type PriorityOption = Option & { isActive: boolean };
-const smallSelect = cx(inputClass, "h-7 w-auto max-w-28 px-1.5 text-xs");
+const smallSelect = "h-7 w-auto max-w-28 px-1.5 text-xs";
 
 /** Inline row controls: assign, status, priority — submit on change. */
 export function TicketRowActions({
@@ -56,61 +56,43 @@ export function TicketRowActions({
     <div className="flex flex-wrap items-center gap-1.5">
       <form action={assignAction}>
         <input type="hidden" name="id" value={ticketId} />
-        <select
+        <SearchableSelect
           name="assigneeId"
           key={assigneeId ?? "none"}
-          defaultValue={assigneeId ?? ""}
+          defaultValue={assigneeId ? String(assigneeId) : ""}
           aria-label="Assign"
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          submitOnChange
           className={smallSelect}
-        >
-          <option value="">Assign…</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
+          options={[{ value: "", label: "Assign…" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+        />
       </form>
       <form action={statusAction}>
         <input type="hidden" name="id" value={ticketId} />
-        <select
+        <SearchableSelect
           name="statusId"
           key={statusId}
-          defaultValue={editableStatus ? statusId : ""}
+          defaultValue={editableStatus ? String(statusId) : ""}
           aria-label="Status"
           disabled={!editableStatus}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          submitOnChange
           className={smallSelect}
-        >
-          {!editableStatus ? (
-            <option value="" disabled>
-              {currentStatus?.name ?? statusId}
-            </option>
-          ) : null}
-          {workflowStatuses.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...(!editableStatus ? [{ value: "", label: currentStatus?.name ?? String(statusId), disabled: true }] : []),
+            ...workflowStatuses.map((s) => ({ value: String(s.id), label: s.name })),
+          ]}
+        />
       </form>
       <form action={priorityAction}>
         <input type="hidden" name="id" value={ticketId} />
-        <select
+        <SearchableSelect
           name="priorityId"
           key={priorityId}
-          defaultValue={priorityId}
+          defaultValue={String(priorityId)}
           aria-label="Priority"
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          submitOnChange
           className={smallSelect}
-        >
-          {priorityOptions.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          options={priorityOptions.map((p) => ({ value: String(p.id), label: p.name }))}
+        />
       </form>
       {[assignState, statusState, priorityState].map((s, i) =>
         s && !s.ok ? <FormAlert key={i} state={s} className="w-full" /> : null,

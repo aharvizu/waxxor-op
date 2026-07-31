@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
+import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { TICKET_CHANNELS, TICKET_MODALITIES } from "@/lib/convert-activity";
@@ -59,20 +60,16 @@ export function ConvertForm({
           <label htmlFor="companyId" className={labelClass}>
             Client {companyId ? "" : "(required — the activity has none)"}
           </label>
-          <select
+          <SearchableSelect
             id="companyId"
             name="companyId"
             required
             defaultValue={value("companyId", companyId ? String(companyId) : "")}
-            className={inputClass}
-          >
-            <option value="">Select a client…</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Select a client…" },
+              ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+            ]}
+          />
         </div>
         <div>
           <label htmlFor="contact" className={labelClass}>
@@ -92,24 +89,18 @@ export function ConvertForm({
           <label htmlFor="category" className={labelClass}>
             Category
           </label>
-          <select
+          <SearchableSelect
             id="category"
             name="category"
             required
             defaultValue={value("category", "")}
             aria-invalid={errors.category ? true : undefined}
             aria-describedby={errors.category ? "category-error" : undefined}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              — Select —
-            </option>
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "— Select —", disabled: true },
+              ...categoryOptions.map((c) => ({ value: c, label: c })),
+            ]}
+          />
           <FieldError id="category-error" errors={errors.category} />
         </div>
         <div>
@@ -129,75 +120,58 @@ export function ConvertForm({
           <label htmlFor="channel" className={labelClass}>
             Channel
           </label>
-          <select
+          <SearchableSelect
             id="channel"
             name="channel"
             required
             defaultValue={value("channel", "")}
             aria-invalid={errors.channel ? true : undefined}
-            className={inputClass}
-          >
-            <option value="">Where did it come from…</option>
-            {TICKET_CHANNELS.map((c) => (
-              <option key={c} value={c}>
-                {channelLabels[c] ?? c}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Where did it come from…" },
+              ...TICKET_CHANNELS.map((c) => ({ value: c, label: channelLabels[c] ?? c })),
+            ]}
+          />
           <FieldError id="channel-error" errors={errors.channel} />
         </div>
         <div>
           <label htmlFor="modality" className={labelClass}>
             Modality
           </label>
-          <select
+          <SearchableSelect
             id="modality"
             name="modality"
             required
             defaultValue={value("modality", "remote")}
-            className={inputClass}
-          >
-            {TICKET_MODALITIES.map((m) => (
-              <option key={m} value={m}>
-                {m === "remote" ? "Remote" : "On-site"}
-              </option>
-            ))}
-          </select>
+            options={TICKET_MODALITIES.map((m) => ({ value: m, label: m === "remote" ? "Remote" : "On-site" }))}
+          />
         </div>
         <div>
           <label htmlFor="priority" className={labelClass}>
             Priority
           </label>
-          <select
+          <SearchableSelect
             id="priority"
             name="priority"
             defaultValue={value("priority", priority)}
-            className={inputClass}
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
+            options={[
+              { value: "low", label: "Low" },
+              { value: "medium", label: "Medium" },
+              { value: "high", label: "High" },
+              { value: "critical", label: "Critical" },
+            ]}
+          />
         </div>
       </div>
       <div>
         <label htmlFor="assigneeId" className={labelClass}>
           Assignee (optional)
         </label>
-        <select
+        <SearchableSelect
           id="assigneeId"
           name="assigneeId"
           defaultValue={value("assigneeId", assigneeId ? String(assigneeId) : "")}
-          className={inputClass}
-        >
-          <option value="">Unassigned</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
+          options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+        />
       </div>
       {inProject ? (
         <label className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-fg">
