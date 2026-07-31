@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
 import type { CatalogItemRow } from "@/lib/settings-data";
+import { MenuButton, MenuSubmitButton } from "./tickets/catalog-manager";
 import {
   createApiKey,
   createCatalogItem,
@@ -112,73 +114,15 @@ function CatalogAddForm({
   );
 }
 
-function CatalogRowActions({ item, canDelete }: { item: CatalogItemRow; canDelete: boolean }) {
-  const [toggleState, toggleAction] = useActionState<ActionState, FormData>(toggleCatalogItem, null);
-  const [deleteState, deleteAction] = useActionState<ActionState, FormData>(deleteCatalogItem, null);
-  return (
-    <span className="flex items-center gap-1.5">
-      <form action={toggleAction}>
-        <input type="hidden" name="id" value={item.id} />
-        <button type="submit" className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-          {item.isActive ? "Archivar" : "Restaurar"}
-        </button>
-      </form>
-      {canDelete ? (
-        <form action={deleteAction}>
-          <input type="hidden" name="id" value={item.id} />
-          <button type="submit" className={cx(buttonDangerClass, "h-7 px-2 text-xs")}>
-            Eliminar
-          </button>
-        </form>
-      ) : null}
-      {toggleState && !toggleState.ok ? (
-        <span className="text-xs text-danger">{toggleState.message}</span>
-      ) : null}
-      {deleteState && !deleteState.ok ? (
-        <span className="text-xs text-danger">{deleteState.message}</span>
-      ) : null}
-    </span>
-  );
-}
-
-function CatalogRename({ item }: { item: CatalogItemRow }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(updateCatalogItem, null);
-  const config = (item.config ?? null) as { lists?: string[] } | null;
-  return (
-    <form action={formAction} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-      <input type="hidden" name="id" value={item.id} />
-      {item.color ? (
-        <input
-          name="color"
-          type="color"
-          defaultValue={item.color}
-          className="h-7 w-9 cursor-pointer rounded border border-edge bg-surface p-0.5"
-        />
-      ) : null}
-      <input
-        name="name"
-        defaultValue={item.name}
-        required
-        className={cx(inputClass, "h-7 w-auto min-w-32 flex-1 text-sm")}
-      />
-      {config?.lists ? (
-        <input
-          name="templateLists"
-          defaultValue={config.lists.join("\n")}
-          type="hidden"
-        />
-      ) : null}
-      <button type="submit" className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-        Guardar
-      </button>
-      {state && !state.ok ? <span className="text-xs text-danger">{state.message}</span> : null}
-    </form>
-  );
-}
 
 /**
  * Full manager for one catalog kind: add form, active/archived rows, optional
  * subcategory tree (one level, mirrors ticket category → subcategory).
+ * Rows are single-line with a "⋯" popover for edit/archive/delete (same
+ * compact pattern as TicketCatalogManager's CatalogRow, settings/tickets/
+ * catalog-manager.tsx) — a long catalog like Tipos de trabajo (17+ items)
+ * used to render 17 permanently-open edit forms at once; this shows one
+ * line per item until you actually need to change something (2026-07-31).
  */
 export function CatalogManager({
   kind,
@@ -223,11 +167,152 @@ export function CatalogManager({
               childLabel={childLabel}
               canDelete={canDelete}
               kind={kind}
+              withColor={withColor}
+              withTemplateLists={withTemplateLists}
             />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function CatalogEditForm({
+  item,
+  withColor,
+  withTemplateLists,
+  onDone,
+}: {
+  item: CatalogItemRow;
+  withColor?: boolean;
+  withTemplateLists?: boolean;
+  onDone: () => void;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(updateCatalogItem, null);
+  const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const config = (item.config ?? null) as { lists?: string[] } | null;
+  return (
+    <form action={formAction} className="space-y-2 p-1">
+      <input type="hidden" name="id" value={item.id} />
+      <FormAlert state={state} />
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <label className={labelClass}>Nombre</label>
+          <input name="name" defaultValue={item.name} required className={inputClass} />
+          <FieldError errors={errors.name} />
+        </div>
+        {withColor ? (
+          <input
+            name="color"
+            type="color"
+            defaultValue={item.color ?? "#7c3aed"}
+            title="Color"
+            className="h-9 w-12 shrink-0 cursor-pointer rounded-lg border border-edge bg-surface p-1"
+          />
+        ) : null}
+      </div>
+      {withTemplateLists ? (
+        <div>
+          <label className={labelClass}>Listas de la plantilla (una por línea)</label>
+          <textarea
+            name="templateLists"
+            rows={3}
+            defaultValue={config?.lists?.join("\n") ?? ""}
+            className={inputClass}
+          />
+          <FieldError errors={errors.templateLists} />
+        </div>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <SubmitButton className="h-8">Guardar</SubmitButton>
+        <button type="button" onClick={onDone} className={cx(buttonSecondaryClass, "h-8")}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CatalogRowMenu({
+  item,
+  canDelete,
+  withColor,
+  withTemplateLists,
+}: {
+  item: CatalogItemRow;
+  canDelete: boolean;
+  withColor?: boolean;
+  withTemplateLists?: boolean;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [toggleState, toggleAction] = useActionState<ActionState, FormData>(toggleCatalogItem, null);
+  const [deleteState, deleteAction] = useActionState<ActionState, FormData>(deleteCatalogItem, null);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setEditing(false);
+  }
+
+  return (
+    <>
+      <Popover.Root
+        open={menuOpen}
+        onOpenChange={(next) => {
+          setMenuOpen(next);
+          if (!next) setEditing(false);
+        }}
+      >
+        <Popover.Trigger asChild>
+          <button
+            ref={triggerRef}
+            type="button"
+            aria-label={`Más acciones para ${item.name}`}
+            className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-fg"
+          >
+            ⋯
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            side="bottom"
+            align="end"
+            sideOffset={6}
+            collisionPadding={8}
+            avoidCollisions
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              triggerRef.current?.focus();
+            }}
+            className="z-[70] w-64 rounded-xl border border-edge bg-surface p-1.5 text-xs shadow-overlay outline-none"
+          >
+            {editing ? (
+              <CatalogEditForm item={item} withColor={withColor} withTemplateLists={withTemplateLists} onDone={closeMenu} />
+            ) : (
+              <div className="space-y-0.5">
+                <MenuButton onClick={() => setEditing(true)}>Editar</MenuButton>
+                <form action={(fd) => { toggleAction(fd); closeMenu(); }}>
+                  <input type="hidden" name="id" value={item.id} />
+                  <MenuSubmitButton>{item.isActive ? "Archivar" : "Restaurar"}</MenuSubmitButton>
+                </form>
+                {canDelete ? (
+                  <>
+                    <div className="my-1 border-t border-edge" />
+                    <form action={(fd) => { deleteAction(fd); closeMenu(); }}>
+                      <input type="hidden" name="id" value={item.id} />
+                      <MenuSubmitButton danger>Eliminar</MenuSubmitButton>
+                    </form>
+                  </>
+                ) : null}
+              </div>
+            )}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+      {toggleState && !toggleState.ok ? <p className="mt-1 text-xs text-danger">{toggleState.message}</p> : null}
+      {deleteState && !deleteState.ok ? <p className="mt-1 text-xs text-danger">{deleteState.message}</p> : null}
+    </>
   );
 }
 
@@ -238,6 +323,8 @@ function CatalogRow({
   childLabel,
   canDelete,
   kind,
+  withColor,
+  withTemplateLists,
 }: {
   item: CatalogItemRow;
   childItems: CatalogItemRow[];
@@ -245,6 +332,8 @@ function CatalogRow({
   childLabel: string | null;
   canDelete: boolean;
   kind: string;
+  withColor?: boolean;
+  withTemplateLists?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const config = (item.config ?? null) as { lists?: string[] } | null;
@@ -263,25 +352,28 @@ function CatalogRow({
             {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </button>
         ) : null}
-        <CatalogRename item={item} />
+        {withColor && item.color ? (
+          <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} aria-hidden />
+        ) : null}
+        <span className="min-w-0 truncate font-medium text-fg">{item.name}</span>
         {!item.isActive ? <Badge tone="slate">Archivado</Badge> : null}
         {hasChildren && childItems.length > 0 ? (
           <span className="text-xs text-muted">
             {childItems.length} {childLabel?.toLowerCase() ?? "subelementos"}
           </span>
         ) : null}
-        <CatalogRowActions item={item} canDelete={canDelete} />
+        <CatalogRowMenu item={item} canDelete={canDelete} withColor={withColor} withTemplateLists={withTemplateLists} />
       </div>
       {config?.lists ? (
         <p className="mt-1 pl-6 text-xs text-muted">Listas: {config.lists.join(" · ")}</p>
       ) : null}
       {hasChildren && open ? (
-        <div className="mt-2 space-y-2 border-l border-edge pl-6">
+        <div className="mt-2 space-y-1 border-l border-edge pl-6">
           {childItems.map((child) => (
-            <div key={child.id} className={cx("flex flex-wrap items-center gap-2", !child.isActive && "opacity-60")}>
-              <CatalogRename item={child} />
+            <div key={child.id} className={cx("flex flex-wrap items-center gap-2 py-1", !child.isActive && "opacity-60")}>
+              <span className="min-w-0 truncate font-medium text-fg">{child.name}</span>
               {!child.isActive ? <Badge tone="slate">Archivado</Badge> : null}
-              <CatalogRowActions item={child} canDelete={canDelete} />
+              <CatalogRowMenu item={child} canDelete={canDelete} />
             </div>
           ))}
           <CatalogAddForm

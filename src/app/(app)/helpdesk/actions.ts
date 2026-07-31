@@ -1268,7 +1268,7 @@ export async function createRelatedActivity(
 
   try {
     await db.transaction(async (tx) => {
-      const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+      const validTypes = await getCatalogNames(user.organizationId, "time_entry_type");
       if (!validTypes.includes(data.activityType)) throw new InvalidActivityTypeError();
 
       const row = await loadTicket(tx, user, data.id);

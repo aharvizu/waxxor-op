@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useRef, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import { ChevronRight, Plus } from "lucide-react";
 import { DragList } from "@/components/drag-list";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SubmitButton } from "@/components/submit-button";
@@ -134,9 +135,12 @@ function CategoryOrLevelField({ kind, defaultCategory, defaultLevel }: { kind: T
   );
 }
 
-function CatalogAddForm({ kind, placeholder }: { kind: TicketCatalogKind; placeholder: string }) {
+function CatalogAddForm({ kind, placeholder, onSuccess }: { kind: TicketCatalogKind; placeholder: string; onSuccess?: () => void }) {
   const [state, formAction] = useActionState<ActionState, FormData>(ACTIONS[kind].create, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  useEffect(() => {
+    if (state?.ok) onSuccess?.();
+  }, [state, onSuccess]);
   return (
     <form action={formAction} className="space-y-2 rounded-lg border border-dashed border-edge-strong p-3">
       <FormAlert state={state} />
@@ -251,8 +255,8 @@ function DeleteDialog({
   );
 }
 
-/** Shared menu-row style — mirrors views/view-switcher.tsx's popover menu convention. */
-function menuItemClass(disabled: boolean | undefined, danger: boolean | undefined) {
+/** Shared menu-row style — mirrors views/view-switcher.tsx's popover menu convention. Reused by settings-forms.tsx's CatalogManager. */
+export function menuItemClass(disabled: boolean | undefined, danger: boolean | undefined) {
   return cx(
     "flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors",
     disabled
@@ -263,7 +267,7 @@ function menuItemClass(disabled: boolean | undefined, danger: boolean | undefine
   );
 }
 
-function MenuButton({
+export function MenuButton({
   onClick,
   disabled,
   disabledReason,
@@ -290,9 +294,9 @@ function MenuButton({
   );
 }
 
-function MenuSubmitButton({ children }: { children: ReactNode }) {
+export function MenuSubmitButton({ children, danger }: { children: ReactNode; danger?: boolean }) {
   return (
-    <button type="submit" className={menuItemClass(false, false)}>
+    <button type="submit" className={menuItemClass(false, danger)}>
       {children}
     </button>
   );
@@ -322,7 +326,7 @@ function CatalogRow({
   }
 
   return (
-    <li className={cx("rounded-lg border border-edge px-3 py-2.5", !row.isActive && "opacity-60")}>
+    <li className={cx("rounded-md border border-edge px-2.5 py-1.5", !row.isActive && "opacity-60")}>
       <div className="flex flex-wrap items-center gap-2">
         {row.color ? (
           <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: row.color }} aria-hidden />
@@ -420,6 +424,7 @@ export function TicketCatalogManager({
 }) {
   const [query, setQuery] = useState("");
   const [order, setOrder] = useState<number[] | null>(null);
+  const [adding, setAdding] = useState(false);
   const [, reorderAction] = useActionState<ActionState, FormData>(ACTIONS[kind].reorder, null);
 
   const q = query.trim().toLowerCase();
@@ -442,7 +447,13 @@ export function TicketCatalogManager({
 
   return (
     <div className="space-y-3">
-      <CatalogAddForm kind={kind} placeholder={addPlaceholder} />
+      {adding ? (
+        <CatalogAddForm kind={kind} placeholder={addPlaceholder} onSuccess={() => setAdding(false)} />
+      ) : (
+        <button type="button" onClick={() => setAdding(true)} className={cx(buttonSecondaryClass, "h-8 text-xs")}>
+          <Plus className="size-3.5" /> Nuevo
+        </button>
+      )}
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -458,6 +469,45 @@ export function TicketCatalogManager({
           renderItem={(item) => <CatalogRow kind={kind} row={item} allRows={items} />}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Full-width collapsible wrapper for one catalog section (Estados/
+ * Prioridades/Estatus de cobro) — replaces the old fixed 3-column grid of
+ * always-open cards, which cramped each section into a third of the width
+ * and kept all three fully expanded no matter how many rows they had
+ * (2026-07-31).
+ */
+export function TicketCatalogSection({
+  title,
+  description,
+  count,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  description: string;
+  count: number;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen ?? false);
+  return (
+    <div className="rounded-xl border border-edge bg-surface">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5 text-left"
+      >
+        <ChevronRight className={cx("size-4 shrink-0 text-muted transition-transform", open && "rotate-90")} aria-hidden />
+        <span className="font-semibold text-fg">{title}</span>
+        <span className="text-xs text-muted">{count}</span>
+        <span className="text-xs text-muted sm:ml-auto">{description}</span>
+      </button>
+      {open ? <div className="border-t border-edge p-5">{children}</div> : null}
     </div>
   );
 }

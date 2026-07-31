@@ -824,7 +824,7 @@ export const activities = pgTable("activities", {
     .notNull()
     .unique()
     .references(() => workItems.id),
-  /** Catalog-validated (Settings → Actividades → Tipos de actividad, catalog_items kind "activity_type"), not an enum — admins can add custom types. "general", "meeting" and "reminder" are system-protected (Today's quick-create + recurrence key off them literally). */
+  /** Catalog-validated (Settings → Actividades → Tipos de trabajo, catalog_items kind "time_entry_type" — merged with time-entry types 2026-07-30), not an enum — admins can add custom types. "general", "meeting" and "reminder" are system-protected (Today's quick-create + recurrence key off them literally). */
   activityType: text("activity_type").notNull().default("general"),
   recurrenceTemplateId: integer("recurrence_template_id"),
   archivedAt: timestamp("archived_at"),
@@ -866,7 +866,7 @@ export const timeEntries = pgTable(
       .references(() => users.id),
     date: date("date").notNull(),
     durationMinutes: integer("duration_minutes").notNull(),
-    /** Catalog-validated (Settings → Actividades → Tipos de trabajo, catalog_items kind "time_entry_type"), not an enum — admins can add custom types. "technical_work" is system-protected (NOT NULL default). */
+    /** Catalog-validated (Settings → Actividades → Tipos de trabajo, catalog_items kind "time_entry_type" — same catalog activities.activityType uses since 2026-07-30), not an enum — admins can add custom types. "technical_work" is system-protected (NOT NULL default). */
     timeType: text("time_type").notNull().default("technical_work"),
     billingStatus: billingStatus("billing_status").notNull().default("pending_review"),
     modality: timeModality("modality").notNull().default("not_applicable"),

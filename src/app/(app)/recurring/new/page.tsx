@@ -22,7 +22,7 @@ export default async function NewRecurrencePage({
     db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.organizationId, user.organizationId), ne(projects.status, "archived"))).orderBy(asc(projects.name)),
     db.select({ id: projectLists.id, name: projectLists.name, projectId: projectLists.projectId }).from(projectLists).where(eq(projectLists.organizationId, user.organizationId)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client"))).orderBy(asc(users.name)),
-    getCatalogNames(user.organizationId, "activity_type"),
+    getCatalogNames(user.organizationId, "time_entry_type"),
     getCatalogNames(user.organizationId, "ticket_category"),
   ]);
 

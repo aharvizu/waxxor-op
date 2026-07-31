@@ -221,26 +221,12 @@ export const CATALOG_KINDS = {
     wired: false,
     note: "Catálogo preparado; el etiquetado de empresas llega con una fase posterior de Empresas.",
   },
-  activity_tag: {
-    label: "Etiquetas de actividades",
-    hasChildren: false,
-    childLabel: null,
-    wired: false,
-    note: "Catálogo preparado; el etiquetado de actividades llega con una fase posterior de Activities.",
-  },
-  activity_type: {
-    label: "Tipos de actividad",
-    hasChildren: false,
-    childLabel: null,
-    wired: true,
-    note: "Alimenta el campo Tipo al crear/editar una Actividad (Watson, recurrencias, conversión desde Ticket/Proyecto).",
-  },
   time_entry_type: {
     label: "Tipos de trabajo",
     hasChildren: false,
     childLabel: null,
     wired: true,
-    note: "Alimenta el campo Tipo al registrar tiempo en Actividades y Tickets.",
+    note: "Catálogo único (2026-07-30 — fusiona lo que antes eran Tipos de actividad y Tipos de trabajo por separado): alimenta el campo Tipo al crear/editar una Actividad (Watson, recurrencias, conversión desde Ticket/Proyecto) y al registrar tiempo en Actividades y Tickets.",
   },
   project_color: {
     label: "Colores de proyecto",
@@ -274,8 +260,7 @@ export function isCatalogKind(value: string): value is CatalogKind {
  * color, description and active/inactive stay fully editable.
  */
 export const SYSTEM_PROTECTED_CATALOG_NAMES: Partial<Record<CatalogKind, string[]>> = {
-  activity_type: ["general", "meeting", "reminder"],
-  time_entry_type: ["technical_work"],
+  time_entry_type: ["technical_work", "general", "meeting", "reminder"],
 };
 
 /** Config payload for project_template catalog items. */

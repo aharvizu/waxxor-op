@@ -198,7 +198,7 @@ export async function createActivity(
   let activityId: number;
   try {
     activityId = await db.transaction(async (tx) => {
-      const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+      const validTypes = await getCatalogNames(user.organizationId, "time_entry_type");
       if (!validTypes.includes(data.activityType)) throw new InvalidActivityTypeError();
 
       const item = await createWorkItem(tx, user, {
@@ -256,7 +256,7 @@ export async function updateActivityDetails(
     await db.transaction(async (tx) => {
       const { activity, item } = await loadActivity(tx, user, data.id);
       if (data.activityType !== activity.activityType) {
-        const validTypes = await getCatalogNames(user.organizationId, "activity_type");
+        const validTypes = await getCatalogNames(user.organizationId, "time_entry_type");
         if (!validTypes.includes(data.activityType)) throw new InvalidActivityTypeError();
       }
 

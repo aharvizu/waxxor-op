@@ -3,9 +3,11 @@ import { z } from "zod";
 /** Domain constants and pure rules for Activities — see docs/features/activities.md. */
 
 /**
- * Activity type is a catalog (Settings → Actividades → Tipos de actividad,
- * catalog_items kind "activity_type"), not an enum — see getCatalogNames.
- * Validated per-org at the action layer, not with a static Zod enum.
+ * Activity type is a catalog (Settings → Actividades → Tipos de trabajo,
+ * catalog_items kind "time_entry_type" — shared with time-entry types since
+ * 2026-07-30, previously its own "activity_type" kind), not an enum — see
+ * getCatalogNames. Validated per-org at the action layer, not with a static
+ * Zod enum.
  */
 
 /** Activity subset of the shared work_item_status enum. */

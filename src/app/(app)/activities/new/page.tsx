@@ -23,7 +23,7 @@ export default async function NewActivityPage({
       .from(companies)
       .where(eq(companies.organizationId, user.organizationId))
       .orderBy(asc(companies.name)),
-    getCatalogNames(user.organizationId, "activity_type"),
+    getCatalogNames(user.organizationId, "time_entry_type"),
   ]);
 
   return (

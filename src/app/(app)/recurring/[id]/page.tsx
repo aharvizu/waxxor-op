@@ -308,7 +308,7 @@ async function ConfiguracionTab({
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, orgId)).orderBy(asc(projects.name)),
     db.select({ id: projectLists.id, name: projectLists.name, projectId: projectLists.projectId }).from(projectLists).where(eq(projectLists.organizationId, orgId)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, orgId), ne(users.role, "client"))).orderBy(asc(users.name)),
-    getCatalogNames(orgId, "activity_type"),
+    getCatalogNames(orgId, "time_entry_type"),
     getCatalogNames(orgId, "ticket_category"),
   ]);
   const projectListsByProject: Record<number, { id: number; name: string }[]> = {};

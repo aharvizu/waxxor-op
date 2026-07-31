@@ -54,7 +54,7 @@ export default async function ActivityPage({
       .from(users)
       .where(eq(users.organizationId, user.organizationId))
       .orderBy(asc(users.name)),
-    getCatalogNames(user.organizationId, "activity_type"),
+    getCatalogNames(user.organizationId, "time_entry_type"),
   ]);
 
   const a = row.activity;

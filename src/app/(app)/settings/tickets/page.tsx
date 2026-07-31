@@ -13,7 +13,7 @@ import {
 } from "@/lib/ticket-catalogs";
 import { Card, CardHeader, PageHeader } from "@/components/ui";
 import { CatalogManager } from "../settings-forms";
-import { TicketCatalogManager, type TicketCatalogRow } from "./catalog-manager";
+import { TicketCatalogManager, TicketCatalogSection, type TicketCatalogRow } from "./catalog-manager";
 import { FormConfigEditor, type AvailableField } from "./form-config-editor";
 import { ViewSettingsEditor } from "./view-settings-editor";
 
@@ -91,19 +91,29 @@ export default async function TicketsSettingsPage() {
           define el predeterminado y reasigna tickets antes de eliminar uno. Los valores de sistema (marcados
           &quot;Sistema&quot;) no se pueden eliminar, solo desactivar.
         </p>
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <Card className="p-5">
-            <CardHeader title="Estados" description="Workflows y SLA operan sobre la categoría semántica, no el nombre." className="mb-3 px-0 pt-0" />
+        <div className="space-y-3">
+          <TicketCatalogSection
+            title="Estados"
+            description="Workflows y SLA operan sobre la categoría semántica, no el nombre."
+            count={statusRows.length}
+            defaultOpen
+          >
             <TicketCatalogManager kind="status" items={statusRows} addPlaceholder="Nuevo estado…" />
-          </Card>
-          <Card className="p-5">
-            <CardHeader title="Prioridades" description="Asocia una regla de SLA en Configuración → SLA si aplica." className="mb-3 px-0 pt-0" />
+          </TicketCatalogSection>
+          <TicketCatalogSection
+            title="Prioridades"
+            description="Asocia una regla de SLA en Configuración → SLA si aplica."
+            count={priorityRows.length}
+          >
             <TicketCatalogManager kind="priority" items={priorityRows} addPlaceholder="Nueva prioridad…" />
-          </Card>
-          <Card className="p-5">
-            <CardHeader title="Estatus de cobro" description="Clasificación administrativa — no modifica importes ni tarifas." className="mb-3 px-0 pt-0" />
+          </TicketCatalogSection>
+          <TicketCatalogSection
+            title="Estatus de cobro"
+            description="Clasificación administrativa — no modifica importes ni tarifas."
+            count={billingRows.length}
+          >
             <TicketCatalogManager kind="billing" items={billingRows} addPlaceholder="Nuevo estatus de cobro…" />
-          </Card>
+          </TicketCatalogSection>
         </div>
       </div>
 

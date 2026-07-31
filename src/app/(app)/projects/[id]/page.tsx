@@ -648,7 +648,7 @@ async function TrabajoTab({
   const [tree, dependencies, activityTypeOptions] = await Promise.all([
     getProjectWorkTree(orgId, projectId),
     getProjectDependencies(orgId, projectId),
-    getCatalogNames(orgId, "activity_type"),
+    getCatalogNames(orgId, "time_entry_type"),
   ]);
   const activeLists = tree.lists.filter((l) => l.status !== "archived");
   const listOptions = activeLists.map((l) => ({ id: l.id, name: l.name }));

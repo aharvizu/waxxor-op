@@ -295,7 +295,7 @@ export default async function TicketPage({
   const categoryItems = await getCatalog(user.organizationId, "ticket_category");
   const categoryNames = categoryItems.filter((c) => c.parentId === null).map((c) => c.name);
   const subcategoryNames = [...new Set(categoryItems.filter((c) => c.parentId !== null).map((c) => c.name))];
-  const activityTypeOptions = await getCatalogNames(user.organizationId, "activity_type");
+  const activityTypeOptions = await getCatalogNames(user.organizationId, "time_entry_type");
   const kbArticle = t.resolution ? await getArticleForTicket(user.organizationId, t.id) : null;
 
   const dropdownStatuses = statuses
