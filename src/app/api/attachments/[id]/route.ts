@@ -5,7 +5,7 @@ import { readAttachment } from "@/lib/attachments";
 import { canAccessInternalPortal } from "@/lib/roles";
 import { auth } from "@/auth";
 
-/** Org-scoped attachment download (local-disk adapter). */
+/** Org-scoped attachment download (Vercel Blob adapter — see src/lib/attachments.ts). */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },

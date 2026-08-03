@@ -289,6 +289,7 @@ export const ENV_CHECKS: { name: string; required: boolean; secret: boolean; hin
   { name: "SEED_ADMIN_EMAIL", required: false, secret: false, hint: "Solo para el seed inicial." },
   { name: "SEED_ADMIN_PASSWORD", required: false, secret: true, hint: "Solo para el seed inicial." },
   { name: "OPENAI_API_KEY", required: false, secret: true, hint: "Asistente de IA en Centro de Ayuda; sin ella el chat responde con un error." },
+  { name: "BLOB_READ_WRITE_TOKEN", required: true, secret: true, hint: "Almacenamiento de adjuntos (Vercel Blob); sin él, subir archivos falla." },
 ];
 
 export const API_KEY_PREFIX = "wxk";
