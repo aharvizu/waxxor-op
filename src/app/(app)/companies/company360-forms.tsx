@@ -30,7 +30,6 @@ import {
   CLIENT_SERVICE_TYPES,
   CONTRACT_STATUSES,
   CONTRACT_TYPES,
-  SERVICE_CATEGORIES,
   SUPPORT_COVERAGES,
   type ClientAlert,
 } from "@/lib/company360";
@@ -48,7 +47,6 @@ import {
   addClientService,
   createContact,
   createContract,
-  createService,
   deleteClient,
   deleteContact,
   deleteContract,
@@ -485,58 +483,14 @@ export function AddContactButton({ companyId }: { companyId: number }) {
   );
 }
 
-/* -------------------------------------------------------- service catalog */
-
-export function ServiceCatalogForm({
-  companyId,
-  onSuccess,
-}: {
-  companyId?: number;
-  onSuccess?: () => void;
-} = {}) {
-  const { state, formAction, errors, value } = useForm(createService, undefined, onSuccess);
-  return (
-    <form action={formAction} className="space-y-4">
-      {companyId ? <input type="hidden" name="companyId" value={companyId} /> : null}
-      <FormAlert state={state} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Nombre del servicio" name="name" errors={errors}>
-          <TextInput name="name" value={value} errors={errors} required />
-        </Field>
-        <Field label="Categoría" name="category" errors={errors}>
-          <SelectInput
-            name="category"
-            value={value}
-            options={SERVICE_CATEGORIES.map((c) => ({ value: c, label: c }))}
-          />
-        </Field>
-        {/* No tarifa/rate here is required — un servicio puede ser un licenciamiento o renovación sin tarifa fija. */}
-        <Field label="Tarifa remota por defecto (opcional)" name="defaultRemoteRate" errors={errors}>
-          <TextInput name="defaultRemoteRate" value={value} errors={errors} />
-        </Field>
-        <Field label="Tarifa en sitio por defecto (opcional)" name="defaultOnsiteRate" errors={errors}>
-          <TextInput name="defaultOnsiteRate" value={value} errors={errors} />
-        </Field>
-      </div>
-      <Field label="Descripción" name="description" errors={errors}>
-        <textarea id="description" name="description" rows={2} defaultValue={value("description")} className={inputClass} />
-      </Field>
-      <Field label="Alcance (qué incluye / qué no)" name="scope" errors={errors}>
-        <textarea id="scope" name="scope" rows={2} defaultValue={value("scope")} className={inputClass} />
-      </Field>
-      <label className="flex items-center gap-2 text-sm text-fg">
-        <input type="checkbox" name="isRenewable" /> Es renovable
-      </label>
-      <SubmitButton>Agregar al catálogo</SubmitButton>
-    </form>
-  );
-}
-
 /* --------------------------------------------------------- client service */
+
+export type ServiceCatalogEntry = { id: number; name: string; variants: { id: number; name: string }[] };
 
 export type ClientServiceDefaults = {
   id: number;
   serviceId: number;
+  variantId: number | null;
   serviceType: string;
   status: string;
   quantity: number | null;
@@ -559,7 +513,7 @@ export function ClientServiceForm({
   onSuccess,
 }: {
   companyId: number;
-  servicesCatalog: Option[];
+  servicesCatalog: ServiceCatalogEntry[];
   clientService?: ClientServiceDefaults;
   onSuccess?: () => void;
 }) {
@@ -568,6 +522,8 @@ export function ClientServiceForm({
     clientService,
     onSuccess,
   );
+  const [serviceId, setServiceId] = useState(value("serviceId"));
+  const variants = servicesCatalog.find((s) => String(s.id) === serviceId)?.variants ?? [];
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="companyId" value={companyId} />
@@ -575,11 +531,22 @@ export function ClientServiceForm({
       <FormAlert state={state} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Servicio del catálogo" name="serviceId" errors={errors}>
-          <SelectInput
+          <SearchableSelect
             name="serviceId"
-            value={value}
-            options={servicesCatalog.map((s) => ({ value: String(s.id), label: s.name }))}
-            allowEmpty="— Selecciona —"
+            value={serviceId}
+            onValueChange={setServiceId}
+            options={[{ value: "", label: "— Selecciona —" }, ...servicesCatalog.map((s) => ({ value: String(s.id), label: s.name }))]}
+          />
+        </Field>
+        <Field label="Variante (opcional)" name="variantId" errors={errors}>
+          <SearchableSelect
+            key={serviceId}
+            name="variantId"
+            defaultValue={value("variantId")}
+            options={[
+              { value: "", label: variants.length > 0 ? "— Ninguna —" : "Este servicio no tiene variantes" },
+              ...variants.map((v) => ({ value: String(v.id), label: v.name })),
+            ]}
           />
         </Field>
         <Field label="Tipo" name="serviceType" errors={errors}>
@@ -642,13 +609,13 @@ export function ClientServiceForm({
   );
 }
 
-/** Short trigger + modal. Nests the "crear en catálogo" escape hatch when needed, same as before. */
+/** Short trigger + modal. The Services/Variants catalog itself is managed in Configuración → Empresas (2026-08-03) — this only picks from it. */
 export function AddServiceButton({
   companyId,
   servicesCatalog,
 }: {
   companyId: number;
-  servicesCatalog: Option[];
+  servicesCatalog: ServiceCatalogEntry[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -664,23 +631,19 @@ export function AddServiceButton({
         description="Servicio administrado, licenciamiento o renovación para esta empresa."
       >
         {servicesCatalog.length === 0 ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted">
-              Aún no hay servicios en el catálogo de la organización. Crea uno primero.
-            </p>
-            <ServiceCatalogForm companyId={companyId} />
-          </div>
+          <p className="text-sm text-muted">
+            Aún no hay servicios en el catálogo de la organización.{" "}
+            <Link href="/settings/companies" className="text-primary hover:underline">
+              Créalos en Configuración → Empresas
+            </Link>
+            .
+          </p>
         ) : (
-          <div className="space-y-4">
-            <Disclosure label="+ Nuevo servicio en catálogo">
-              <ServiceCatalogForm companyId={companyId} />
-            </Disclosure>
-            <ClientServiceForm
-              companyId={companyId}
-              servicesCatalog={servicesCatalog}
-              onSuccess={() => setOpen(false)}
-            />
-          </div>
+          <ClientServiceForm
+            companyId={companyId}
+            servicesCatalog={servicesCatalog}
+            onSuccess={() => setOpen(false)}
+          />
         )}
       </Modal>
     </>
@@ -690,6 +653,7 @@ export function AddServiceButton({
 export type ServiceListRow = {
   cs: ClientServiceDefaults;
   serviceName: string;
+  variantName: string | null;
   derivedStatus: "active" | "expiring" | "expired" | "cancelled" | "archived";
 };
 
@@ -700,7 +664,7 @@ export function ServicesTable({
   rows,
 }: {
   companyId: number;
-  servicesCatalog: Option[];
+  servicesCatalog: ServiceCatalogEntry[];
   rows: ServiceListRow[];
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -720,10 +684,13 @@ export function ServicesTable({
           </tr>
         </THead>
         <tbody className="divide-y divide-edge">
-          {rows.map(({ cs, serviceName, derivedStatus }) => (
+          {rows.map(({ cs, serviceName, variantName, derivedStatus }) => (
             <Fragment key={cs.id}>
               <tr>
-                <Td className="font-medium text-fg">{serviceName}</Td>
+                <Td className="font-medium text-fg">
+                  {serviceName}
+                  {variantName ? <span className="ml-1.5 font-normal text-muted">· {variantName}</span> : null}
+                </Td>
                 <Td>
                   <Badge tone={clientServiceTypeMeta[cs.serviceType]?.tone ?? "slate"}>
                     {clientServiceTypeMeta[cs.serviceType]?.label ?? cs.serviceType}

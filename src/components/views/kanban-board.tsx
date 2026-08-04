@@ -106,7 +106,14 @@ export function KanbanBoard<T extends { id: number }>({
                 <div
                   key={item.id}
                   draggable
-                  onDragStart={() => setDragging({ id: item.id, from: col.key })}
+                  onDragStart={(e) => {
+                    // Firefox (and some Safari versions) refuse to fire a
+                    // drop event unless dataTransfer carries data — Chrome
+                    // is lenient here, which is why this was easy to miss.
+                    e.dataTransfer.setData("text/plain", String(item.id));
+                    e.dataTransfer.effectAllowed = "move";
+                    setDragging({ id: item.id, from: col.key });
+                  }}
                   onDragEnd={() => setDragging(null)}
                   className={cx("cursor-grab active:cursor-grabbing", dragging?.id === item.id && "opacity-50")}
                 >

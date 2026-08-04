@@ -674,8 +674,16 @@ export function SidePanelForm({
       <form action={detailsAction} className="space-y-3 border-t border-edge pt-4">
         <input type="hidden" name="id" value={ticketId} />
         <input type="hidden" name="title" value={defaults.title} />
-        <input type="hidden" name="description" value={defaults.description ?? ""} />
         <FormAlert state={detailsState} />
+        <div>
+          <label className={labelClass}>Description</label>
+          <textarea
+            name="description"
+            rows={4}
+            defaultValue={defaults.description ?? ""}
+            className={inputClass}
+          />
+        </div>
         <div>
           <label className={labelClass}>Client</label>
           <SearchableSelect

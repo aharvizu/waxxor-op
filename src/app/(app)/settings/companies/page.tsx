@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { slaDefinitions, users } from "@/db/schema";
+import { services, serviceVariants, slaDefinitions, users } from "@/db/schema";
 import { ticketPriorityMeta } from "@/lib/labels";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
@@ -10,12 +10,13 @@ import { requireRole } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, labelClass } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
 import { CatalogManager, SettingSectionForm } from "../settings-forms";
+import { ServicesManager, type ServiceRow } from "./service-forms";
 
 export const metadata: Metadata = { title: "Configuración · Empresas" };
 
 export default async function CompaniesSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
-  const [defaults, internalUsers, defaultSlas, categories, tags] = await Promise.all([
+  const [defaults, internalUsers, defaultSlas, categories, tags, serviceRows, variantRows] = await Promise.all([
     getSetting(user.organizationId, "companies.defaults"),
     db
       .select({ id: users.id, name: users.name })
@@ -34,7 +35,33 @@ export default async function CompaniesSettingsPage() {
       ),
     getCatalog(user.organizationId, "company_category", { includeInactive: true }),
     getCatalog(user.organizationId, "company_tag", { includeInactive: true }),
+    db.select().from(services).where(eq(services.organizationId, user.organizationId)).orderBy(asc(services.name)),
+    db.select().from(serviceVariants).where(eq(serviceVariants.organizationId, user.organizationId)).orderBy(asc(serviceVariants.name)),
   ]);
+  const serviceCatalog: ServiceRow[] = serviceRows.map((s) => ({
+    id: s.id,
+    name: s.name,
+    category: s.category,
+    description: s.description,
+    scope: s.scope,
+    defaultRemoteRate: s.defaultRemoteRate,
+    defaultOnsiteRate: s.defaultOnsiteRate,
+    defaultFixedPrice: s.defaultFixedPrice,
+    isRenewable: s.isRenewable,
+    status: s.status,
+    variants: variantRows
+      .filter((v) => v.serviceId === s.id)
+      .map((v) => ({
+        id: v.id,
+        name: v.name,
+        sku: v.sku,
+        description: v.description,
+        defaultRemoteRate: v.defaultRemoteRate,
+        defaultOnsiteRate: v.defaultOnsiteRate,
+        defaultFixedPrice: v.defaultFixedPrice,
+        status: v.status,
+      })),
+  }));
 
   return (
     <div className="space-y-6">
@@ -125,6 +152,14 @@ export default async function CompaniesSettingsPage() {
           />
         </Card>
       </div>
+
+      <Card className="p-5">
+        <CardHeader
+          title="Catálogo de servicios"
+          description="Servicios que ofrece la organización (Microsoft 365, Backup, Soporte, …) y sus variantes/SKU (ej. licenciamientos) — se eligen al contratar un servicio para una empresa, en su ficha."
+        />
+        <ServicesManager services={serviceCatalog} />
+      </Card>
     </div>
   );
 }

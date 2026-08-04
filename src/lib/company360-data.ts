@@ -13,6 +13,7 @@ import {
   projects,
   reports,
   services,
+  serviceVariants,
   tickets,
   timeEntries,
   users,
@@ -227,9 +228,15 @@ export async function getClientContacts(orgId: number, companyId: number) {
 
 export async function getClientServicesList(orgId: number, companyId: number) {
   return db
-    .select({ cs: clientServices, serviceName: services.name, serviceCategory: services.category })
+    .select({
+      cs: clientServices,
+      serviceName: services.name,
+      serviceCategory: services.category,
+      variantName: serviceVariants.name,
+    })
     .from(clientServices)
     .innerJoin(services, eq(clientServices.serviceId, services.id))
+    .leftJoin(serviceVariants, eq(clientServices.variantId, serviceVariants.id))
     .where(and(eq(clientServices.organizationId, orgId), eq(clientServices.companyId, companyId)))
     .orderBy(asc(services.name));
 }

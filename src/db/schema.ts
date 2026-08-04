@@ -423,6 +423,39 @@ export const services = pgTable("services", {
 });
 
 /**
+ * A variant/SKU of a Service (e.g. Microsoft 365 → "Business Basic", "E3",
+ * "E5"). Optional per service — plenty of services (soporte técnico,
+ * consultoría) have none. Rates are optional overrides of the parent
+ * Service's defaults; `addClientService` materializes whichever applies
+ * into the contracted row at creation time (2026-08-03).
+ */
+export const serviceVariants = pgTable(
+  "service_variants",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    serviceId: integer("service_id")
+      .notNull()
+      .references(() => services.id),
+    name: text("name").notNull(),
+    sku: text("sku"),
+    description: text("description"),
+    defaultRemoteRate: numeric("default_remote_rate", { precision: 12, scale: 2 }),
+    defaultOnsiteRate: numeric("default_onsite_rate", { precision: 12, scale: 2 }),
+    defaultFixedPrice: numeric("default_fixed_price", { precision: 12, scale: 2 }),
+    status: serviceStatus("status").notNull().default("active"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("service_variants_service_idx").on(table.serviceId),
+    uniqueIndex("service_variants_unique_idx").on(table.serviceId, table.name),
+  ],
+);
+
+/**
  * A service contracted by a client. Licenses are rows with type "license"
  * (provider/cost/cycle columns) — no separate entity needed. The same service
  * can appear multiple times with different conditions (e.g. M365 with and
@@ -441,6 +474,7 @@ export const clientServices = pgTable(
     serviceId: integer("service_id")
       .notNull()
       .references(() => services.id),
+    variantId: integer("variant_id").references(() => serviceVariants.id),
     serviceType: clientServiceType("service_type").notNull().default("recurring_service"),
     status: clientServiceStatus("status").notNull().default("active"),
     quantity: integer("quantity"),

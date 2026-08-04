@@ -13,6 +13,7 @@ import {
   conversations,
   messages,
   services,
+  serviceVariants,
   tickets,
   users,
 } from "@/db/schema";
@@ -30,7 +31,6 @@ import {
   contactTypeSchema,
   contractStatusSchema,
   contractTypeSchema,
-  serviceStatusSchema,
   supportCoverageSchema,
 } from "@/lib/company360";
 import { requireRole, requireUser, type SessionUser } from "@/lib/session";
@@ -451,59 +451,12 @@ export async function deleteContact(
   return success("Contacto eliminado.");
 }
 
-/* ------------------------------------------------------------ services */
-
-const serviceSchema = z.object({
-  name: z.string("Nombre requerido.").trim().min(1, "Nombre requerido."),
-  category: z.string().trim().min(1).default("general"),
-  description: optionalText,
-  scope: optionalText,
-  defaultRemoteRate: optionalMoney,
-  defaultOnsiteRate: optionalMoney,
-  defaultFixedPrice: optionalMoney,
-  isRenewable: z.preprocess((v) => v === "on" || v === "true", z.boolean()).default(false),
-  status: serviceStatusSchema.default("active"),
-  // Not stored — the catalog is org-wide, not per-company. Only present when
-  // this form is opened from inside a company's Servicios/Licenciamientos
-  // tab, so the response revalidates that page too (not just /companies).
-  companyId: optionalId,
-});
-
-export async function createService(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const user = await requireUser();
-  const { data, error } = parseForm(serviceSchema, formData);
-  if (error) return error;
-  const { companyId, ...values } = data;
-  try {
-    await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(services)
-        .values({ ...values, organizationId: user.organizationId })
-        .returning({ id: services.id });
-      await recordAudit(tx, {
-        organizationId: user.organizationId,
-        userId: Number(user.id),
-        entityType: "service",
-        entityId: created.id,
-        action: "create",
-        metadata: { values },
-      });
-    });
-  } catch (err) {
-    return fail(err);
-  }
-  refresh(companyId ?? undefined);
-  return success("Servicio agregado al catálogo.");
-}
-
 /* ------------------------------------------------------ client services */
 
 const clientServiceSchema = z.object({
   companyId: z.coerce.number().int().positive(),
   serviceId: z.coerce.number().int().positive("Selecciona un servicio."),
+  variantId: optionalId,
   serviceType: clientServiceTypeSchema.default("recurring_service"),
   quantity: optionalInt,
   provider: optionalText,
@@ -522,10 +475,50 @@ const clientServiceSchema = z.object({
 });
 
 const CLIENT_SERVICE_AUDITED = [
-  "serviceId", "serviceType", "status", "quantity", "provider", "billingCycle",
+  "serviceId", "variantId", "serviceType", "status", "quantity", "provider", "billingCycle",
   "cost", "clientPrice", "startDate", "endDate", "renewalDate",
   "supportCoverage", "includedHours", "remoteRate", "onsiteRate", "fixedPrice", "notes",
 ] as const;
+
+/** Rates left blank when contracting inherit the Variant's default, then the Service's — materialized once at write time so every later read (billing, reports) just sees the final number, no runtime fallback needed elsewhere. */
+async function resolveRates(
+  tx: DbExecutor,
+  orgId: number,
+  serviceId: number,
+  variantId: number | null,
+  input: { remoteRate: string | null; onsiteRate: string | null; fixedPrice: string | null },
+) {
+  const [svc] = await tx
+    .select({
+      id: services.id,
+      defaultRemoteRate: services.defaultRemoteRate,
+      defaultOnsiteRate: services.defaultOnsiteRate,
+      defaultFixedPrice: services.defaultFixedPrice,
+    })
+    .from(services)
+    .where(and(eq(services.id, serviceId), eq(services.organizationId, orgId)));
+  if (!svc) throw new NotFoundError();
+
+  let variant: { defaultRemoteRate: string | null; defaultOnsiteRate: string | null; defaultFixedPrice: string | null } | null = null;
+  if (variantId) {
+    const [row] = await tx
+      .select({
+        defaultRemoteRate: serviceVariants.defaultRemoteRate,
+        defaultOnsiteRate: serviceVariants.defaultOnsiteRate,
+        defaultFixedPrice: serviceVariants.defaultFixedPrice,
+      })
+      .from(serviceVariants)
+      .where(and(eq(serviceVariants.id, variantId), eq(serviceVariants.organizationId, orgId), eq(serviceVariants.serviceId, serviceId)));
+    if (!row) throw new RuleError("Esa variante no pertenece al servicio seleccionado.");
+    variant = row;
+  }
+
+  return {
+    remoteRate: input.remoteRate ?? variant?.defaultRemoteRate ?? svc.defaultRemoteRate,
+    onsiteRate: input.onsiteRate ?? variant?.defaultOnsiteRate ?? svc.defaultOnsiteRate,
+    fixedPrice: input.fixedPrice ?? variant?.defaultFixedPrice ?? svc.defaultFixedPrice,
+  };
+}
 
 export async function addClientService(
   _prev: ActionState,
@@ -537,14 +530,10 @@ export async function addClientService(
   try {
     await db.transaction(async (tx) => {
       await loadClient(tx, user, data.companyId);
-      const [svc] = await tx
-        .select({ id: services.id })
-        .from(services)
-        .where(and(eq(services.id, data.serviceId), eq(services.organizationId, user.organizationId)));
-      if (!svc) throw new NotFoundError();
+      const rates = await resolveRates(tx, user.organizationId, data.serviceId, data.variantId, data);
       const [created] = await tx
         .insert(clientServices)
-        .values({ ...data, organizationId: user.organizationId })
+        .values({ ...data, ...rates, organizationId: user.organizationId })
         .returning({ id: clientServices.id });
       await recordAudit(tx, {
         organizationId: user.organizationId,
@@ -581,7 +570,8 @@ export async function updateClientService(
         .from(clientServices)
         .where(and(eq(clientServices.id, data.id), eq(clientServices.organizationId, user.organizationId)));
       if (!before) throw new NotFoundError();
-      const patch = { ...data, id: undefined, companyId: undefined };
+      const rates = await resolveRates(tx, user.organizationId, data.serviceId, data.variantId, data);
+      const patch = { ...data, ...rates, id: undefined, companyId: undefined };
       const changes = diffFields(
         { organizationId: user.organizationId, userId: Number(user.id), entityType: "client_service", entityId: before.id },
         before,

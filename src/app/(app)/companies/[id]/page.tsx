@@ -26,7 +26,7 @@ import {
   Users,
 } from "lucide-react";
 import { db } from "@/db";
-import { companies, services, users } from "@/db/schema";
+import { companies, services, serviceVariants, users } from "@/db/schema";
 import {
   buildClientAlerts,
   daysUntil,
@@ -534,11 +534,22 @@ async function ServiciosTab({
   servicesList: Awaited<ReturnType<typeof getClientServicesList>>;
   now: Date;
 }) {
-  const catalog = await db
-    .select({ id: services.id, name: services.name })
-    .from(services)
-    .where(and(eq(services.organizationId, orgId), eq(services.status, "active")))
-    .orderBy(asc(services.name));
+  const [serviceRows, variantRows] = await Promise.all([
+    db
+      .select({ id: services.id, name: services.name })
+      .from(services)
+      .where(and(eq(services.organizationId, orgId), eq(services.status, "active")))
+      .orderBy(asc(services.name)),
+    db
+      .select({ id: serviceVariants.id, serviceId: serviceVariants.serviceId, name: serviceVariants.name })
+      .from(serviceVariants)
+      .where(and(eq(serviceVariants.organizationId, orgId), eq(serviceVariants.status, "active")))
+      .orderBy(asc(serviceVariants.name)),
+  ]);
+  const catalog = serviceRows.map((s) => ({
+    ...s,
+    variants: variantRows.filter((v) => v.serviceId === s.id).map((v) => ({ id: v.id, name: v.name })),
+  }));
 
   return (
     <div className="space-y-6">
@@ -553,12 +564,14 @@ async function ServiciosTab({
         <ServicesTable
           companyId={companyId}
           servicesCatalog={catalog}
-          rows={servicesList.map(({ cs, serviceName }) => ({
+          rows={servicesList.map(({ cs, serviceName, variantName }) => ({
             serviceName,
+            variantName,
             derivedStatus: derivedServiceStatus(cs, now),
             cs: {
               id: cs.id,
               serviceId: cs.serviceId,
+              variantId: cs.variantId,
               serviceType: cs.serviceType,
               status: cs.status,
               quantity: cs.quantity,
