@@ -1,23 +1,27 @@
 "use client";
 
-import { useActionState } from "react";
-import { Archive, ArchiveRestore, CheckCircle2, RotateCcw } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Archive, ArchiveRestore, CheckCircle2, Paperclip, RotateCcw, Trash2 } from "lucide-react";
 import {
   buttonClass,
   buttonSecondaryClass,
   buttonSuccessClass,
+  cx,
 } from "@/components/ui";
-import { FormAlert } from "@/components/form-feedback";
+import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
+import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { ACTIVITY_WORKFLOW_STATUSES } from "@/lib/activities";
 import { activityStatusMeta } from "@/lib/labels";
 import {
   archiveActivity,
   completeActivity,
+  deleteActivityAttachment,
   reopenActivity,
   restoreActivity,
   updateActivityWorkflow,
+  uploadActivityAttachment,
 } from "./actions";
 
 type Option = { id: number; name: string };
@@ -148,5 +152,58 @@ export function TransitionButtons({
         </>
       )}
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- files */
+
+export function ActivityUploadForm({ activityId }: { activityId: number }) {
+  const [state, formAction] = useActionState<ActionState, FormData>(uploadActivityAttachment, null);
+  const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const [fileName, setFileName] = useState<string | null>(null);
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-3">
+      <input type="hidden" name="id" value={activityId} />
+      <label className={cx(buttonSecondaryClass, "h-9 cursor-pointer")}>
+        Elegir archivo
+        <input
+          type="file"
+          name="file"
+          required
+          className="hidden"
+          onChange={(e) => setFileName(e.currentTarget.files?.[0]?.name ?? null)}
+        />
+      </label>
+      <span className="text-sm text-muted">{fileName ?? "Ningún archivo seleccionado"}</span>
+      <SubmitButton>
+        <Paperclip /> Adjuntar
+      </SubmitButton>
+      <FormAlert state={state} className="w-full" />
+      <FieldError errors={errors.file} />
+    </form>
+  );
+}
+
+export function DeleteActivityAttachmentButton({
+  attachmentId,
+  activityId,
+}: {
+  attachmentId: number;
+  activityId: number;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(deleteActivityAttachment, null);
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="attachmentId" value={attachmentId} />
+      <input type="hidden" name="activityId" value={activityId} />
+      <button
+        type="submit"
+        aria-label="Eliminar adjunto"
+        className="flex size-7 items-center justify-center rounded-md text-faint hover:bg-danger/10 hover:text-danger"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+      {state && !state.ok ? <FormAlert state={state} /> : null}
+    </form>
   );
 }

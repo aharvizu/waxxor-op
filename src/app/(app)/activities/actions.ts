@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
-import { activities, companies, users, workItems } from "@/db/schema";
+import { activities, attachments, companies, users, workItems } from "@/db/schema";
 import {
   type ActionState,
   businessError,
@@ -19,9 +19,15 @@ import {
   restoredStatus,
   type ActivityStatus,
 } from "@/lib/activities";
+import {
+  MAX_ATTACHMENT_BYTES,
+  deleteAttachmentBlob,
+  newStorageKey,
+  saveAttachment,
+} from "@/lib/attachments";
 import { diffFields, recordAudit } from "@/lib/audit";
 import { getCatalogNames } from "@/lib/settings-data";
-import { requireUser, type SessionUser } from "@/lib/session";
+import { requireRole, requireUser, type SessionUser } from "@/lib/session";
 import {
   ConversionError,
   TICKET_CHANNELS,
@@ -447,4 +453,111 @@ export async function restoreActivity(
     status: restoredStatus(item.completedAt),
     archivedAt: null,
   }));
+}
+
+/* -------------------------------------------------------------- files */
+
+export async function uploadActivityAttachment(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = idSchema.safeParse({ id: formData.get("id") });
+  const file = formData.get("file");
+  if (!parsed.success || !(file instanceof File) || file.size === 0) {
+    return {
+      ok: false,
+      kind: "validation",
+      message: "Selecciona un archivo.",
+      fieldErrors: { file: ["Selecciona un archivo."] },
+    };
+  }
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    return businessError("Archivos mayores a 15 MB no están soportados todavía.");
+  }
+
+  const storageKey = newStorageKey();
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await db.transaction(async (tx) => {
+      const { item } = await loadActivity(tx, user, parsed.data.id);
+      const [attachment] = await tx
+        .insert(attachments)
+        .values({
+          organizationId: user.organizationId,
+          workItemId: item.id,
+          filename: file.name,
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
+          storageKey,
+          uploadedById: Number(user.id),
+        })
+        .returning({ id: attachments.id });
+      await recordAudit(tx, {
+        organizationId: user.organizationId,
+        userId: Number(user.id),
+        entityType: "attachment",
+        entityId: attachment.id,
+        action: "create",
+        metadata: { activityId: parsed.data.id, filename: file.name, size: file.size },
+      });
+      // write the blob last: if it fails, metadata and audit roll back with it
+      await saveAttachment(storageKey, buffer);
+    });
+  } catch (err) {
+    await deleteAttachmentBlob(storageKey);
+    if (err instanceof ActivityNotFoundError) {
+      return businessError("This activity no longer exists.");
+    }
+    if (err instanceof ConvertedActivityError) {
+      return businessError("This activity was converted into a ticket and is read-only.");
+    }
+    return unexpectedError(err);
+  }
+  revalidatePath(`/activities/${parsed.data.id}`);
+  return success("Archivo adjuntado.");
+}
+
+export async function deleteActivityAttachment(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const me = await requireRole("superadmin");
+  const { data, error } = parseForm(
+    z.object({
+      attachmentId: z.coerce.number().int().positive(),
+      activityId: z.coerce.number().int().positive(),
+    }),
+    formData,
+  );
+  if (error) return error;
+
+  try {
+    let storageKey = "";
+    await db.transaction(async (tx) => {
+      const [attachment] = await tx
+        .select()
+        .from(attachments)
+        .where(and(eq(attachments.id, data.attachmentId), eq(attachments.organizationId, me.organizationId)));
+      if (!attachment) throw new ActivityNotFoundError();
+      storageKey = attachment.storageKey;
+      await tx.delete(attachments).where(eq(attachments.id, attachment.id));
+      await recordAudit(tx, {
+        organizationId: me.organizationId,
+        userId: Number(me.id),
+        entityType: "attachment",
+        entityId: attachment.id,
+        action: "delete",
+        metadata: { values: { filename: attachment.filename, size: attachment.size } },
+      });
+    });
+    await deleteAttachmentBlob(storageKey);
+  } catch (err) {
+    if (err instanceof ActivityNotFoundError) {
+      return businessError("Attachment no longer exists.");
+    }
+    return unexpectedError(err);
+  }
+  revalidatePath(`/activities/${data.activityId}`);
+  return success("Attachment deleted.");
 }

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRightLeft } from "lucide-react";
-import { and, asc, eq } from "drizzle-orm";
+import { ArrowRightLeft, FileText } from "lucide-react";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { activities, companies, users, workItems } from "@/db/schema";
+import { activities, attachments, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
@@ -12,7 +12,12 @@ import { activityStatusMeta, activityTypeMeta } from "@/lib/labels";
 import { getCatalogNames } from "@/lib/settings-data";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { ActivityForm } from "../activity-form";
-import { TransitionButtons, WorkflowCard } from "../activity-controls";
+import {
+  ActivityUploadForm,
+  DeleteActivityAttachmentButton,
+  TransitionButtons,
+  WorkflowCard,
+} from "../activity-controls";
 
 export const metadata: Metadata = { title: "Activity" };
 
@@ -43,7 +48,7 @@ export default async function ActivityPage({
     redirect(`/helpdesk/${row.activity.convertedTicketId}`);
   }
 
-  const [companyRows, userRows, activityTypeOptions] = await Promise.all([
+  const [companyRows, userRows, activityTypeOptions, fileRows] = await Promise.all([
     db
       .select({ id: companies.id, name: companies.name })
       .from(companies)
@@ -55,6 +60,12 @@ export default async function ActivityPage({
       .where(eq(users.organizationId, user.organizationId))
       .orderBy(asc(users.name)),
     getCatalogNames(user.organizationId, "time_entry_type"),
+    db
+      .select({ attachment: attachments, uploaderName: users.name })
+      .from(attachments)
+      .leftJoin(users, eq(attachments.uploadedById, users.id))
+      .where(eq(attachments.workItemId, row.item.id))
+      .orderBy(desc(attachments.createdAt)),
   ]);
 
   const a = row.activity;
@@ -146,6 +157,42 @@ export default async function ActivityPage({
               activityTypeOptions={activityTypeOptions}
               submitLabel="Save changes"
             />
+          )}
+        </div>
+      </Card>
+
+      <Card className="mt-6 overflow-hidden">
+        <CardHeader title="Files" description="Attachments for this activity." />
+        <div className="space-y-4 p-5">
+          {!archived ? <ActivityUploadForm activityId={a.id} /> : null}
+          {fileRows.length === 0 ? (
+            <p className="text-sm text-muted">No files attached.</p>
+          ) : (
+            <ul className="space-y-2">
+              {fileRows.map((f) => (
+                <li
+                  key={f.attachment.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-edge bg-subtle px-4 py-2.5"
+                >
+                  <div className="flex min-w-0 items-center gap-2 text-sm">
+                    <FileText className="size-4 shrink-0 text-faint" />
+                    <a
+                      href={`/api/attachments/${f.attachment.id}`}
+                      className="truncate font-medium text-fg hover:text-primary"
+                    >
+                      {f.attachment.filename}
+                    </a>
+                    <span className="shrink-0 text-xs text-faint tabular-nums">
+                      {(f.attachment.size / 1024).toFixed(0)} KB ·{" "}
+                      {f.uploaderName ?? "?"} · {fmtDateTime(f.attachment.createdAt)}
+                    </span>
+                  </div>
+                  {user.role === "superadmin" ? (
+                    <DeleteActivityAttachmentButton attachmentId={f.attachment.id} activityId={a.id} />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </Card>
