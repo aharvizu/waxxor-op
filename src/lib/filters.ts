@@ -14,6 +14,8 @@ import {
   tickets,
   workItems,
 } from "@/db/schema";
+import { ACTIVITY_STATUSES } from "@/lib/activities";
+import { activityStatusMeta, ticketPriorityMeta } from "@/lib/labels";
 
 /**
  * Generic AND/OR filter engine (Part 2, dynamic config 2026-07-20). Field
@@ -115,8 +117,20 @@ export const PROJECT_FIELDS: Record<string, FieldDefinition> = {
 
 /** Activities field registry — shares the workItems columns with Tickets (same underlying work item). */
 export const ACTIVITY_FIELDS: Record<string, FieldDefinition> = {
-  status: { key: "status", label: "Estado", type: "select", column: workItems.status },
-  priority: { key: "priority", label: "Prioridad", type: "select", column: workItems.priority },
+  status: {
+    key: "status",
+    label: "Estado",
+    type: "select",
+    column: workItems.status,
+    options: ACTIVITY_STATUSES.map((s) => ({ value: s, label: activityStatusMeta[s]?.label ?? s })),
+  },
+  priority: {
+    key: "priority",
+    label: "Prioridad",
+    type: "select",
+    column: workItems.priority,
+    options: Object.entries(ticketPriorityMeta).map(([value, m]) => ({ value, label: m.label })),
+  },
   activityType: { key: "activityType", label: "Tipo", type: "select", column: activities.activityType },
   companyId: { key: "companyId", label: "Cliente", type: "company", column: workItems.companyId },
   assigneeId: { key: "assigneeId", label: "Responsable", type: "user", column: workItems.assigneeId },
