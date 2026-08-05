@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
-import { Copy, Download, Lock, LayoutGrid, List, Plus, Star, Table2, Trash2, UserCog, Users } from "lucide-react";
+import { ChevronDown, Copy, Download, Lock, LayoutGrid, List, Plus, Star, Table2, Trash2, UserCog, Users } from "lucide-react";
 import { DragList } from "@/components/drag-list";
 import { FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -166,12 +166,12 @@ function ViewCreateForm({
         formAction(fd);
         onClose();
       }}
-      className="flex items-center gap-2 rounded-lg border border-edge bg-surface p-2 shadow-overlay"
+      className="flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-surface p-2 shadow-overlay"
     >
       <input type="hidden" name="module" value={module} />
       <input type="hidden" name="path" value={basePath} />
       <FormAlert state={state} />
-      <input name="name" required placeholder="Nombre de la vista" className={cx(inputClass, "h-8 w-40 text-xs")} autoFocus />
+      <input name="name" required placeholder="Nombre de la vista" className={cx(inputClass, "h-8 w-full text-xs sm:w-40")} autoFocus />
       <SearchableSelect
         name="viewType"
         defaultValue="table"
@@ -310,7 +310,7 @@ function ViewTab({
             ref={triggerRef}
             type="button"
             aria-label={`Más acciones para la vista ${view.name}`}
-            className="absolute -right-3 -top-1 hidden size-4 items-center justify-center rounded-full bg-subtle text-[10px] text-faint group-hover:flex data-[state=open]:flex"
+            className="absolute -right-3 -top-1 flex size-4 items-center justify-center rounded-full bg-subtle text-[10px] text-faint md:hidden md:group-hover:flex md:data-[state=open]:flex"
           >
             ⋯
           </button>
@@ -453,9 +453,12 @@ export function ViewSwitcher({
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [navTarget, setNavTarget] = useState<SavedView | null>(null);
   const [, reorderAction] = useActionState<ActionState, FormData>(reorderSharedViews, null);
   const canOrgScope = hasRole(currentUserRole, ["administrator"]);
+  const activeView = views.find((v) => v.id === activeViewId) ?? views[0];
+  const ActiveIcon = activeView ? VIEW_ICONS[activeView.viewType] ?? Table2 : Table2;
 
   function goTo(view: SavedView) {
     rememberLastView(module, view.id);
@@ -484,31 +487,102 @@ export function ViewSwitcher({
   }
 
   return (
-    <div className="group mb-4 flex flex-wrap items-center gap-1 overflow-x-auto rounded-lg border border-edge bg-surface p-1 shadow-card">
-      <DragList
-        className="flex flex-row flex-wrap gap-1 space-y-0"
-        items={views.map((v) => ({ ...v, id: v.id }))}
-        onReorder={handleReorder}
-        renderItem={(view) => (
-          <ViewTab
-            view={view}
-            active={view.id === activeViewId}
-            currentUserId={currentUserId}
-            currentUserRole={currentUserRole}
-            basePath={basePath}
-            orgUsers={orgUsers}
-            isLastView={views.length <= 1}
-            onRequestNavigate={requestNavigate}
-          />
+    <div className="mb-4">
+      {/* Desktop / tablet: full tab bar, unchanged. */}
+      <div className="group hidden flex-wrap items-center gap-1 overflow-x-auto rounded-lg border border-edge bg-surface p-1 shadow-card md:flex">
+        <DragList
+          className="flex flex-row flex-wrap gap-1 space-y-0"
+          items={views.map((v) => ({ ...v, id: v.id }))}
+          onReorder={handleReorder}
+          renderItem={(view) => (
+            <ViewTab
+              view={view}
+              active={view.id === activeViewId}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+              basePath={basePath}
+              orgUsers={orgUsers}
+              isLastView={views.length <= 1}
+              onRequestNavigate={requestNavigate}
+            />
+          )}
+        />
+        {creating ? (
+          <ViewCreateForm module={module} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setCreating(false)} />
+        ) : (
+          <button type="button" onClick={() => setCreating(true)} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted hover:bg-subtle hover:text-fg">
+            <Plus className="size-4" /> Vista
+          </button>
         )}
-      />
-      {creating ? (
-        <ViewCreateForm module={module} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setCreating(false)} />
-      ) : (
-        <button type="button" onClick={() => setCreating(true)} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted hover:bg-subtle hover:text-fg">
-          <Plus className="size-4" /> Vista
-        </button>
-      )}
+      </div>
+
+      {/* Mobile: current view as a single compact chip that opens a
+          scrollable vertical sheet — the horizontal tab bar above wraps
+          onto many rows and eats the whole screen at narrow widths, so
+          it's swapped for this instead of just shrinking it. */}
+      <Popover.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+        <div className="flex items-center gap-1.5 md:hidden">
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-edge bg-surface px-3 py-2 text-sm font-medium text-fg shadow-card"
+            >
+              <ActiveIcon className="size-4 shrink-0 text-muted" />
+              <span className="truncate">{activeView?.name ?? "Vistas"}</span>
+              {activeView?.isFavorite ? <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" /> : null}
+              <span className="ml-auto shrink-0 text-xs tabular-nums text-faint">{views.length}</span>
+              <ChevronDown className="size-4 shrink-0 text-faint" />
+            </button>
+          </Popover.Trigger>
+          <button
+            type="button"
+            onClick={() => {
+              setCreating(true);
+              setMobileOpen(true);
+            }}
+            aria-label="Nueva vista"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-edge bg-surface text-muted shadow-card hover:bg-subtle hover:text-fg"
+          >
+            <Plus className="size-4" />
+          </button>
+        </div>
+
+        <Popover.Portal>
+          <Popover.Content
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            collisionPadding={12}
+            avoidCollisions
+            className="z-[70] max-h-[min(26rem,70vh)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-edge bg-surface p-1.5 shadow-overlay outline-none"
+          >
+            <DragList
+              items={views.map((v) => ({ ...v, id: v.id }))}
+              onReorder={handleReorder}
+              renderItem={(view) => (
+                <ViewTab
+                  view={view}
+                  active={view.id === activeViewId}
+                  currentUserId={currentUserId}
+                  currentUserRole={currentUserRole}
+                  basePath={basePath}
+                  orgUsers={orgUsers}
+                  isLastView={views.length <= 1}
+                  onRequestNavigate={(v) => {
+                    setMobileOpen(false);
+                    requestNavigate(v);
+                  }}
+                />
+              )}
+            />
+            {creating ? (
+              <div className="mt-1 border-t border-edge pt-1.5">
+                <ViewCreateForm module={module} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setCreating(false)} />
+              </div>
+            ) : null}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
 
       {navTarget && pendingChanges ? (
         <UnsavedChangesPrompt
