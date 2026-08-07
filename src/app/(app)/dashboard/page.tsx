@@ -3,6 +3,7 @@ import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   ArrowUpRight,
   CircleDollarSign,
+  ClipboardCheck,
   FolderKanban,
   LifeBuoy,
   Percent,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { db } from "@/db";
 import {
+  activities,
   companies,
   kpiEntries,
   kpis,
@@ -32,7 +34,10 @@ import {
 } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { requireUser } from "@/lib/session";
-import { ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
+import { activityStatusMeta, activityTypeMeta, ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
+
+/** Same "open" set as Client 360's openActivities (company360-data.ts) — not done, not cancelled, not archived. */
+const OPEN_ACTIVITY_STATUSES = ["pending", "in_progress", "waiting", "blocked"] as const;
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -40,6 +45,8 @@ export default async function DashboardPage() {
   const [
     [openTickets],
     [totalTickets],
+    [openActivities],
+    [totalActivities],
     [activeProjects],
     [totalProjects],
     [pendingQuotes],
@@ -47,6 +54,7 @@ export default async function DashboardPage() {
     [decidedQuotes],
     [pipeline],
     recentTickets,
+    recentActivities,
     kpiRows,
   ] = await Promise.all([
     db
@@ -63,6 +71,20 @@ export default async function DashboardPage() {
       .select({ value: count() })
       .from(workItems)
       .where(and(eq(workItems.organizationId, orgId), eq(workItems.type, "ticket"))),
+    db
+      .select({ value: count() })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, orgId),
+          eq(workItems.type, "activity"),
+          inArray(workItems.status, OPEN_ACTIVITY_STATUSES),
+        ),
+      ),
+    db
+      .select({ value: count() })
+      .from(workItems)
+      .where(and(eq(workItems.organizationId, orgId), eq(workItems.type, "activity"))),
     db
       .select({ value: count() })
       .from(projects)
@@ -109,13 +131,33 @@ export default async function DashboardPage() {
       .limit(6),
     db
       .select({
+        id: activities.id,
+        subject: workItems.title,
+        status: workItems.status,
+        activityType: activities.activityType,
+        companyName: companies.name,
+        createdAt: workItems.createdAt,
+      })
+      .from(activities)
+      .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
+      .where(eq(activities.organizationId, orgId))
+      .orderBy(desc(workItems.createdAt))
+      .limit(6),
+    db
+      .select({
         id: kpis.id,
         name: kpis.name,
         unit: kpis.unit,
         target: kpis.target,
+        // "kpis"."id" is hardcoded (not `${kpis.id}`) because Drizzle drops
+        // the table qualifier for a single-table outer query, which then
+        // resolves against kpi_entries' OWN "id" column inside this
+        // subquery (a different sequence entirely) instead of correlating
+        // to the outer kpi — silently returning null for every KPI.
         latest: sql<string | null>`(
           select ${kpiEntries.value} from ${kpiEntries}
-          where ${kpiEntries.kpiId} = ${kpis.id}
+          where ${kpiEntries.kpiId} = "kpis"."id"
           order by ${kpiEntries.period} desc limit 1
         )`,
       })
@@ -137,7 +179,7 @@ export default async function DashboardPage() {
         subtitle="A snapshot of day-to-day operations."
       />
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-6">
         <Link href="/helpdesk" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
           <StatCard
             icon={<LifeBuoy />}
@@ -145,6 +187,15 @@ export default async function DashboardPage() {
             value={String(openTickets.value)}
             hint="Tickets that are open, in progress, or waiting on the customer"
             footer={`of ${totalTickets.value} total`}
+          />
+        </Link>
+        <Link href="/activities" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+          <StatCard
+            icon={<ClipboardCheck />}
+            label="Open activities"
+            value={String(openActivities.value)}
+            hint="Activities pending, in progress, waiting, or blocked"
+            footer={`of ${totalActivities.value} total`}
           />
         </Link>
         <Link href="/projects" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
@@ -189,8 +240,8 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="overflow-hidden xl:col-span-2">
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="overflow-hidden">
           <CardHeader
             title="Recent tickets"
             description="Latest activity across the helpdesk."
@@ -247,58 +298,114 @@ export default async function DashboardPage() {
           )}
         </Card>
 
-        <Card className="h-fit overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader
-            title="KPIs"
-            description="Latest value vs. target."
+            title="Recent activities"
+            description="Latest activity across Activities."
             action={
               <Link
-                href="/kpis"
+                href="/activities"
                 className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary-hover"
               >
-                Manage <ArrowUpRight className="size-3.5" />
+                View all <ArrowUpRight className="size-3.5" />
               </Link>
             }
           />
-          {kpiRows.length === 0 ? (
+          {recentActivities.length === 0 ? (
             <p className="px-5 py-8 text-sm text-muted">
-              No KPIs defined yet. Add them on the KPIs page.
+              No activities yet. Create one from the Activities page.
             </p>
           ) : (
-            <ul className="divide-y divide-edge">
-              {kpiRows.map((k) => {
-                const latest = k.latest === null ? null : Number(k.latest);
-                const target = k.target ? Number(k.target) : null;
-                const pct =
-                  latest !== null && target ? (latest / target) * 100 : null;
-                return (
-                  <li key={k.id} className="px-5 py-3.5">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="truncate text-sm font-medium text-fg">
-                        {k.name}
-                      </span>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums">
-                        {latest ?? "—"}
-                        {k.unit ? (
-                          <span className="ml-1 font-normal text-muted">{k.unit}</span>
-                        ) : null}
-                        {target !== null ? (
-                          <span className="ml-1 font-normal text-faint">
-                            / {target}
-                          </span>
-                        ) : null}
-                      </span>
-                    </div>
-                    {pct !== null ? (
-                      <Progress value={pct} className="mt-2.5" />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Activity</Th>
+                  <Th>Client</Th>
+                  <Th>Type</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-edge">
+                {recentActivities.map((a) => (
+                  <tr key={a.id} className="transition-colors hover:bg-subtle">
+                    <Td>
+                      <Link
+                        href={`/activities/${a.id}`}
+                        className="font-medium text-fg transition-colors hover:text-primary"
+                      >
+                        <span className="mr-1.5 text-faint">#{a.id}</span>
+                        {a.subject}
+                      </Link>
+                    </Td>
+                    <Td className="text-muted">{a.companyName ?? "—"}</Td>
+                    <Td>
+                      <Badge tone={activityTypeMeta[a.activityType]?.tone ?? "slate"}>
+                        {activityTypeMeta[a.activityType]?.label ?? a.activityType}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Badge tone={activityStatusMeta[a.status]?.tone ?? "slate"}>
+                        {activityStatusMeta[a.status]?.label ?? a.status}
+                      </Badge>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
           )}
         </Card>
       </div>
+
+      <Card className="mt-6 overflow-hidden">
+        <CardHeader
+          title="KPIs"
+          description="Latest value vs. target."
+          action={
+            <Link
+              href="/kpis"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary-hover"
+            >
+              Manage <ArrowUpRight className="size-3.5" />
+            </Link>
+          }
+        />
+        {kpiRows.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-muted">
+            No KPIs defined yet. Add them on the KPIs page.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+            {kpiRows.map((k) => {
+              const latest = k.latest === null ? null : Number(k.latest);
+              const target = k.target ? Number(k.target) : null;
+              const pct =
+                latest !== null && target ? (latest / target) * 100 : null;
+              return (
+                <div key={k.id} className="rounded-lg border border-edge bg-canvas p-4">
+                  <span className="block truncate text-sm font-medium text-fg">
+                    {k.name}
+                  </span>
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="text-lg font-semibold tabular-nums">
+                      {latest ?? "—"}
+                    </span>
+                    {k.unit ? (
+                      <span className="text-sm text-muted">{k.unit}</span>
+                    ) : null}
+                    {target !== null ? (
+                      <span className="text-xs text-faint">
+                        / {target}
+                        {k.unit ? ` ${k.unit}` : ""}
+                      </span>
+                    ) : null}
+                  </div>
+                  {pct !== null ? <Progress value={pct} className="mt-2.5" /> : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
