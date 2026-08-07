@@ -54,6 +54,7 @@ export default async function Contact360Page({
   const summary = await getContactSummary(user.organizationId, contactId);
   if (!summary) notFound();
   const { contact, companyId, companyName, companyStatus } = summary;
+  const canDelete = user.role === "superadmin";
 
   const [tickets, activities, conversations, history, siblings] = await Promise.all([
     getContactWorkItems(user.organizationId, contactId, "ticket"),
@@ -141,6 +142,16 @@ export default async function Contact360Page({
                 fields={{ id: contact.id }}
                 label={contact.isActive ? "Archivar" : "Restaurar"}
               />
+              {canDelete ? (
+                <RowAction
+                  action="deleteContact"
+                  fields={{ id: contact.id }}
+                  label="Eliminar"
+                  confirm={`¿Eliminar a "${contact.firstName} ${contact.lastName}" permanentemente?`}
+                  danger
+                  redirectTo={`/companies/${companyId}?tab=contactos`}
+                />
+              ) : null}
             </div>
           </Card>
 

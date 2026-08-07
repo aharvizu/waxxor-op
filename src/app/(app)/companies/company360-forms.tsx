@@ -2,6 +2,7 @@
 
 import { Fragment, useActionState, useEffect, useId, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { AlertTriangle, Pencil, Plus, X } from "lucide-react";
 import {
@@ -161,6 +162,7 @@ export function RowAction({
   label,
   confirm,
   danger,
+  redirectTo,
 }: {
   action:
     | "setPrimaryContact"
@@ -172,6 +174,8 @@ export function RowAction({
   label: string;
   confirm?: string;
   danger?: boolean;
+  /** Navigate here after a successful submit — for actions that delete the very entity the current page shows (e.g. deleting a Company from its own 360 page, or a Contact from its own detail page). Omit for row actions inside a list, which just revalidate in place. */
+  redirectTo?: string;
 }) {
   const actions: Record<string, Action> = {
     setPrimaryContact,
@@ -180,7 +184,11 @@ export function RowAction({
     deleteContract,
     deleteClient,
   };
+  const router = useRouter();
   const [state, formAction] = useActionState<ActionState, FormData>(actions[action], null);
+  useEffect(() => {
+    if (state?.ok && redirectTo) router.push(redirectTo);
+  }, [state, redirectTo, router]);
   return (
     <form
       action={formAction}

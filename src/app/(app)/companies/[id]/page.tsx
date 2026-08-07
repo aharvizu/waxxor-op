@@ -319,10 +319,13 @@ export default async function ClientDetailPage({
               internalUsers={internalUsers}
               renewalItems={renewalItems}
               now={now}
+              canDelete={user.role === "superadmin"}
             />
           ) : null}
 
-          {tab === "contactos" ? <ContactosTab companyId={companyId} orgId={user.organizationId} /> : null}
+          {tab === "contactos" ? (
+            <ContactosTab companyId={companyId} orgId={user.organizationId} canDelete={user.role === "superadmin"} />
+          ) : null}
 
           {tab === "servicios" ? (
             <ServiciosTab companyId={companyId} orgId={user.organizationId} servicesList={servicesList} now={now} />
@@ -384,11 +387,13 @@ async function ResumenTab({
   internalUsers,
   renewalItems,
   now,
+  canDelete,
 }: {
   client: typeof companies.$inferSelect;
   internalUsers: { id: number; name: string }[];
   renewalItems: { source: "client_service" | "contract"; sourceId: number; concept: string; date: string }[];
   now: Date;
+  canDelete: boolean;
 }) {
   const nextRenewals = renewalItems.slice(0, 5);
   return (
@@ -418,6 +423,25 @@ async function ResumenTab({
             internalUsers={internalUsers}
           />
         </Card>
+
+        {canDelete ? (
+          <Card className="border-danger/20 p-6">
+            <CardHeader title="Zona de peligro" className="mb-3 px-0 pt-0" />
+            <p className="mb-3 text-sm text-muted">
+              Elimina esta empresa permanentemente. Solo es posible si no tiene tickets, actividades, proyectos,
+              cotizaciones, reportes ni recurrencias asociadas — si los tiene, archívala en su lugar desde el
+              campo &quot;Estado&quot; de arriba.
+            </p>
+            <RowAction
+              action="deleteClient"
+              fields={{ id: client.id }}
+              label="Eliminar empresa"
+              confirm={`¿Eliminar "${client.name}" permanentemente? Esta acción no se puede deshacer.`}
+              danger
+              redirectTo="/companies"
+            />
+          </Card>
+        ) : null}
       </div>
       <div className="space-y-6">
         <Card className="overflow-hidden">
@@ -445,7 +469,7 @@ async function ResumenTab({
 
 /* -------------------------------------------------------------- Contacts */
 
-async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: number }) {
+async function ContactosTab({ companyId, orgId, canDelete }: { companyId: number; orgId: number; canDelete: boolean }) {
   const contactsList = await getClientContacts(orgId, companyId);
   return (
     <div className="space-y-6">
@@ -509,6 +533,15 @@ async function ContactosTab({ companyId, orgId }: { companyId: number; orgId: nu
                         fields={{ id: c.id }}
                         label={c.isActive ? "Archivar" : "Restaurar"}
                       />
+                      {canDelete ? (
+                        <RowAction
+                          action="deleteContact"
+                          fields={{ id: c.id }}
+                          label="Eliminar"
+                          confirm={`¿Eliminar a "${c.firstName} ${c.lastName}" permanentemente?`}
+                          danger
+                        />
+                      ) : null}
                     </div>
                   </Td>
                 </tr>
