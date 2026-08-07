@@ -23,6 +23,7 @@ import { computePeriodMetrics, periodBounds } from "@/lib/report-metrics";
 import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 import { requireRole } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
+import { BarChart, LineChart } from "@/components/charts";
 import {
   Badge,
   Card,
@@ -276,6 +277,12 @@ async function ExecutivePanel({
             value={metrics.tickets.closed > 0 ? `${Math.round((metrics.tickets.reopened / metrics.tickets.closed) * 100)}%` : NA}
           />
         </div>
+        {backlogPrev !== null ? (
+          <Card className="mt-3 p-5">
+            <CardHeader title="Tendencia de backlog" description="Periodo anterior vs. actual." className="mb-3 px-0 pt-0" />
+            <LineChart data={[{ label: "Anterior", value: backlogPrev }, { label: "Actual", value: backlogNow }]} height={140} />
+          </Card>
+        ) : null}
       </section>
 
       <section>
@@ -379,6 +386,12 @@ async function OperationsPanel({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="overflow-visible">
           <CardHeader title="Carga por persona" description="Trabajo abierto ahora mismo — detecta saturación y trabajo sin asignar." />
+          <div className="px-5 pt-4">
+            <BarChart
+              data={workload.map((w) => ({ label: w.key, tickets: w.openTickets }))}
+              series={[{ key: "tickets", label: "Tickets abiertos", color: "primary" }]}
+            />
+          </div>
           <Table>
             <THead>
               <tr><Th>Persona</Th><Th>Tickets</Th><Th>Actividades</Th><Th>Vencidos</Th></tr>

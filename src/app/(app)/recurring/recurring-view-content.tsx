@@ -28,6 +28,7 @@ export function RecurringViewContent({
   activeQuick,
   activeFilters,
   activeSearch,
+  columnOptions,
   kanbanGroupOptions,
 }: {
   views: SavedView[];
@@ -42,6 +43,7 @@ export function RecurringViewContent({
   activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
+  columnOptions: { key: string; label: string }[];
   kanbanGroupOptions: { key: string; label: string }[];
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
@@ -83,7 +85,7 @@ export function RecurringViewContent({
         retry={retry}
         discard={discard}
         saveAsNewPersonal={saveAsNewPersonal}
-        columnOptions={[]}
+        columnOptions={view.viewType === "table" ? columnOptions : []}
         groupByOptions={view.viewType === "kanban" ? kanbanGroupOptions : []}
       />
 
@@ -92,7 +94,13 @@ export function RecurringViewContent({
       ) : view.viewType === "list" ? (
         <ListView rows={rows} basePath={basePath} />
       ) : (
-        <TableView rows={rows} basePath={basePath} density={config.density} />
+        <TableView
+          rows={rows}
+          columnConfig={config.columns}
+          onColumnConfigChange={(updater) => setConfig((prev) => ({ ...prev, columns: updater(prev.columns) }))}
+          basePath={basePath}
+          density={config.density}
+        />
       )}
     </>
   );

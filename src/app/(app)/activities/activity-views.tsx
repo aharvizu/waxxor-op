@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import { activityStatusMeta, activityTypeMeta, ticketPriorityMeta } from "@/lib/labels";
-import { Badge, Card, EmptyState, THead, Table, Td, cx } from "@/components/ui";
+import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { ClipboardCheck, Plus } from "lucide-react";
-import { compareValues, nextSortState, SortableTh, type SortState } from "@/components/views/sortable-th";
+import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
 import { ActivityKanban } from "./activity-kanban";
 
 export type ActivityRow = {
@@ -79,46 +79,41 @@ function EmptyActivities() {
 
 /* ------------------------------------------------------------------ table */
 
-/** Sorting is client-side over the already-fetched page of rows — see company-views.tsx's doc comment for why. */
+/** TanStack Table (see components/views/data-table.tsx) — sorting stays client-side/unpersisted, same as before (see company-views.tsx's doc comment for why). */
 export function TableView({
   rows,
-  columns,
+  columnConfig,
+  onColumnConfigChange,
   density,
 }: {
   rows: ActivityRow[];
-  columns: string[];
+  columnConfig: DataTableColumnConfig[];
+  onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
   density: "compact" | "comfortable" | "spacious";
 }) {
-  const [sort, setSort] = useState<SortState>(null);
-  const sortedRows = useMemo(() => {
-    if (!sort) return rows;
-    const factor = sort.direction === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => factor * compareValues(a[sort.key as keyof ActivityRow], b[sort.key as keyof ActivityRow]));
-  }, [rows, sort]);
+  const dataTableRegistry = useMemo(() => {
+    const out: Record<string, DataTableColumn<ActivityRow>> = {};
+    for (const key of Object.keys(COLUMN_REGISTRY)) {
+      out[key] = {
+        label: COLUMN_REGISTRY[key].label,
+        render: COLUMN_REGISTRY[key].render,
+        sortValue: (r) => r[key as keyof ActivityRow],
+      };
+    }
+    return out;
+  }, []);
 
-  if (rows.length === 0) return <EmptyActivities />;
-  const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => COLUMN_REGISTRY[c]);
   return (
-    <Card className="overflow-visible">
-      <Table density={density}>
-        <THead>
-          <tr>
-            {activeColumns.map((c) => (
-              <SortableTh key={c} label={COLUMN_REGISTRY[c].label} sortKey={c} sort={sort} onSort={(key) => setSort((prev) => nextSortState(prev, key))} />
-            ))}
-          </tr>
-        </THead>
-        <tbody className="divide-y divide-edge">
-          {sortedRows.map((r) => (
-            <tr key={r.id} className="group transition-colors hover:bg-subtle">
-              {activeColumns.map((c) => (
-                <Td key={c}>{COLUMN_REGISTRY[c].render(r)}</Td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </Card>
+    <DataTable
+      rows={rows}
+      registry={dataTableRegistry}
+      defaultColumnKeys={DEFAULT_COLUMNS}
+      columnConfig={columnConfig}
+      onColumnConfigChange={onColumnConfigChange}
+      density={density}
+      enableRowSelection
+      emptyState={<EmptyActivities />}
+    />
   );
 }
 

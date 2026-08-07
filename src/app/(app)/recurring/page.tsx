@@ -19,7 +19,7 @@ import {
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
 import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
-import type { RecurrenceRow } from "./recurrence-views";
+import { RECURRING_COLUMN_OPTIONS, type RecurrenceRow } from "./recurrence-views";
 import { RecurringViewContent } from "./recurring-view-content";
 
 export const metadata: Metadata = { title: "Recurring" };
@@ -140,6 +140,7 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
+        columnOptions={RECURRING_COLUMN_OPTIONS}
         kanbanGroupOptions={KANBAN_GROUP_OPTIONS}
       />
     </div>

@@ -146,7 +146,7 @@ export const formConfigSchema = z.object({
  * unambiguous baseline, not a complex query; the per-user filter builder
  * still supports full AND/OR nesting.
  */
-const globalFilterConditionSchema = z.object({
+export const globalFilterConditionSchema = z.object({
   field: z.string().trim().min(1),
   operator: z.string().trim().min(1),
   value: z.unknown(),

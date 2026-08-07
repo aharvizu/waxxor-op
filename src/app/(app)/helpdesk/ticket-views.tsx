@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 import { formatMinutes } from "@/lib/time-entries";
-import { Badge, Card, EmptyState, THead, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { LifeBuoy, Plus } from "lucide-react";
-import { compareValues, nextSortState, SortableTh, type SortState } from "@/components/views/sortable-th";
+import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
 import { toCatalogMap } from "@/lib/catalog-map";
 import { TicketRowActions } from "./ticket-row-actions";
 import { TicketKanban } from "./ticket-kanban";
@@ -160,61 +160,53 @@ function EmptyTickets({ createHref = "/helpdesk/new" }: { createHref?: string })
 
 export function TableView({
   rows,
-  columns,
   registry,
+  columnConfig,
+  onColumnConfigChange,
   users,
   statusOptions,
   priorityOptions,
   density,
 }: {
   rows: TicketRow[];
-  columns: string[];
   registry: Record<string, ColumnDef>;
+  columnConfig: DataTableColumnConfig[];
+  onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
   users: { id: number; name: string }[];
   statusOptions: TicketStatusOption[];
   priorityOptions: TicketPriorityOption[];
   density: "compact" | "comfortable" | "spacious";
 }) {
-  const [sort, setSort] = useState<SortState>(null);
-  const sortedRows = useMemo(() => {
-    if (!sort) return rows;
-    const factor = sort.direction === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => factor * compareValues(ticketSortValue(a, sort.key), ticketSortValue(b, sort.key)));
-  }, [rows, sort]);
+  const dataTableRegistry = useMemo(() => {
+    const out: Record<string, DataTableColumn<TicketRow>> = {};
+    for (const key of Object.keys(registry)) {
+      out[key] = { label: registry[key].label, render: registry[key].render, sortValue: (r) => ticketSortValue(r, key), align: key === "minutes" ? "right" : undefined };
+    }
+    return out;
+  }, [registry]);
 
-  if (rows.length === 0) return <EmptyTickets />;
-  const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => registry[c]);
   return (
-    <Card className="overflow-visible">
-      <Table density={density}>
-        <THead>
-          <tr>
-            {activeColumns.map((c) => (
-              <SortableTh key={c} label={registry[c].label} sortKey={c} sort={sort} onSort={(key) => setSort((prev) => nextSortState(prev, key))} />
-            ))}
-            <Th>Acciones</Th>
-          </tr>
-        </THead>
-        <tbody className="divide-y divide-edge">
-          {sortedRows.map((r) => (
-            <tr key={r.id} className="group transition-colors hover:bg-subtle">
-              {activeColumns.map((c) => <Td key={c}>{registry[c].render(r)}</Td>)}
-              <Td>
-                <TicketRowActions
-                  ticketId={r.id}
-                  statusId={r.statusId}
-                  priorityId={r.priorityId}
-                  assigneeId={r.assigneeId}
-                  users={users}
-                  statuses={statusOptions}
-                  priorities={priorityOptions}
-                />
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </Card>
+    <DataTable
+      rows={rows}
+      registry={dataTableRegistry}
+      defaultColumnKeys={DEFAULT_COLUMNS}
+      columnConfig={columnConfig}
+      onColumnConfigChange={onColumnConfigChange}
+      density={density}
+      enableRowSelection
+      emptyState={<EmptyTickets />}
+      rowActions={(r) => (
+        <TicketRowActions
+          ticketId={r.id}
+          statusId={r.statusId}
+          priorityId={r.priorityId}
+          assigneeId={r.assigneeId}
+          users={users}
+          statuses={statusOptions}
+          priorities={priorityOptions}
+        />
+      )}
+    />
   );
 }
 

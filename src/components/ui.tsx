@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -245,10 +245,13 @@ export function Table({
   children,
   className,
   density,
+  style,
 }: {
   children: ReactNode;
   className?: string;
   density?: "compact" | "comfortable" | "spacious";
+  /** Escape hatch for callers with dynamically-computed column widths (e.g. TanStack Table) — total table width via `getTotalSize()`. */
+  style?: CSSProperties;
 }) {
   const densityClass =
     density === "compact"
@@ -258,7 +261,9 @@ export function Table({
         : undefined;
   return (
     <div className="overflow-x-auto">
-      <table className={cx("w-full text-sm", densityClass, className)}>{children}</table>
+      <table className={cx("w-full text-sm", densityClass, className)} style={style}>
+        {children}
+      </table>
     </div>
   );
 }
@@ -285,9 +290,14 @@ export function THead({ children }: { children: ReactNode }) {
 export function Th({
   children,
   className,
+  style,
+  "aria-sort": ariaSort,
 }: {
   children?: ReactNode;
   className?: string;
+  style?: CSSProperties;
+  /** WAI-ARIA sortable-column state — set by callers that manage sorting (e.g. DataTable). */
+  "aria-sort"?: "ascending" | "descending" | "none" | "other";
 }) {
   return (
     <th
@@ -295,6 +305,8 @@ export function Th({
         "border-b border-edge-strong px-5 py-3 text-left text-[11px] font-semibold tracking-wider text-muted uppercase first:rounded-tl-xl last:rounded-tr-xl",
         className,
       )}
+      style={style}
+      aria-sort={ariaSort}
     >
       {children}
     </th>
@@ -304,11 +316,17 @@ export function Th({
 export function Td({
   children,
   className,
+  style,
 }: {
   children?: ReactNode;
   className?: string;
+  style?: CSSProperties;
 }) {
-  return <td className={cx("px-5 py-3.5 text-sm", className)}>{children}</td>;
+  return (
+    <td className={cx("px-5 py-3.5 text-sm", className)} style={style}>
+      {children}
+    </td>
+  );
 }
 
 /* ------------------------------------------------------------ Empty state */

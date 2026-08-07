@@ -1,10 +1,14 @@
+"use client";
+
+import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import { projectHealthMeta, projectPriorityMeta, projectStatusMeta } from "@/lib/labels";
 import { formatMinutes } from "@/lib/time-entries";
-import { Badge, Card, EmptyState, Progress, THead, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Card, EmptyState, Progress, cx } from "@/components/ui";
 import { FolderKanban, Plus } from "lucide-react";
 import { FavoriteToggle } from "@/components/views/favorite-toggle";
+import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
 import { ProjectKanban } from "./project-kanban";
 
 export type ProjectRow = {
@@ -120,44 +124,45 @@ function EmptyProjects() {
 
 /* ------------------------------------------------------------------ table */
 
+/** TanStack Table (see components/views/data-table.tsx) — Projects never had click-to-sort before this; enabling it (incl. multi-column) is this migration's job, not a business-rule change. */
 export function TableView({
   rows,
-  columns,
+  columnConfig,
+  onColumnConfigChange,
   basePath,
   density,
 }: {
   rows: ProjectRow[];
-  columns: string[];
+  columnConfig: DataTableColumnConfig[];
+  onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
   basePath: string;
   density: "compact" | "comfortable" | "spacious";
 }) {
-  if (rows.length === 0) return <EmptyProjects />;
-  const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => COLUMN_REGISTRY[c]);
+  const dataTableRegistry = useMemo(() => {
+    const out: Record<string, DataTableColumn<ProjectRow>> = {};
+    for (const key of Object.keys(COLUMN_REGISTRY)) {
+      out[key] = {
+        label: COLUMN_REGISTRY[key].label,
+        render: COLUMN_REGISTRY[key].render,
+        sortValue: key === "pendingOverdue" ? (r) => r.pending : (r) => r[key as keyof ProjectRow],
+        align: key === "pendingOverdue" || key === "loggedMinutes" ? "right" : undefined,
+      };
+    }
+    return out;
+  }, []);
+
   return (
-    <Card className="overflow-visible">
-      <Table density={density}>
-        <THead>
-          <tr>
-            <Th> </Th>
-            {activeColumns.map((c) => (
-              <Th key={c}>{COLUMN_REGISTRY[c].label}</Th>
-            ))}
-          </tr>
-        </THead>
-        <tbody className="divide-y divide-edge">
-          {rows.map((r) => (
-            <tr key={r.id} className="group transition-colors hover:bg-subtle">
-              <Td>
-                <FavoriteToggle module="projects" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />
-              </Td>
-              {activeColumns.map((c) => (
-                <Td key={c}>{COLUMN_REGISTRY[c].render(r)}</Td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </Card>
+    <DataTable
+      rows={rows}
+      registry={dataTableRegistry}
+      defaultColumnKeys={DEFAULT_COLUMNS}
+      columnConfig={columnConfig}
+      onColumnConfigChange={onColumnConfigChange}
+      density={density}
+      enableRowSelection
+      emptyState={<EmptyProjects />}
+      leadingColumn={(r) => <FavoriteToggle module="projects" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />}
+    />
   );
 }
 

@@ -119,8 +119,9 @@ export function TicketsViewContent({
       {view.viewType === "table" ? (
         <TableView
           rows={rows}
-          columns={config.columns.filter((c) => c.visible).map((c) => c.key)}
           registry={registry}
+          columnConfig={config.columns}
+          onColumnConfigChange={(updater) => setConfig((prev) => ({ ...prev, columns: updater(prev.columns) }))}
           users={users}
           statusOptions={statuses}
           priorityOptions={priorities}

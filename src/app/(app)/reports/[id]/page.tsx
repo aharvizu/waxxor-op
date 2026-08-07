@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { ClipboardList, Download, FileText, History } from "lucide-react";
 import { db } from "@/db";
+import { BarChart } from "@/components/charts";
 import {
   auditLogs,
   companies,
@@ -332,10 +334,46 @@ function MetricsTab({ metrics }: { metrics: PeriodMetrics | null }) {
         <StatCard icon={<History />} label="Tiempo" value={formatMinutes(metrics.time.total)} />
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <BreakdownCard title="Tickets por técnico" rows={metrics.tickets.byAssignee.map((r) => [r.key, `${r.created} / ${r.closed}`])} note="creados / cerrados" />
-        <BreakdownCard title="Tickets por categoría" rows={metrics.tickets.byCategory.map((r) => [r.key, `${r.created} / ${r.closed}`])} note="creados / cerrados" />
+        <BreakdownCard
+          title="Tickets por técnico"
+          note="creados / cerrados"
+          rows={metrics.tickets.byAssignee.map((r) => [r.key, `${r.created} / ${r.closed}`])}
+          chart={
+            <BarChart
+              data={metrics.tickets.byAssignee.map((r) => ({ label: r.key, creados: r.created, cerrados: r.closed }))}
+              series={[
+                { key: "creados", label: "Creados", color: "primary" },
+                { key: "cerrados", label: "Cerrados", color: "accent" },
+              ]}
+            />
+          }
+        />
+        <BreakdownCard
+          title="Tickets por categoría"
+          note="creados / cerrados"
+          rows={metrics.tickets.byCategory.map((r) => [r.key, `${r.created} / ${r.closed}`])}
+          chart={
+            <BarChart
+              data={metrics.tickets.byCategory.map((r) => ({ label: r.key, creados: r.created, cerrados: r.closed }))}
+              series={[
+                { key: "creados", label: "Creados", color: "primary" },
+                { key: "cerrados", label: "Cerrados", color: "accent" },
+              ]}
+            />
+          }
+        />
         <BreakdownCard title="Tiempo por persona" rows={metrics.time.byUser.map((r) => [r.key, formatMinutes(r.minutes)])} />
-        <BreakdownCard title="Tiempo por cliente" rows={metrics.time.byClient.map((r) => [r.key, formatMinutes(r.minutes)])} />
+        <BreakdownCard
+          title="Tiempo por cliente"
+          rows={metrics.time.byClient.map((r) => [r.key, formatMinutes(r.minutes)])}
+          chart={
+            <BarChart
+              data={metrics.time.byClient.map((r) => ({ label: r.key, minutos: r.minutes }))}
+              series={[{ key: "minutos", label: "Minutos", color: "primary" }]}
+              valueFormatter={(v) => formatMinutes(v)}
+            />
+          }
+        />
         <BreakdownCard
           title="SLA por prioridad"
           rows={metrics.sla.byPriority.map((r) => [r.key, r.evaluated > 0 ? `${Math.round((r.met / r.evaluated) * 100)}% (${r.met}/${r.evaluated})` : "N/D"])}
@@ -353,21 +391,35 @@ function MetricsTab({ metrics }: { metrics: PeriodMetrics | null }) {
   );
 }
 
-function BreakdownCard({ title, rows, note }: { title: string; rows: [string, string][]; note?: string }) {
+function BreakdownCard({
+  title,
+  rows,
+  note,
+  chart,
+}: {
+  title: string;
+  rows: [string, string][];
+  note?: string;
+  /** Visual twin of `rows` — the list below stays the authoritative table view, per dataviz skill. */
+  chart?: ReactNode;
+}) {
   return (
     <Card className="overflow-hidden">
       <CardHeader title={title} description={note} />
       {rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-muted">Sin datos en el periodo.</p>
       ) : (
-        <ul className="divide-y divide-edge">
-          {rows.map(([k, v]) => (
-            <li key={k} className="flex items-center justify-between px-5 py-2 text-sm">
-              <span className="text-fg">{k}</span>
-              <span className="tabular-nums text-muted">{v}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          {chart ? <div className="px-5 pt-4">{chart}</div> : null}
+          <ul className="divide-y divide-edge">
+            {rows.map(([k, v]) => (
+              <li key={k} className="flex items-center justify-between px-5 py-2 text-sm">
+                <span className="text-fg">{k}</span>
+                <span className="tabular-nums text-muted">{v}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </Card>
   );

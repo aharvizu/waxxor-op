@@ -4,6 +4,7 @@ import { Gauge, Trash2 } from "lucide-react";
 import { db } from "@/db";
 import { kpiEntries, kpis } from "@/db/schema";
 import { requireUser } from "@/lib/session";
+import { Sparkline } from "@/components/charts";
 import {
   Card,
   CardHeader,
@@ -96,6 +97,13 @@ export default async function KpisPage() {
                         </div>
                       ) : null}
                     </div>
+                    {kEntries.length > 1 ? (
+                      <Sparkline
+                        className="mt-1 shrink-0"
+                        data={[...kEntries].reverse().map((e) => ({ label: fmtDate(e.period), value: Number(e.value) }))}
+                        valueFormatter={(v) => `${v}${k.unit ? ` ${k.unit}` : ""}`}
+                      />
+                    ) : null}
                     <form action={deleteKpi}>
                       <input type="hidden" name="id" value={k.id} />
                       <button

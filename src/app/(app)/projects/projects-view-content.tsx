@@ -89,7 +89,13 @@ export function ProjectsViewContent({
       />
 
       {view.viewType === "table" ? (
-        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} basePath={basePath} density={config.density} />
+        <TableView
+          rows={rows}
+          columnConfig={config.columns}
+          onColumnConfigChange={(updater) => setConfig((prev) => ({ ...prev, columns: updater(prev.columns) }))}
+          basePath={basePath}
+          density={config.density}
+        />
       ) : view.viewType === "kanban" ? (
         <KanbanView rows={rows} groupField={config.kanban.groupField === "healthStatus" ? "healthStatus" : "status"} />
       ) : (

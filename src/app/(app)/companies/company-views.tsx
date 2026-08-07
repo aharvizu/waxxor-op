@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { renewalBucket } from "@/lib/company360";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { companyStatusMeta, renewalBucketMeta } from "@/lib/labels";
-import { Avatar, Badge, Card, EmptyState, THead, Table, Td, cx } from "@/components/ui";
+import { Avatar, Badge, Card, EmptyState, cx } from "@/components/ui";
 import { Building2 } from "lucide-react";
-import { compareValues, nextSortState, SortableTh, type SortState } from "@/components/views/sortable-th";
+import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
 
 export type CompanyRow = {
   id: number;
@@ -121,47 +121,42 @@ function EmptyCompanies() {
   );
 }
 
-/**
- * Sorting is client-side, over the already-fetched page of rows — not
- * persisted to the saved view. `savedViewConfigSchema.sortBy` exists and
- * Tickets already reads it server-side for two hardcoded fields, but there's
- * no generic way yet to turn an arbitrary clicked column (including the
- * aggregate SQL ones) into a dynamic `ORDER BY` across every row shape, and
- * the whole result set is already loaded in one shot (capped at 200) — so a
- * plain client-side re-sort is instant, simpler, and exactly what "click a
- * header" implies (2026-07-29).
- */
-export function TableView({ rows, columns, density }: { rows: CompanyRow[]; columns: string[]; density: "compact" | "comfortable" | "spacious" }) {
-  const [sort, setSort] = useState<SortState>(null);
-  const sortedRows = useMemo(() => {
-    if (!sort) return rows;
-    const factor = sort.direction === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => factor * compareValues(a[sort.key as keyof CompanyRow], b[sort.key as keyof CompanyRow]));
-  }, [rows, sort]);
+/** TanStack Table (see components/views/data-table.tsx) — sorting stays client-side/unpersisted, same as before (2026-07-29 rationale: no generic ORDER BY across every row shape yet, and the whole capped result set is already loaded in one shot). */
+export function TableView({
+  rows,
+  columnConfig,
+  onColumnConfigChange,
+  density,
+}: {
+  rows: CompanyRow[];
+  columnConfig: DataTableColumnConfig[];
+  onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
+  density: "compact" | "comfortable" | "spacious";
+}) {
+  const dataTableRegistry = useMemo(() => {
+    const out: Record<string, DataTableColumn<CompanyRow>> = {};
+    for (const key of Object.keys(COLUMN_REGISTRY)) {
+      out[key] = {
+        label: COLUMN_REGISTRY[key].label,
+        render: COLUMN_REGISTRY[key].render,
+        sortValue: (r) => r[key as keyof CompanyRow],
+        align: key === "activeServices" || key === "openTickets" || key === "pendingBilling" ? "right" : undefined,
+      };
+    }
+    return out;
+  }, []);
 
-  if (rows.length === 0) return <EmptyCompanies />;
-  const activeColumns = (columns.length > 0 ? columns : DEFAULT_COLUMNS).filter((c) => COLUMN_REGISTRY[c]);
   return (
-    <Card className="overflow-visible">
-      <Table density={density}>
-        <THead>
-          <tr>
-            {activeColumns.map((c) => (
-              <SortableTh key={c} label={COLUMN_REGISTRY[c].label} sortKey={c} sort={sort} onSort={(key) => setSort((prev) => nextSortState(prev, key))} />
-            ))}
-          </tr>
-        </THead>
-        <tbody className="divide-y divide-edge">
-          {sortedRows.map((r) => (
-            <tr key={r.id} className="transition-colors hover:bg-subtle">
-              {activeColumns.map((c) => (
-                <Td key={c}>{COLUMN_REGISTRY[c].render(r)}</Td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </Card>
+    <DataTable
+      rows={rows}
+      registry={dataTableRegistry}
+      defaultColumnKeys={DEFAULT_COLUMNS}
+      columnConfig={columnConfig}
+      onColumnConfigChange={onColumnConfigChange}
+      density={density}
+      enableRowSelection
+      emptyState={<EmptyCompanies />}
+    />
   );
 }
 

@@ -34,6 +34,12 @@
   --wx-success: #10b981;
   --wx-warning: #f59e0b;
   --wx-danger: #ef4444;
+
+  /* Chart series (dataviz skill: CVD-validated against this palette's
+     surfaces — see scripts/validate_palette.js). Chart-only; never reuse
+     status colors for series identity. */
+  --wx-chart-1: #7c3aed;
+  --wx-chart-2: #ea580c;
 }
 
 .dark {
@@ -53,6 +59,9 @@
   --wx-primary: #8b5cf6;
   --wx-primary-hover: #a78bfa;
   --wx-primary-soft: rgba(139, 92, 246, 0.14);
+
+  --wx-chart-1: #8b5cf6;
+  --wx-chart-2: #ea580c;
 }
 
 @theme inline {

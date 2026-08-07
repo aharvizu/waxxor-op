@@ -85,7 +85,12 @@ export function CompaniesViewContent({
       />
 
       {view.viewType === "table" ? (
-        <TableView rows={rows} columns={config.columns.filter((c) => c.visible).map((c) => c.key)} density={config.density} />
+        <TableView
+          rows={rows}
+          columnConfig={config.columns}
+          onColumnConfigChange={(updater) => setConfig((prev) => ({ ...prev, columns: updater(prev.columns) }))}
+          density={config.density}
+        />
       ) : view.viewType === "kanban" ? (
         <KanbanView rows={rows} />
       ) : (
