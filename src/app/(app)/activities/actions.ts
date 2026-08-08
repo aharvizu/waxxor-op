@@ -1,11 +1,11 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
-import { activities, attachments, companies, users, workItems } from "@/db/schema";
+import { activities, attachments, companies, conversations, timeEntries, users, workItems } from "@/db/schema";
 import {
   type ActionState,
   businessError,
@@ -42,6 +42,7 @@ import {
 
 class ActivityNotFoundError extends Error {}
 class InvalidActivityTypeError extends Error {}
+class ActivityInUseError extends Error {}
 
 /** "" or missing → null; otherwise a positive int. */
 const optionalId = z.preprocess(
@@ -453,6 +454,85 @@ export async function restoreActivity(
     status: restoredStatus(item.completedAt),
     archivedAt: null,
   }));
+}
+
+/**
+ * Hard delete — SuperAdmin only, blocked when the activity has subactivities,
+ * logged time, or linked conversations (a real record of work/communication —
+ * archive instead), or was already converted to a ticket (the row is kept as
+ * a redirect tombstone for old links). Attachments are peripheral supporting
+ * files, not a record of work performed, so they're removed (blob + row)
+ * along with the activity instead of blocking deletion — same call shape as
+ * deleteActivityAttachment above.
+ */
+export async function deleteActivity(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const me = await requireRole("superadmin");
+  const { data, error } = parseForm(idSchema, formData);
+  if (error) return error;
+
+  try {
+    let storageKeys: string[] = [];
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ activity: activities, item: workItems })
+        .from(activities)
+        .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+        .where(and(eq(activities.id, data.id), eq(activities.organizationId, me.organizationId)));
+      if (!row) throw new ActivityNotFoundError();
+      if (row.activity.convertedAt) {
+        throw new ActivityInUseError("Esta actividad ya fue convertida a ticket — no se puede eliminar.");
+      }
+
+      const [subActivities] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(activities)
+        .where(eq(activities.parentActivityId, row.activity.id));
+      const [timeLogged] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(timeEntries)
+        .where(eq(timeEntries.workItemId, row.item.id));
+      const [conversationRefs] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(conversations)
+        .where(eq(conversations.workItemId, row.item.id));
+      if (subActivities.n > 0 || timeLogged.n > 0 || conversationRefs.n > 0) {
+        throw new ActivityInUseError(
+          "Esta actividad tiene subactividades, tiempo registrado o conversaciones — archívala en lugar de eliminarla.",
+        );
+      }
+
+      const activityAttachments = await tx
+        .select({ storageKey: attachments.storageKey })
+        .from(attachments)
+        .where(eq(attachments.workItemId, row.item.id));
+      storageKeys = activityAttachments.map((a) => a.storageKey);
+      if (storageKeys.length > 0) {
+        await tx.delete(attachments).where(eq(attachments.workItemId, row.item.id));
+      }
+
+      // milestone links and dependency rows cascade with activities/work_items
+      await tx.delete(activities).where(eq(activities.id, row.activity.id));
+      await tx.delete(workItems).where(eq(workItems.id, row.item.id));
+      await recordAudit(tx, {
+        organizationId: me.organizationId,
+        userId: Number(me.id),
+        entityType: "activity",
+        entityId: row.activity.id,
+        action: "delete",
+        metadata: { values: { title: row.item.title, status: row.item.status } },
+      });
+    });
+    for (const key of storageKeys) await deleteAttachmentBlob(key);
+  } catch (err) {
+    if (err instanceof ActivityNotFoundError) return businessError("Esta actividad ya no existe.");
+    if (err instanceof ActivityInUseError) return businessError(err.message);
+    return unexpectedError(err);
+  }
+  revalidatePath("/activities");
+  return success("Actividad eliminada permanentemente.");
 }
 
 /* -------------------------------------------------------------- files */

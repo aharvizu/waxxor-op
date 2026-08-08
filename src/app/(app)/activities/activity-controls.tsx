@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, CheckCircle2, Paperclip, RotateCcw, Trash2 } from "lucide-react";
 import {
   buttonClass,
+  buttonDangerClass,
   buttonSecondaryClass,
   buttonSuccessClass,
   cx,
@@ -17,6 +19,7 @@ import { activityStatusMeta } from "@/lib/labels";
 import {
   archiveActivity,
   completeActivity,
+  deleteActivity,
   deleteActivityAttachment,
   reopenActivity,
   restoreActivity,
@@ -152,6 +155,31 @@ export function TransitionButtons({
         </>
       )}
     </div>
+  );
+}
+
+/** SuperAdmin-only permanent delete — blocked server-side when the activity has real history (see actions.ts). Redirects to the list on success since this deletes the very entity the page is showing. */
+export function DeleteActivityButton({ activityId }: { activityId: number }) {
+  const router = useRouter();
+  const [state, formAction] = useActionState<ActionState, FormData>(deleteActivity, null);
+
+  useEffect(() => {
+    if (state?.ok) router.push("/activities");
+  }, [state, router]);
+
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!window.confirm("¿Eliminar esta actividad permanentemente? Esta acción no se puede deshacer.")) e.preventDefault();
+      }}
+    >
+      <input type="hidden" name="id" value={activityId} />
+      <button type="submit" className={buttonDangerClass}>
+        <Trash2 /> Delete
+      </button>
+      {state && !state.ok ? <FormAlert state={state} className="mt-2 w-full" /> : null}
+    </form>
   );
 }
 

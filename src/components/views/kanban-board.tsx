@@ -82,6 +82,12 @@ export function KanbanBoard<T extends { id: number }>({
           <AlertCircle className="size-4 shrink-0" /> {error}
         </div>
       ) : null}
+      {/* Each lane is a fixed-height flex column (Trello-style): the header
+          stays put and only the card list scrolls internally — a lane with
+          many cards no longer grows the whole board and pushes the other
+          lanes' headers out of view. min-h-0 is required here: without it a
+          flex child refuses to shrink below its content size, so
+          overflow-y-auto would never actually kick in. */}
       <div className="flex gap-4 overflow-x-auto pb-2">
         {local.map((col) => (
           <div
@@ -93,15 +99,15 @@ export function KanbanBoard<T extends { id: number }>({
             onDragLeave={() => setOverKey((k) => (k === col.key ? null : k))}
             onDrop={() => handleDrop(col.key)}
             className={cx(
-              "w-72 shrink-0 rounded-lg border border-transparent p-1 transition-colors",
+              "flex h-[calc(100vh-19rem)] min-h-[16rem] w-72 shrink-0 flex-col rounded-lg border border-transparent p-1 transition-colors",
               overKey === col.key && "border-primary/50 bg-primary-soft/30",
             )}
           >
-            <div className="mb-2 flex items-center justify-between px-1">
+            <div className="mb-2 flex shrink-0 items-center justify-between px-1">
               <Badge tone={col.tone}>{col.label}</Badge>
               <span className="text-xs text-faint">{col.items.length}</span>
             </div>
-            <div className="space-y-2">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-0.5 pb-1">
               {col.items.map((item) => (
                 <div
                   key={item.id}

@@ -15,6 +15,7 @@ import { ActivityForm } from "../activity-form";
 import {
   ActivityUploadForm,
   DeleteActivityAttachmentButton,
+  DeleteActivityButton,
   TransitionButtons,
   WorkflowCard,
 } from "../activity-controls";
@@ -109,6 +110,7 @@ export default async function ActivityPage({
         <Link href={`/inbox?workItemId=${w.id}`} className={buttonSecondaryClass}>
           Conversaciones
         </Link>
+        {user.role === "superadmin" ? <DeleteActivityButton activityId={a.id} /> : null}
       </div>
 
       <Card className="overflow-hidden">
