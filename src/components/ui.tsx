@@ -49,8 +49,22 @@ export const iconButtonClass = cx(
 
 /* ----------------------------------------------------------------- Inputs */
 
+/**
+ * The browser's native calendar-picker icon on `type="date"` inputs renders
+ * dark by default (Chrome/Edge/Safari's `::-webkit-calendar-picker-indicator`
+ * — Firefox doesn't expose this pseudo-element, so it's left to the OS theme
+ * there) and turns invisible against Watson's dark surfaces; inverting it
+ * flips it to light. `dark:` must come *before* the pseudo-element arbitrary
+ * variant, not after — a pseudo-element has to terminate the selector, so
+ * `[&::-webkit-calendar-picker-indicator]:dark:invert` compiles to the
+ * invalid (silently ignored) `::-webkit-calendar-picker-indicator:where(.dark…)`;
+ * `dark:[&::-webkit-calendar-picker-indicator]:invert` scopes `.dark` first
+ * and lets the pseudo-element stay last, which is the only valid order.
+ * Fixed once here since every date field across every module already
+ * renders through this shared class.
+ */
 export const inputClass =
-  "block h-9 w-full rounded-lg border border-edge bg-surface px-3 text-sm text-fg shadow-card transition-colors duration-150 placeholder:text-faint hover:border-edge-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 [&:is(textarea)]:h-auto [&:is(textarea)]:py-2 [&:is(select)]:pr-8";
+  "block h-9 w-full rounded-lg border border-edge bg-surface px-3 text-sm text-fg shadow-card transition-colors duration-150 placeholder:text-faint hover:border-edge-strong focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 [&:is(textarea)]:h-auto [&:is(textarea)]:py-2 [&:is(select)]:pr-8 dark:[&::-webkit-calendar-picker-indicator]:invert";
 
 export const labelClass = "mb-1.5 block text-sm font-medium text-fg";
 

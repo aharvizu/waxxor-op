@@ -12,6 +12,24 @@ export type KanbanColumn<T> = {
 };
 
 /**
+ * Trello-style lane backgrounds — same hue-per-tone the column's header
+ * Badge already uses (status/priority/health meta, see each module's
+ * *-kanban.tsx), just washed across the whole lane instead of a small pill,
+ * so color keeps meaning "which state" rather than becoming decoration. Kept
+ * light enough that a card (bg-surface — white in light mode) still visibly
+ * lifts off the lane underneath it.
+ */
+const COLUMN_TONES: Record<BadgeTone, string> = {
+  slate: "bg-slate-100/70 dark:bg-slate-400/10",
+  blue: "bg-blue-50 dark:bg-blue-400/10",
+  amber: "bg-amber-50 dark:bg-amber-400/10",
+  green: "bg-emerald-50 dark:bg-emerald-400/10",
+  red: "bg-red-50 dark:bg-red-400/10",
+  violet: "bg-violet-50 dark:bg-violet-400/10",
+  purple: "bg-purple-50 dark:bg-purple-400/10",
+};
+
+/**
  * Generic drag-and-drop Kanban board — one component for every module
  * (motor de vistas reutilizable, 2026-07-21). `onMove` is the caller's
  * bridge to whatever *already-validated* status/health transition action
@@ -100,6 +118,7 @@ export function KanbanBoard<T extends { id: number }>({
             onDrop={() => handleDrop(col.key)}
             className={cx(
               "flex h-[calc(100vh-19rem)] min-h-[16rem] w-72 shrink-0 flex-col rounded-lg border border-transparent p-1 transition-colors",
+              COLUMN_TONES[col.tone],
               overKey === col.key && "border-primary/50 bg-primary-soft/30",
             )}
           >
