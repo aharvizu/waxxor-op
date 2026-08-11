@@ -87,6 +87,8 @@ class DropdownStatusError extends Error {}
 /** Category must come from the org's ticket_category catalog — no free text. */
 class InvalidCategoryError extends Error {}
 class InvalidActivityTypeError extends Error {}
+/** Billing status is "approved"/"billed" but Modality+rate/amount didn't produce a computable amount — see docs on ticket #230. */
+class BillingAmountRequiredError extends Error {}
 
 /* ------------------------------------------------------------- primitives */
 
@@ -279,6 +281,11 @@ function ticketError(err: unknown): ActionState {
   }
   if (err instanceof InvalidActivityTypeError) {
     return businessError("Selecciona un tipo del catálogo.");
+  }
+  if (err instanceof BillingAmountRequiredError) {
+    return businessError(
+      "This billing status requires an amount — set Modality to Remote/Onsite with an Hourly rate, or Fixed price with a Fixed amount.",
+    );
   }
   return unexpectedError(err);
 }
@@ -599,6 +606,8 @@ const BLOCKER_MESSAGES: Record<string, string> = {
   confirmation_type: "a confirmation type",
   time_or_exception:
     "at least one active time entry (or an explicit time exception with a reason)",
+  billing_status:
+    "a billing classification (In Contract / Billable / No Charge / Charged)",
   open_related_activities:
     "no related Activity still open (complete, cancel or unlink it first)",
 };
@@ -625,6 +634,16 @@ async function performClose(
     .from(activities)
     .innerJoin(workItems, eq(activities.workItemId, workItems.id))
     .where(and(eq(activities.parentTicketId, row.ticket.id), notInArray(workItems.status, [...OPEN_ACTIVITY_STATUSES])));
+  // Billing decision required at close while still in the "pending" category
+  // — never auto-billable. Resolved BEFORE the blocker check so a decision
+  // submitted in the same close request (input.billingStatusId) counts
+  // toward closability instead of only being applied afterward.
+  const currentBilling = await getTicketBillingStatus(tx, user.organizationId, row.ticket.billingStatusId);
+  const nextBilling =
+    input.billingStatusId && input.billingStatusId !== row.ticket.billingStatusId
+      ? await getTicketBillingStatus(tx, user.organizationId, input.billingStatusId)
+      : null;
+  const effectiveBillingCategory = nextBilling?.category ?? currentBilling?.category ?? null;
   const blockers = closureBlockers({
     resolution: row.ticket.resolution,
     category: row.ticket.category,
@@ -632,6 +651,7 @@ async function performClose(
     activeTimeMinutes: minutes,
     timeExceptionReason:
       input.timeExceptionReason ?? row.ticket.timeExceptionReason,
+    billingStatusCategory: effectiveBillingCategory,
     openRelatedActivities,
   });
   if (blockers.length > 0) {
@@ -677,27 +697,22 @@ async function performClose(
       metadata: { event: "time_exception_granted" },
     });
   }
-  // billing decision required at close while still in the "pending" category — never auto-billable
-  const currentBilling = await getTicketBillingStatus(tx, user.organizationId, row.ticket.billingStatusId);
-  if (currentBilling?.category === "pending" && input.billingStatusId) {
-    const nextBilling = await getTicketBillingStatus(tx, user.organizationId, input.billingStatusId);
-    if (nextBilling) {
-      patch.billingStatus = legacyBillingFor(nextBilling);
-      patch.billingStatusId = nextBilling.id;
-      patch.billingDeterminedById = Number(user.id);
-      patch.billingDeterminedAt = now;
-      await recordAudit(tx, {
-        organizationId: user.organizationId,
-        userId: Number(user.id),
-        entityType: "ticket",
-        entityId: row.ticket.id,
-        action: "update",
-        field: "billingStatus",
-        oldValue: currentBilling.name,
-        newValue: nextBilling.name,
-        metadata: { event: "billing_set_at_close" },
-      });
-    }
+  if (nextBilling) {
+    patch.billingStatus = legacyBillingFor(nextBilling);
+    patch.billingStatusId = nextBilling.id;
+    patch.billingDeterminedById = Number(user.id);
+    patch.billingDeterminedAt = now;
+    await recordAudit(tx, {
+      organizationId: user.organizationId,
+      userId: Number(user.id),
+      entityType: "ticket",
+      entityId: row.ticket.id,
+      action: "update",
+      field: "billingStatus",
+      oldValue: currentBilling?.name ?? null,
+      newValue: nextBilling.name,
+      metadata: { event: "billing_set_at_close" },
+    });
   }
   await tx.update(tickets).set(patch).where(eq(tickets.id, row.ticket.id));
   await recordAudit(tx, {
@@ -964,9 +979,6 @@ const billingSchema = z.object({
   billingModality: ticketBillingModalitySchema,
   hourlyRate: optionalMoney,
   fixedAmount: optionalMoney,
-  billingPeriod: optionalText,
-  externalReference: optionalText,
-  billingNotes: optionalText,
 });
 
 export async function setTicketBilling(
@@ -989,6 +1001,13 @@ export async function setTicketBilling(
         hourlyRate: data.hourlyRate,
         fixedAmount: data.fixedAmount,
       });
+      // A status that's meant to charge the client (approved) or that already
+      // did (billed) can never be saved with no computable amount — that's
+      // exactly how ticket #230 silently ended up "billable" for $0 (fixed
+      // amount typed in, modality left on "not applicable").
+      if ((billingStatus.category === "approved" || billingStatus.category === "billed") && !calculatedAmount) {
+        throw new BillingAmountRequiredError();
+      }
       const patch = {
         billingStatus: legacyBillingFor(billingStatus),
         billingStatusId: billingStatus.id,
@@ -996,9 +1015,6 @@ export async function setTicketBilling(
         hourlyRate: data.hourlyRate,
         fixedAmount: data.fixedAmount,
         calculatedAmount,
-        billingPeriod: data.billingPeriod,
-        externalReference: data.externalReference,
-        billingNotes: data.billingNotes,
       };
       const changes = diffFields(
         {
@@ -1009,16 +1025,7 @@ export async function setTicketBilling(
         },
         row.ticket,
         patch,
-        [
-          "billingStatus",
-          "billingModality",
-          "hourlyRate",
-          "fixedAmount",
-          "calculatedAmount",
-          "billingPeriod",
-          "externalReference",
-          "billingNotes",
-        ],
+        ["billingStatus", "billingModality", "hourlyRate", "fixedAmount", "calculatedAmount"],
       );
       if (changes.length === 0) return;
       await tx

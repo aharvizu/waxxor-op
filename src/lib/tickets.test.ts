@@ -119,6 +119,7 @@ describe("closure rules", () => {
     confirmationType: "phone",
     activeTimeMinutes: 30,
     timeExceptionReason: null,
+    billingStatusCategory: "included" as const,
     openRelatedActivities: 0,
   };
 
@@ -142,6 +143,13 @@ describe("closure rules", () => {
   it("blocks while a related Activity is still open", () => {
     expect(closureBlockers({ ...ready, openRelatedActivities: 1 })).toContain("open_related_activities");
     expect(closureBlockers({ ...ready, openRelatedActivities: 0 })).toEqual([]);
+  });
+
+  it("blocks while the billing classification is still pending (or unresolved)", () => {
+    expect(closureBlockers({ ...ready, billingStatusCategory: "pending" })).toContain("billing_status");
+    expect(closureBlockers({ ...ready, billingStatusCategory: null })).toContain("billing_status");
+    expect(closureBlockers({ ...ready, billingStatusCategory: "not_billable" })).toEqual([]);
+    expect(closureBlockers({ ...ready, billingStatusCategory: "billed" })).toEqual([]);
   });
 });
 

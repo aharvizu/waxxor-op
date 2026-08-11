@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { tickets } from "@/db/schema";
-import type { TicketStatusCategoryValue, TicketStatusRow } from "./ticket-catalogs";
+import type { TicketBillingCategoryValue, TicketStatusCategoryValue, TicketStatusRow } from "./ticket-catalogs";
 
 /**
  * Ticket lifecycle, closure rules and operational billing — pure domain.
@@ -89,13 +89,16 @@ export const ticketBillingModalitySchema = z.enum(TICKET_BILLING_MODALITIES);
 
 /**
  * Closure requirements (pure): resolution, category, confirmation type,
- * either active time or an explicit reason for the audited time exception,
- * and no still-open related Activity (2026-07-29 — closing a ticket while a
- * linked follow-up Activity is still pending/in_progress/waiting/blocked
- * loses track of it; the caller resolves "still open" as not
- * completed/cancelled/archived and passes the count in, since that's a real
- * query this pure function can't do itself). Returns the list of missing
- * requirements ([] = closable).
+ * either active time or an explicit reason for the audited time exception, a
+ * settled billing classification (2026-08-11 — a ticket can no longer close
+ * while its billing status is still in the "pending" category; the caller
+ * resolves the EFFECTIVE category — the one being applied at close if a
+ * decision was submitted, else the ticket's current one), and no still-open
+ * related Activity (2026-07-29 — closing a ticket while a linked follow-up
+ * Activity is still pending/in_progress/waiting/blocked loses track of it;
+ * the caller resolves "still open" as not completed/cancelled/archived and
+ * passes the count in, since that's a real query this pure function can't do
+ * itself). Returns the list of missing requirements ([] = closable).
  */
 export function closureBlockers(state: {
   resolution: string | null;
@@ -103,6 +106,7 @@ export function closureBlockers(state: {
   confirmationType: string | null;
   activeTimeMinutes: number;
   timeExceptionReason: string | null;
+  billingStatusCategory: TicketBillingCategoryValue | null;
   openRelatedActivities: number;
 }): string[] {
   const missing: string[] = [];
@@ -111,6 +115,9 @@ export function closureBlockers(state: {
   if (!state.confirmationType) missing.push("confirmation_type");
   if (state.activeTimeMinutes <= 0 && !state.timeExceptionReason?.trim()) {
     missing.push("time_or_exception");
+  }
+  if (state.billingStatusCategory === null || state.billingStatusCategory === "pending") {
+    missing.push("billing_status");
   }
   if (state.openRelatedActivities > 0) missing.push("open_related_activities");
   return missing;

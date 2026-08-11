@@ -454,12 +454,13 @@ function CloseFields({
       ) : null}
       {billingPending ? (
         <div>
-          <label className={labelClass}>Billing decision (still pending review)</label>
+          <label className={labelClass}>Billing decision (required to close)</label>
           <SearchableSelect
             name="billingStatusId"
+            required
             defaultValue=""
             options={[
-              { value: "", label: "Keep pending review" },
+              { value: "", label: "— Select —", disabled: true },
               ...billingStatuses.map((s) => ({ value: String(s.id), label: s.name })),
             ]}
           />
@@ -510,15 +511,17 @@ export function BillingForm({
     billingModality: string;
     hourlyRate: string | null;
     fixedAmount: string | null;
-    billingPeriod: string | null;
-    externalReference: string | null;
-    billingNotes: string | null;
   };
   billableMinutes: number;
   billingStatuses: Option[];
 }) {
   const [state, formAction] = useForm(setTicketBilling);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  // A Fixed amount only ever counts if Modality is "fixed_price" (see #230 —
+  // typing an amount with Modality left elsewhere silently computes $0).
+  // Auto-switching here removes the most common way to hit that trap; the
+  // server still rejects the combination outright if it happens anyway.
+  const [modality, setModality] = useState(defaults.billingModality);
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={ticketId} />
@@ -536,7 +539,8 @@ export function BillingForm({
           <label className={labelClass}>Modality</label>
           <SearchableSelect
             name="billingModality"
-            defaultValue={defaults.billingModality}
+            value={modality}
+            onValueChange={setModality}
             options={TICKET_BILLING_MODALITIES.map((m) => ({ value: m, label: m.replace("_", " ") }))}
           />
         </div>
@@ -562,6 +566,9 @@ export function BillingForm({
             step="0.01"
             min="0"
             defaultValue={defaults.fixedAmount ?? ""}
+            onChange={(e) => {
+              if (Number(e.currentTarget.value) > 0) setModality("fixed_price");
+            }}
             className={inputClass}
           />
           <FieldError errors={errors.fixedAmount} />
@@ -571,29 +578,6 @@ export function BillingForm({
         Billable time: <span className="font-medium tabular-nums">{billableMinutes} min</span>{" "}
         (non-voided entries marked billable). Amount = minutes/60 × rate, or the fixed amount.
       </p>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Billing period (optional)</label>
-          <input
-            name="billingPeriod"
-            placeholder="e.g. 2026-07"
-            defaultValue={defaults.billingPeriod ?? ""}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>External reference (optional)</label>
-          <input
-            name="externalReference"
-            defaultValue={defaults.externalReference ?? ""}
-            className={inputClass}
-          />
-        </div>
-      </div>
-      <div>
-        <label className={labelClass}>Billing notes (optional)</label>
-        <input name="billingNotes" defaultValue={defaults.billingNotes ?? ""} className={inputClass} />
-      </div>
       <SubmitButton>Save billing</SubmitButton>
     </form>
   );

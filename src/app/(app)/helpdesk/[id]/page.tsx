@@ -427,9 +427,6 @@ export default async function TicketPage({
                     billingModality: t.billingModality,
                     hourlyRate: t.hourlyRate,
                     fixedAmount: t.fixedAmount,
-                    billingPeriod: t.billingPeriod,
-                    externalReference: t.externalReference,
-                    billingNotes: t.billingNotes,
                   }}
                   billableMinutes={timeTotal.billable}
                   billingStatuses={billingOptions}
