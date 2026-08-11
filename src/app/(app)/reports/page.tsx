@@ -140,6 +140,7 @@ export default async function ReportsPage({
         subtitle="Reportes operativos por cliente y periodo — revisión, aprobación y envío."
         action={
           <>
+            <Link href="/reports/billing" className={buttonSecondaryClass}>Cobros y facturación</Link>
             <Link href="/reports/templates" className={buttonSecondaryClass}>Plantillas</Link>
             <Link href="/reports/new" className={buttonClass}>
               <Plus className="size-4" /> Nuevo reporte
