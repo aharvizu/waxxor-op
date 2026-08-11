@@ -5,6 +5,10 @@
  * compute their own numbers. See docs/features/indicator-definitions.md.
  */
 
+import { fmtMoney } from "@/lib/format";
+import type { categoryKpis, clientKpis, generalKpis, technicianKpis } from "@/lib/report-metrics";
+import { formatMinutes } from "@/lib/time-entries";
+
 export type IndicatorDefinition = {
   key: string;
   name: string;
@@ -209,6 +213,16 @@ export const INDICATOR_DEFINITIONS: readonly IndicatorDefinition[] = [
     emptyState: "Sin costo generado en el periodo.",
   },
   {
+    key: "total_facturable",
+    name: "Total facturable",
+    description: "Suma de importes calculados solo de tickets con estado de cobro Billable o Charged — dinero que sí se factura, a diferencia del costo total generado (que incluye tickets En contrato/Sin costo con importe calculado solo para referencia interna).",
+    formula: "sum(calculated_amount) where ticket_billing_statuses.category in (approved, billed)",
+    unit: "currency",
+    source: "tickets + ticket_billing_statuses",
+    drillDownRoute: "/helpdesk?billing=billable",
+    emptyState: "Sin monto facturable en el periodo.",
+  },
+  {
     key: "avg_hours_per_ticket",
     name: "Promedio de horas por ticket",
     description: "Horas trabajadas del periodo entre tickets creados en el periodo.",
@@ -403,4 +417,152 @@ export function buildExecutiveAttention(input: {
     });
   }
   return out.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "high" ? -1 : 1));
+}
+
+/* --------------------------------------------------------------- recommendations */
+
+export type RecommendationSection = {
+  key: string;
+  title: string;
+  subtitle: string;
+  items: string[];
+  emptyState: string;
+};
+
+/**
+ * Pantalla 7 (Recomendaciones) of the legacy KPI brief. Deterministic, same
+ * spirit as buildExecutiveAttention above — every line is a computed fact
+ * from this period's data, never an invented strategic judgment. "Categorías
+ * a estandarizar" / "meta sugerida" are the brief's own section names; the
+ * content under them stays factual (volume concentration, a transparent
+ * 3-month average) rather than asserting what to do about it.
+ */
+export function buildRecommendations(input: {
+  general: Awaited<ReturnType<typeof generalKpis>>;
+  generalPrev: Awaited<ReturnType<typeof generalKpis>>;
+  slaCompliancePct: number | null;
+  clients: Awaited<ReturnType<typeof clientKpis>>;
+  technicians: Awaited<ReturnType<typeof technicianKpis>>["summary"];
+  categories: Awaited<ReturnType<typeof categoryKpis>>;
+  closedWithoutTime: number;
+  noCategoryCount: number;
+  noAssigneeCount: number;
+  recentMonths: { monthLabel: string; costTotal: number }[];
+}): RecommendationSection[] {
+  const { general, generalPrev, clients, technicians, categories } = input;
+
+  const ticketsDeltaPct =
+    generalPrev.totalTickets > 0 ? Math.round(((general.totalTickets - generalPrev.totalTickets) / generalPrev.totalTickets) * 100) : null;
+
+  const context: RecommendationSection = {
+    key: "context",
+    title: "Logros del mes / contexto general",
+    subtitle: `${general.totalTickets} tickets · ${general.clientsAttended} clientes · ${general.techniciansActive} técnicos activos`,
+    items: [
+      ticketsDeltaPct !== null
+        ? `${general.totalTickets} tickets en el periodo (${ticketsDeltaPct >= 0 ? "+" : ""}${ticketsDeltaPct}% vs. el periodo anterior).`
+        : `${general.totalTickets} tickets en el periodo — sin periodo anterior comparable.`,
+      input.slaCompliancePct !== null
+        ? `Cumplimiento de SLA: ${input.slaCompliancePct}%.`
+        : "Cumplimiento de SLA: sin tickets evaluables en el periodo.",
+      `Total facturable del periodo: ${fmtMoney(general.totalFacturable)}.`,
+      `${general.techniciansActive} técnico(s) con actividad, ${general.clientsAttended} cliente(s) atendido(s).`,
+    ],
+    emptyState: "Sin actividad en el periodo.",
+  };
+
+  const unbilledLoad = [...clients]
+    .filter((c) => c.ticketCount > 0 && c.cost === 0)
+    .sort((a, b) => b.hours - a.hours)
+    .slice(0, 5);
+  const unbilled: RecommendationSection = {
+    key: "unbilled_load",
+    title: "Clientes con mayor carga operativa sin cobro",
+    subtitle: "Tickets y horas invertidas sin ningún importe calculado en el periodo.",
+    items: unbilledLoad.map((c) => `${c.companyName}: ${c.ticketCount} ticket(s), ${formatMinutes(c.hours)} sin cobro registrado.`),
+    emptyState: "Todos los clientes con actividad tuvieron al menos un ticket con importe calculado.",
+  };
+
+  const profitable = [...clients]
+    .filter((c) => c.cost > 0)
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 5);
+  const mostProfitable: RecommendationSection = {
+    key: "profitable_clients",
+    title: "Clientes más rentables",
+    subtitle: "Por costo generado en el periodo.",
+    items: profitable.map(
+      (c) =>
+        `${c.companyName}: ${fmtMoney(c.cost)}${general.totalFacturable > 0 ? ` (${((c.cost / general.totalFacturable) * 100).toFixed(1)}% del total facturable)` : ""}.`,
+    ),
+    emptyState: "Sin tickets con importe calculado en el periodo.",
+  };
+
+  const totalTicketsForPct = general.totalTickets;
+  const topCategories = [...categories].sort((a, b) => b.ticketCount - a.ticketCount).slice(0, 5);
+  const categoriesSection: RecommendationSection = {
+    key: "categories",
+    title: "Categorías a estandarizar o automatizar",
+    subtitle: "Candidatas por concentración de volumen — mayor frecuencia repetitiva en el periodo.",
+    items: topCategories.map(
+      (c) =>
+        `${c.key}: ${c.ticketCount} ticket(s)${totalTicketsForPct > 0 ? ` (${((c.ticketCount / totalTicketsForPct) * 100).toFixed(1)}% del total)` : ""}.`,
+    ),
+    emptyState: "Sin tickets categorizados en el periodo.",
+  };
+
+  const withLoad = technicians.filter((t) => t.assigneeId !== null);
+  let balance: RecommendationSection;
+  if (withLoad.length >= 2) {
+    const sorted = [...withLoad].sort((a, b) => b.ticketCount - a.ticketCount);
+    const top = sorted[0];
+    const bottom = sorted[sorted.length - 1];
+    balance = {
+      key: "technician_balance",
+      title: "Carga y balance de técnicos",
+      subtitle: `${withLoad.length} técnico(s) con tickets asignados en el periodo.`,
+      items: [
+        `${top.assigneeName} atendió ${top.ticketCount} ticket(s) (${formatMinutes(top.hours)}); ${bottom.assigneeName} atendió ${bottom.ticketCount} ticket(s) (${formatMinutes(bottom.hours)}) — diferencia de ${top.ticketCount - bottom.ticketCount} ticket(s).`,
+      ],
+      emptyState: "",
+    };
+  } else {
+    balance = {
+      key: "technician_balance",
+      title: "Carga y balance de técnicos",
+      subtitle: "Se requieren al menos dos técnicos con tickets asignados para comparar carga.",
+      items: [],
+      emptyState: "No hay suficientes técnicos con tickets asignados en el periodo para comparar carga.",
+    };
+  }
+
+  const captureItems: string[] = [];
+  if (input.closedWithoutTime > 0) captureItems.push(`${input.closedWithoutTime} ticket(s) se cerraron sin tiempo registrado.`);
+  if (input.noCategoryCount > 0) captureItems.push(`${input.noCategoryCount} ticket(s) sin categoría asignada.`);
+  if (input.noAssigneeCount > 0) captureItems.push(`${input.noAssigneeCount} ticket(s) sin técnico asignado.`);
+  const capture: RecommendationSection = {
+    key: "capture_quality",
+    title: "Mejoras al proceso de captura de tickets",
+    subtitle: "Hallazgos de calidad de datos del periodo.",
+    items: captureItems,
+    emptyState: "Sin hallazgos de calidad de datos en el periodo.",
+  };
+
+  const avgRecent =
+    input.recentMonths.length > 0 ? input.recentMonths.reduce((sum, m) => sum + m.costTotal, 0) / input.recentMonths.length : 0;
+  const currentVsAvgPct = avgRecent > 0 ? Math.round(((general.costTotal - avgRecent) / avgRecent) * 100) : null;
+  const revenue: RecommendationSection = {
+    key: "revenue_trend",
+    title: "Resumen de ingresos histórico y meta de referencia",
+    subtitle: `Promedio de los últimos ${input.recentMonths.length} mes(es): ${fmtMoney(avgRecent)}.`,
+    items: [
+      ...input.recentMonths.map((m) => `${m.monthLabel}: ${fmtMoney(m.costTotal)}.`),
+      currentVsAvgPct !== null
+        ? `Mes actual: ${fmtMoney(general.costTotal)} (${currentVsAvgPct >= 0 ? "+" : ""}${currentVsAvgPct}% vs. el promedio de referencia).`
+        : `Mes actual: ${fmtMoney(general.costTotal)}.`,
+    ],
+    emptyState: "Sin historial suficiente para calcular una referencia.",
+  };
+
+  return [context, unbilled, mostProfitable, categoriesSection, balance, capture, revenue];
 }

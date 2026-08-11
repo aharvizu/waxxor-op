@@ -102,6 +102,19 @@ export function resolvePeriod(
   }
 }
 
+/**
+ * Resolves an arbitrary calendar month by offset from "now" (0 = current
+ * month, -1 = previous month, -5 = five months back…) — generalizes the
+ * current_month/previous_month cases above for the monthly comparison
+ * (Indicadores → Comparativa mensual), which needs an open-ended run of
+ * months rather than a fixed rule.
+ */
+export function resolveMonthOffset(offset: number, timezone: string, now: Date): { start: LocalDate; end: LocalDate } {
+  const today = todayInTz(now, timezone);
+  const { y, m } = parts(today);
+  return { start: iso(y, m - 1 + offset, 1), end: iso(y, m + offset, 0) };
+}
+
 /** The org timezone: single-org MVP uses the recurrence default (documented). */
 export const ORG_TIMEZONE = "America/Mexico_City";
 

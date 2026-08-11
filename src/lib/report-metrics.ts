@@ -6,13 +6,14 @@ import {
   messages,
   projects,
   recurrenceExecutions,
+  ticketBillingStatuses,
   tickets,
   timeEntries,
   users,
   workItems,
 } from "@/db/schema";
 import { zonedTimeToUtc, type LocalDate } from "@/lib/recurrence";
-import { ORG_TIMEZONE } from "@/lib/reports";
+import { ORG_TIMEZONE, resolveMonthOffset } from "@/lib/reports";
 
 /**
  * THE central metrics layer: one place computes every number that Reports
@@ -510,12 +511,21 @@ export async function generalKpis(orgId: number, period: Period, scope: MetricsS
         totalTickets: int(sql`count(*)`),
         clientsAttended: int(sql`count(distinct ${workItems.companyId})`),
         costTotal: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
+        // "Facturable" narrows costTotal to tickets whose billing status will
+        // actually generate a charge (approved/billed category) — distinct
+        // from costTotal, which also counts amounts computed on tickets
+        // classified In Contract/No Charge (tracked for cost visibility,
+        // never separately invoiced).
+        totalFacturable: sql<string>`coalesce(sum(${tickets.calculatedAmount}) filter (
+          where ${ticketBillingStatuses.category} in ('approved', 'billed')
+        ), 0)::text`,
         billableTickets: int(sql`count(*) filter (where ${tickets.calculatedAmount} > 0)`),
         remoteTickets: int(sql`count(*) filter (where ${tickets.billingModality} = 'remote')`),
         onsiteTickets: int(sql`count(*) filter (where ${tickets.billingModality} = 'onsite')`),
       })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(ticketBillingStatuses, eq(tickets.billingStatusId, ticketBillingStatuses.id))
       .where(base),
     db
       .select({ userId: workItems.assigneeId })
@@ -551,6 +561,7 @@ export async function generalKpis(orgId: number, period: Period, scope: MetricsS
     techniciansActive: activeTechnicianIds.size,
     hoursWorked,
     costTotal,
+    totalFacturable: Number(row.totalFacturable),
     avgHoursPerTicket: row.totalTickets > 0 ? Math.round(hoursWorked / row.totalTickets) : null,
     avgCostPerTicket: row.totalTickets > 0 ? costTotal / row.totalTickets : null,
     billableTickets: row.billableTickets,
@@ -609,6 +620,330 @@ export async function modalityKpis(orgId: number, period: Period, scope: Metrics
     .where(base)
     .groupBy(sql`1`);
   return rows.map((r) => ({ key: r.key, ticketCount: r.ticketCount, cost: Number(r.cost) }));
+}
+
+/**
+ * Per-client rollup for the monthly KPI set — tickets/hours/cost/billable
+ * split, plus "categoría principal" and "técnico principal" (the highest-
+ * count category/assignee for that client in the period). The top-1 picks
+ * are done in JS from flat group-by rows rather than a window-function
+ * query — simpler to read and verify, and the row counts here (clients ×
+ * categories, clients × assignees) are always small.
+ */
+export async function clientKpis(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    ...scopeWork(scope),
+  );
+  const [totals, byCategory, byAssignee] = await Promise.all([
+    db
+      .select({
+        companyId: workItems.companyId,
+        companyName: sql<string>`coalesce(${companies.name}, 'Sin empresa')`,
+        ticketCount: int(sql`count(*)`),
+        cost: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
+        billableTickets: int(sql`count(*) filter (where ${tickets.calculatedAmount} > 0)`),
+        hours: int(sql`coalesce(sum((
+          select sum(te.duration_minutes) from ${timeEntries} te
+          where te.work_item_id = ${workItems.id} and te.voided_at is null
+        )), 0)`),
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
+      .where(base)
+      .groupBy(workItems.companyId, companies.name),
+    db
+      .select({
+        companyId: workItems.companyId,
+        category: sql<string>`coalesce(${tickets.category}, '—')`,
+        count: int(sql`count(*)`),
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .where(base)
+      .groupBy(workItems.companyId, tickets.category),
+    db
+      .select({
+        companyId: workItems.companyId,
+        assigneeName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
+        count: int(sql`count(*)`),
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(users, eq(workItems.assigneeId, users.id))
+      .where(base)
+      .groupBy(workItems.companyId, users.name),
+  ]);
+
+  const topOf = <T extends { companyId: number | null; count: number }>(rows: T[], pick: (r: T) => string) => {
+    const best = new Map<number | null, { label: string; count: number }>();
+    for (const r of rows) {
+      const current = best.get(r.companyId);
+      if (!current || r.count > current.count) best.set(r.companyId, { label: pick(r), count: r.count });
+    }
+    return best;
+  };
+  const topCategory = topOf(byCategory, (r) => r.category);
+  const topAssignee = topOf(byAssignee, (r) => r.assigneeName);
+
+  return totals
+    .map((t) => ({
+      companyId: t.companyId,
+      companyName: t.companyName,
+      ticketCount: t.ticketCount,
+      hours: t.hours,
+      cost: Number(t.cost),
+      billableTickets: t.billableTickets,
+      noCostTickets: t.ticketCount - t.billableTickets,
+      topCategory: topCategory.get(t.companyId)?.label ?? "—",
+      topAssignee: topAssignee.get(t.companyId)?.label ?? "Sin asignar",
+    }))
+    .sort((a, b) => b.ticketCount - a.ticketCount);
+}
+
+/**
+ * Per-technician rollup. Ticket-scoped fields (counts, cost, remote/onsite
+ * ticket split) attribute to the ticket's assignee; hour-scoped fields
+ * attribute to whoever logged the time_entries row — same split
+ * ticketMetrics.byAssignee / timeMetrics.byUser already use, not a new rule.
+ */
+export async function technicianKpis(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    ...scopeWork(scope),
+  );
+  const timeBase = and(
+    eq(timeEntries.organizationId, orgId),
+    isNull(timeEntries.voidedAt),
+    gte(timeEntries.date, period.start),
+    lte(timeEntries.date, period.end),
+    ...scopeWork(scope),
+  );
+
+  const [byAssignee, hoursByUser, hoursByUserModality, byAssigneeModality, byAssigneeCategory] = await Promise.all([
+    db
+      .select({
+        assigneeId: workItems.assigneeId,
+        assigneeName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
+        ticketCount: int(sql`count(*)`),
+        cost: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(users, eq(workItems.assigneeId, users.id))
+      .where(base)
+      .groupBy(workItems.assigneeId, users.name),
+    db
+      .select({
+        userId: timeEntries.userId,
+        minutes: int(sql`sum(${timeEntries.durationMinutes})`),
+      })
+      .from(timeEntries)
+      .innerJoin(workItems, eq(timeEntries.workItemId, workItems.id))
+      .where(timeBase)
+      .groupBy(timeEntries.userId),
+    db
+      .select({
+        userId: timeEntries.userId,
+        modality: sql<string>`${timeEntries.modality}::text`,
+        minutes: int(sql`sum(${timeEntries.durationMinutes})`),
+      })
+      .from(timeEntries)
+      .innerJoin(workItems, eq(timeEntries.workItemId, workItems.id))
+      .where(timeBase)
+      .groupBy(timeEntries.userId, timeEntries.modality),
+    db
+      .select({
+        assigneeId: workItems.assigneeId,
+        modality: sql<string>`${tickets.billingModality}::text`,
+        ticketCount: int(sql`count(*)`),
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .where(base)
+      .groupBy(workItems.assigneeId, tickets.billingModality),
+    db
+      .select({
+        assigneeId: workItems.assigneeId,
+        assigneeName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
+        category: sql<string>`coalesce(${tickets.category}, '—')`,
+        ticketCount: int(sql`count(*)`),
+        hours: int(sql`coalesce(sum((
+          select sum(te.duration_minutes) from ${timeEntries} te
+          where te.work_item_id = ${workItems.id} and te.voided_at is null
+        )), 0)`),
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(users, eq(workItems.assigneeId, users.id))
+      .where(base)
+      .groupBy(workItems.assigneeId, users.name, tickets.category),
+  ]);
+
+  const hoursMap = new Map(hoursByUser.map((r) => [r.userId, r.minutes]));
+  const modalityHoursMap = new Map<string, number>();
+  for (const r of hoursByUserModality) modalityHoursMap.set(`${r.userId}:${r.modality}`, r.minutes);
+  const modalityTicketsMap = new Map<string, number>();
+  for (const r of byAssigneeModality) modalityTicketsMap.set(`${r.assigneeId}:${r.modality}`, r.ticketCount);
+
+  const summary = byAssignee
+    .map((a) => {
+      const hours = (a.assigneeId !== null ? hoursMap.get(a.assigneeId) : undefined) ?? 0;
+      return {
+        assigneeId: a.assigneeId,
+        assigneeName: a.assigneeName,
+        ticketCount: a.ticketCount,
+        hours,
+        avgHoursPerTicket: a.ticketCount > 0 ? Math.round(hours / a.ticketCount) : null,
+        cost: Number(a.cost),
+        remoteTickets: modalityTicketsMap.get(`${a.assigneeId}:remote`) ?? 0,
+        remoteHours: modalityHoursMap.get(`${a.assigneeId}:remote`) ?? 0,
+        onsiteTickets: modalityTicketsMap.get(`${a.assigneeId}:onsite`) ?? 0,
+        onsiteHours: modalityHoursMap.get(`${a.assigneeId}:onsite`) ?? 0,
+      };
+    })
+    .sort((a, b) => b.ticketCount - a.ticketCount);
+
+  // Top 5 categories per technician by ticket count — a flat table, not
+  // artificially collapsed to one row, since the brief wants a breakdown.
+  const byTechnician = new Map<number | null, typeof byAssigneeCategory>();
+  for (const r of byAssigneeCategory) {
+    const list = byTechnician.get(r.assigneeId) ?? [];
+    list.push(r);
+    byTechnician.set(r.assigneeId, list);
+  }
+  const topCategories = [...byTechnician.values()]
+    .flatMap((list) => list.sort((a, b) => b.ticketCount - a.ticketCount).slice(0, 5))
+    .map((r) => ({
+      assigneeName: r.assigneeName,
+      category: r.category,
+      ticketCount: r.ticketCount,
+      hours: r.hours,
+    }));
+
+  return { summary, topCategories };
+}
+
+// timeZone: "UTC" is required — periods[i].start is formatted as a UTC
+// midnight instant below, and without pinning the formatter to UTC too, a
+// server running west of UTC (e.g. America/Mexico_City) renders the
+// previous day's month (2026-03-01T00:00Z showing as "feb 2026").
+const MONTH_LABEL = new Intl.DateTimeFormat("es-MX", { month: "short", year: "numeric", timeZone: "UTC" });
+
+/**
+ * generalKpis() computed for each of the last `months` calendar months
+ * (oldest first, ending at the current month) — the data behind Indicadores
+ * → Comparativa mensual. Deltas between consecutive months are computed by
+ * the caller (UI concern: which pairs to show, how to render the arrow).
+ */
+export async function monthlySeries(orgId: number, months: number, scope: MetricsScope = {}) {
+  const now = new Date();
+  const periods = Array.from({ length: months }, (_, i) => resolveMonthOffset(-(months - 1) + i, ORG_TIMEZONE, now));
+  const points = await Promise.all(periods.map((period) => generalKpis(orgId, period, scope)));
+  return points.map((point, i) => ({
+    ...point,
+    monthKey: periods[i].start.slice(0, 7),
+    monthLabel: MONTH_LABEL.format(new Date(`${periods[i].start}T00:00:00Z`)),
+    billableRatePct: point.totalTickets > 0 ? Math.round((point.billableTickets / point.totalTickets) * 100) : null,
+  }));
+}
+
+/** Data-quality signals for the "mejoras al proceso de captura" recommendation section. */
+export async function ticketDataQuality(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    ...scopeWork(scope),
+  );
+  const [row] = await db
+    .select({
+      noCategory: int(sql`count(*) filter (where ${tickets.category} is null or ${tickets.category} = '')`),
+      noAssignee: int(sql`count(*) filter (where ${workItems.assigneeId} is null)`),
+    })
+    .from(tickets)
+    .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+    .where(base);
+  return row;
+}
+
+/**
+ * Per-client billable line items for Reportes → Cobros y facturación —
+ * every ticket with a computed amount > 0, grouped by client. Only companies
+ * with at least one such ticket are returned (spec: "solo clientes con al
+ * menos un ticket cobrable"). Sorted alphabetically (a statement, not a
+ * ranking); tickets within a client sorted chronologically.
+ */
+export async function billingSupportData(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    sql`${tickets.calculatedAmount} > 0`,
+    ...scopeWork(scope),
+  );
+  const rows = await db
+    .select({
+      companyId: workItems.companyId,
+      companyName: sql<string>`coalesce(${companies.name}, 'Sin empresa')`,
+      ticketId: tickets.id,
+      folio: tickets.folio,
+      date: sql<string>`${workItems.createdAt}::date::text`,
+      title: workItems.title,
+      technicianName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
+      modality: sql<string>`${tickets.billingModality}::text`,
+      minutes: int(sql`coalesce((
+        select sum(te.duration_minutes) from ${timeEntries} te
+        where te.work_item_id = ${workItems.id} and te.voided_at is null
+      ), 0)`),
+      cost: sql<string>`${tickets.calculatedAmount}::text`,
+      comment: tickets.resolution,
+    })
+    .from(tickets)
+    .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+    .leftJoin(companies, eq(workItems.companyId, companies.id))
+    .leftJoin(users, eq(workItems.assigneeId, users.id))
+    .where(base)
+    .orderBy(companies.name, workItems.createdAt);
+
+  const byCompany = new Map<
+    number | null,
+    { companyId: number | null; companyName: string; tickets: typeof rows; totalMinutes: number; totalCost: number }
+  >();
+  for (const r of rows) {
+    let group = byCompany.get(r.companyId);
+    if (!group) {
+      group = { companyId: r.companyId, companyName: r.companyName, tickets: [], totalMinutes: 0, totalCost: 0 };
+      byCompany.set(r.companyId, group);
+    }
+    group.tickets.push(r);
+    group.totalMinutes += r.minutes;
+    group.totalCost += Number(r.cost);
+  }
+
+  const clients = [...byCompany.values()]
+    .map((g) => ({ ...g, tickets: g.tickets.map((t) => ({ ...t, cost: Number(t.cost) })) }))
+    .sort((a, b) => a.companyName.localeCompare(b.companyName, "es"));
+
+  const totals = clients.reduce(
+    (acc, c) => ({
+      tickets: acc.tickets + c.tickets.length,
+      minutes: acc.minutes + c.totalMinutes,
+      cost: acc.cost + c.totalCost,
+    }),
+    { tickets: 0, minutes: 0, cost: 0 },
+  );
+
+  return { clients, totals };
 }
 
 /* ---------------------------------------------------------------- full snapshot */

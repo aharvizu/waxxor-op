@@ -36,6 +36,10 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { ThresholdForm } from "../reports/report-forms";
 import { Metric, NA } from "./metric";
 import { MonthlyKpisPanel } from "./monthly-kpis-panel";
+import { ClientsPanel } from "./clients-panel";
+import { TechniciansPanel } from "./technicians-panel";
+import { MonthlyComparisonPanel } from "./monthly-comparison-panel";
+import { RecommendationsPanel } from "./recommendations-panel";
 
 export const metadata: Metadata = { title: "Indicators" };
 
@@ -44,8 +48,14 @@ const PANELS = [
   ["operations", "Operations"],
   ["billing", "Billing Operations"],
   ["monthly", "Mensual"],
+  ["clients", "Clientes"],
+  ["technicians", "Técnicos"],
+  ["comparison", "Comparativa mensual"],
+  ["recommendations", "Recomendaciones"],
   ["thresholds", "Umbrales"],
 ] as const;
+
+const MONTH_WINDOW_OPTIONS = [3, 6, 12] as const;
 
 const PERIOD_LABELS: Record<string, string> = {
   current_week: "Semana actual",
@@ -57,7 +67,7 @@ const PERIOD_LABELS: Record<string, string> = {
   current_year: "Año actual",
 };
 
-function previousOf(rule: Exclude<PeriodRule, "custom">): Exclude<PeriodRule, "custom"> | null {
+export function previousOf(rule: Exclude<PeriodRule, "custom">): Exclude<PeriodRule, "custom"> | null {
   const map: Partial<Record<string, Exclude<PeriodRule, "custom">>> = {
     current_week: "previous_week",
     current_month: "previous_month",
@@ -69,7 +79,7 @@ function previousOf(rule: Exclude<PeriodRule, "custom">): Exclude<PeriodRule, "c
 export default async function IndicatorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; period?: string; companyId?: string; userId?: string }>;
+  searchParams: Promise<{ view?: string; period?: string; companyId?: string; userId?: string; months?: string }>;
 }) {
   // Technician has no executive panel (spec §20); redirected by requireRole.
   const user = await requireRole("superadmin", "administrator", "director", "project_manager");
@@ -87,6 +97,9 @@ export default async function IndicatorsPage({
     companyId: params.companyId ? Number(params.companyId) : null,
     userId: params.userId ? Number(params.userId) : null,
   };
+  const monthsWindow = MONTH_WINDOW_OPTIONS.includes(Number(params.months) as (typeof MONTH_WINDOW_OPTIONS)[number])
+    ? Number(params.months)
+    : 6;
 
   const [thresholds, companyRows, userRows] = await Promise.all([
     getThresholds(user.organizationId),
@@ -126,7 +139,7 @@ export default async function IndicatorsPage({
         ))}
       </div>
 
-      {view !== "thresholds" ? (
+      {view !== "thresholds" && view !== "comparison" ? (
         <form method="get" className="mb-6 flex flex-wrap items-center gap-3">
           <input type="hidden" name="view" value={view} />
           <SearchableSelect
@@ -167,6 +180,18 @@ export default async function IndicatorsPage({
       ) : null}
       {view === "monthly" ? (
         <MonthlyKpisPanel orgId={user.organizationId} period={period} scope={scope} />
+      ) : null}
+      {view === "clients" ? (
+        <ClientsPanel orgId={user.organizationId} period={period} scope={scope} />
+      ) : null}
+      {view === "technicians" ? (
+        <TechniciansPanel orgId={user.organizationId} period={period} scope={scope} />
+      ) : null}
+      {view === "comparison" ? (
+        <MonthlyComparisonPanel orgId={user.organizationId} months={monthsWindow} scope={scope} buildHref={buildHref} />
+      ) : null}
+      {view === "recommendations" ? (
+        <RecommendationsPanel orgId={user.organizationId} period={period} periodRule={periodRule} scope={scope} />
       ) : null}
       {view === "thresholds" ? (
         <ThresholdsPanel orgId={user.organizationId} canEdit={["superadmin", "administrator"].includes(user.role)} />

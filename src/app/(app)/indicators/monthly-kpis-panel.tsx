@@ -1,6 +1,7 @@
 import { fmtMoney } from "@/lib/format";
 import {
   categoryKpis,
+  clientKpis,
   generalKpis,
   modalityKpis,
   slaMetrics,
@@ -10,7 +11,7 @@ import {
   type Period,
 } from "@/lib/report-metrics";
 import { formatMinutes } from "@/lib/time-entries";
-import { Card, CardHeader, THead, Table, Td, Th, cx } from "@/components/ui";
+import { Card, CardHeader, THead, Table, TBody, Td, Th, cx } from "@/components/ui";
 import { Metric, NA } from "./metric";
 
 const MODALITY_LABELS: Record<string, string> = {
@@ -35,13 +36,14 @@ export async function MonthlyKpisPanel({
   period: Period;
   scope: MetricsScope;
 }) {
-  const [general, categories, modalities, sla, tickets, time] = await Promise.all([
+  const [general, categories, modalities, sla, tickets, time, clients] = await Promise.all([
     generalKpis(orgId, period, scope),
     categoryKpis(orgId, period, scope),
     modalityKpis(orgId, period, scope),
     slaMetrics(orgId, period, scope),
     ticketMetrics(orgId, period, scope),
     timeMetrics(orgId, period, scope),
+    clientKpis(orgId, period, scope),
   ]);
 
   const byFrequency = [...categories].sort((a, b) => b.ticketCount - a.ticketCount);
@@ -49,6 +51,15 @@ export async function MonthlyKpisPanel({
   const byIncome = [...categories].sort((a, b) => b.cost - a.cost);
 
   const hoursByModality = new Map(time.byModality.map((r) => [r.key, r.minutes]));
+
+  // Bottom 3-column grid: top clients by load, clients with a billable
+  // amount (and their share of the period's total facturable), and the
+  // same category breakdown above without the ranking columns.
+  const topClientsByLoad = [...clients].sort((a, b) => b.ticketCount - a.ticketCount).slice(0, 10);
+  const clientsWithCharge = clients
+    .filter((c) => c.cost > 0)
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -68,6 +79,7 @@ export async function MonthlyKpisPanel({
           <Metric defKey="onsite_tickets" value={String(general.onsiteTickets)} />
           <Metric defKey="remote_pct" value={general.remotePct !== null ? `${general.remotePct}%` : NA} />
           <Metric defKey="onsite_pct" value={general.onsitePct !== null ? `${general.onsitePct}%` : NA} />
+          <Metric defKey="total_facturable" value={fmtMoney(general.totalFacturable)} />
           <Metric defKey="sla_compliance" value={sla.compliancePct !== null ? `${sla.compliancePct}%` : NA} />
           <Metric defKey="sla_first_response" value={sla.firstResponsePct !== null ? `${sla.firstResponsePct}%` : NA} />
           <Metric defKey="avg_first_response" value={tickets.avgFirstResponseMinutes !== null ? formatMinutes(tickets.avgFirstResponseMinutes) : NA} />
@@ -89,9 +101,9 @@ export async function MonthlyKpisPanel({
               <Th>Ranking ingreso</Th>
             </tr>
           </THead>
-          <tbody className="divide-y divide-edge">
+          <tbody className="divide-y divide-edge-strong">
             {byFrequency.map((c) => (
-              <tr key={c.key} className="transition-colors hover:bg-subtle">
+              <tr key={c.key} className="transition-colors hover:bg-row-hover">
                 <Td className="font-medium text-fg">{c.key}</Td>
                 <Td className="tabular-nums text-muted">{c.ticketCount}</Td>
                 <Td className="tabular-nums text-muted">{formatMinutes(c.hours)}</Td>
@@ -123,9 +135,9 @@ export async function MonthlyKpisPanel({
               <Th>Costo</Th>
             </tr>
           </THead>
-          <tbody className="divide-y divide-edge">
+          <tbody className="divide-y divide-edge-strong">
             {modalities.map((m) => (
-              <tr key={m.key} className={cx("transition-colors hover:bg-subtle", m.key === "remote" || m.key === "onsite" ? "" : "text-faint")}>
+              <tr key={m.key} className={cx("transition-colors hover:bg-row-hover", m.key === "remote" || m.key === "onsite" ? "" : "text-faint")}>
                 <Td className="font-medium text-fg">{MODALITY_LABELS[m.key] ?? m.key}</Td>
                 <Td className="tabular-nums text-muted">{m.ticketCount}</Td>
                 <Td className="tabular-nums text-muted">{formatMinutes(hoursByModality.get(m.key) ?? 0)}</Td>
@@ -142,6 +154,106 @@ export async function MonthlyKpisPanel({
           </tbody>
         </Table>
       </Card>
+
+      <section>
+        <h3 className="mb-2 text-sm font-semibold text-fg">Resumen por cliente y categoría</h3>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="overflow-hidden">
+            <CardHeader title="Top clientes por carga" description="Por número de tickets del periodo." />
+            <Table density="compact">
+              <THead>
+                <tr>
+                  <Th>Cliente</Th>
+                  <Th>Tickets</Th>
+                  <Th>Horas</Th>
+                  <Th>Costo</Th>
+                </tr>
+              </THead>
+              <TBody>
+                {topClientsByLoad.map((c) => (
+                  <tr key={c.companyId ?? "none"}>
+                    <Td className="font-medium text-fg">{c.companyName}</Td>
+                    <Td className="tabular-nums text-muted">{c.ticketCount}</Td>
+                    <Td className="tabular-nums text-muted">{formatMinutes(c.hours)}</Td>
+                    <Td className="tabular-nums text-muted">{fmtMoney(c.cost)}</Td>
+                  </tr>
+                ))}
+                {topClientsByLoad.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-6 text-center text-sm text-muted">
+                      Sin tickets en el periodo.
+                    </td>
+                  </tr>
+                ) : null}
+              </TBody>
+            </Table>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader title="Clientes con cobro" description="Con al menos un ticket cobrable." />
+            <Table density="compact">
+              <THead>
+                <tr>
+                  <Th>Cliente</Th>
+                  <Th>Cobrables</Th>
+                  <Th>Total</Th>
+                  <Th>% del total</Th>
+                </tr>
+              </THead>
+              <TBody>
+                {clientsWithCharge.map((c) => (
+                  <tr key={c.companyId ?? "none"}>
+                    <Td className="font-medium text-fg">{c.companyName}</Td>
+                    <Td className="tabular-nums text-muted">{c.billableTickets}</Td>
+                    <Td className="tabular-nums text-muted">{fmtMoney(c.cost)}</Td>
+                    <Td className="tabular-nums text-muted">
+                      {general.totalFacturable > 0 ? `${((c.cost / general.totalFacturable) * 100).toFixed(1)}%` : NA}
+                    </Td>
+                  </tr>
+                ))}
+                {clientsWithCharge.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-6 text-center text-sm text-muted">
+                      Sin clientes con cobro en el periodo.
+                    </td>
+                  </tr>
+                ) : null}
+              </TBody>
+            </Table>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader title="Por categoría" description="Sin desglose de ranking — ver detalle arriba." />
+            <Table density="compact">
+              <THead>
+                <tr>
+                  <Th>Categoría</Th>
+                  <Th>Tickets</Th>
+                  <Th>Horas</Th>
+                  <Th>Costo</Th>
+                </tr>
+              </THead>
+              <TBody>
+                {byFrequency.map((c) => (
+                  <tr key={c.key}>
+                    <Td className="font-medium text-fg">{c.key}</Td>
+                    <Td className="tabular-nums text-muted">{c.ticketCount}</Td>
+                    <Td className="tabular-nums text-muted">{formatMinutes(c.hours)}</Td>
+                    <Td className="tabular-nums text-muted">{fmtMoney(c.cost)}</Td>
+                  </tr>
+                ))}
+                {byFrequency.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-6 text-center text-sm text-muted">
+                      Sin tickets en el periodo.
+                    </td>
+                  </tr>
+                ) : null}
+              </TBody>
+            </Table>
+          </Card>
+        </div>
+      </section>
     </div>
   );
 }
