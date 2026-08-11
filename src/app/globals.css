@@ -40,6 +40,13 @@
      status colors for series identity. */
   --wx-chart-1: #7c3aed;
   --wx-chart-2: #ea580c;
+
+  /* Table elevation (2026-08-11 — data tables were reading as flat/pale:
+     --shadow-card's 5% opacity is barely visible on a white card, and
+     invisible on dark surfaces). Distinct per theme because the fix isn't a
+     color swap — light needs a slightly stronger drop shadow, dark needs an
+     inset top highlight instead, since a shadow alone never reads there. */
+  --wx-shadow-table: 0 1px 3px 0 rgb(16 24 40 / 0.08), 0 1px 2px -1px rgb(16 24 40 / 0.08);
 }
 
 .dark {
@@ -62,6 +69,8 @@
 
   --wx-chart-1: #8b5cf6;
   --wx-chart-2: #ea580c;
+
+  --wx-shadow-table: inset 0 1px 0 0 rgba(255, 255, 255, 0.03), 0 4px 14px -6px rgba(0, 0, 0, 0.45);
 }
 
 @theme inline {
@@ -89,12 +98,22 @@
   --color-warning: var(--wx-warning);
   --color-danger: var(--wx-danger);
 
+  /* Table surfaces (2026-08-11) — derived from --wx-fg/--wx-primary via
+     color-mix rather than hand-picked per-theme hex, so they self-adjust
+     with the theme instead of needing separate light/dark values. See
+     table-head vs. bg-subtle: subtle equals canvas in light mode, so the
+     header used to have no background of its own at all. */
+  --color-table-head: color-mix(in srgb, var(--wx-fg) 4.5%, var(--wx-surface));
+  --color-row-hover: color-mix(in srgb, var(--wx-primary) 7%, var(--wx-surface));
+  --color-row-stripe: color-mix(in srgb, var(--wx-fg) 2%, var(--wx-surface));
+
   /* Elevation — Untitled UI-style soft shadows */
   --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.05);
   --shadow-card-hover:
     0 4px 8px -2px rgb(16 24 40 / 0.1), 0 2px 4px -2px rgb(16 24 40 / 0.06);
   --shadow-overlay:
     0 20px 24px -4px rgb(16 24 40 / 0.08), 0 8px 8px -4px rgb(16 24 40 / 0.03);
+  --shadow-table: var(--wx-shadow-table);
 
   /* Motion */
   --animate-pop: wx-pop 0.14s cubic-bezier(0.16, 1, 0.3, 1);

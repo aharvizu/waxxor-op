@@ -293,7 +293,7 @@ export function DataTable<TRow>({
           </button>
         </div>
       ) : null}
-      <Card className="overflow-visible">
+      <Card className="overflow-visible border-edge-strong shadow-table">
         <Table density={density} style={{ width: table.getTotalSize() }}>
           <THead>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -431,12 +431,13 @@ export function DataTable<TRow>({
               </tr>
             ))}
           </THead>
-          <tbody className="divide-y divide-edge">
-            {table.getRowModel().rows.map((row) => (
+          <tbody className="divide-y divide-edge-strong">
+            {table.getRowModel().rows.map((row, i) => (
               <tr
                 key={row.id}
                 className={cx(
-                  "group transition-colors hover:bg-subtle",
+                  "group transition-colors hover:bg-row-hover",
+                  i % 2 === 1 && "bg-row-stripe",
                   row.getIsSelected() && "bg-primary-soft/40",
                   rowClassName?.(row.original),
                 )}

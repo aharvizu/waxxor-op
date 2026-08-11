@@ -298,7 +298,36 @@ export function Table({
  * broken.
  */
 export function THead({ children }: { children: ReactNode }) {
-  return <thead className="bg-subtle shadow-sm print:static">{children}</thead>;
+  return <thead className="bg-table-head shadow-sm print:static">{children}</thead>;
+}
+
+/**
+ * Stronger row separation than the ambient `divide-edge` (2026-08-11 — table
+ * rows were barely distinguishable, especially in dark mode where edge sits
+ * only 4 lightness points off the surface). `striped` adds a faint tint on
+ * even rows for wide, many-column tables; row hover uses a brand tint
+ * instead of a flat gray so it reads in both themes.
+ */
+export function TBody({
+  children,
+  className,
+  striped,
+}: {
+  children: ReactNode;
+  className?: string;
+  striped?: boolean;
+}) {
+  return (
+    <tbody
+      className={cx(
+        "divide-y divide-edge-strong [&>tr]:transition-colors [&>tr:hover]:bg-row-hover",
+        striped && "[&>tr:nth-child(even)]:bg-row-stripe [&>tr:nth-child(even):hover]:bg-row-hover",
+        className,
+      )}
+    >
+      {children}
+    </tbody>
+  );
 }
 
 export function Th({
