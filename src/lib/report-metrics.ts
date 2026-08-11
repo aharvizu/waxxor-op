@@ -477,6 +477,140 @@ export async function recurringMetrics(orgId: number, period: Period, scope: Met
   return { ...row, ...defs };
 }
 
+/* ---------------------------------------------------------------- legacy kpis */
+
+/**
+ * Monthly KPI set migrated from the previous ticketing portal (Indicadores →
+ * Mensual, 2026-08-10). Ticket-scoped fields use created_at, same criterion as
+ * ticketMetrics. Distinct from billingMetrics (which splits amounts by
+ * billing_status): here "costo generado" is the raw calculated_amount total
+ * across every ticket created in the period, so "sin costo" is simply the
+ * tickets where that amount is null/0 — matches the portal's original phrasing
+ * ("tickets cobrables (costo > $0)").
+ */
+export async function generalKpis(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    ...scopeWork(scope),
+  );
+  const timeBase = and(
+    eq(timeEntries.organizationId, orgId),
+    isNull(timeEntries.voidedAt),
+    gte(timeEntries.date, period.start),
+    lte(timeEntries.date, period.end),
+    ...scopeWork(scope),
+  );
+
+  const [[row], assigneeRows, timeUserRows, [hoursRow]] = await Promise.all([
+    db
+      .select({
+        totalTickets: int(sql`count(*)`),
+        clientsAttended: int(sql`count(distinct ${workItems.companyId})`),
+        costTotal: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
+        billableTickets: int(sql`count(*) filter (where ${tickets.calculatedAmount} > 0)`),
+        remoteTickets: int(sql`count(*) filter (where ${tickets.billingModality} = 'remote')`),
+        onsiteTickets: int(sql`count(*) filter (where ${tickets.billingModality} = 'onsite')`),
+      })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .where(base),
+    db
+      .select({ userId: workItems.assigneeId })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .where(and(base, sql`${workItems.assigneeId} is not null`))
+      .groupBy(workItems.assigneeId),
+    db
+      .select({ userId: timeEntries.userId })
+      .from(timeEntries)
+      .innerJoin(workItems, eq(timeEntries.workItemId, workItems.id))
+      .where(timeBase)
+      .groupBy(timeEntries.userId),
+    db
+      .select({ minutes: int(sql`sum(${timeEntries.durationMinutes})`) })
+      .from(timeEntries)
+      .innerJoin(workItems, eq(timeEntries.workItemId, workItems.id))
+      .where(timeBase),
+  ]);
+
+  const activeTechnicianIds = new Set(
+    [...assigneeRows.map((r) => r.userId), ...timeUserRows.map((r) => r.userId)].filter(
+      (id): id is number => id != null,
+    ),
+  );
+  const hoursWorked = hoursRow?.minutes ?? 0;
+  const costTotal = Number(row.costTotal);
+  const noCostTickets = row.totalTickets - row.billableTickets;
+
+  return {
+    totalTickets: row.totalTickets,
+    clientsAttended: row.clientsAttended,
+    techniciansActive: activeTechnicianIds.size,
+    hoursWorked,
+    costTotal,
+    avgHoursPerTicket: row.totalTickets > 0 ? Math.round(hoursWorked / row.totalTickets) : null,
+    avgCostPerTicket: row.totalTickets > 0 ? costTotal / row.totalTickets : null,
+    billableTickets: row.billableTickets,
+    noCostTickets,
+    remoteTickets: row.remoteTickets,
+    onsiteTickets: row.onsiteTickets,
+    remotePct: row.totalTickets > 0 ? Math.round((row.remoteTickets / row.totalTickets) * 100) : null,
+    onsitePct: row.totalTickets > 0 ? Math.round((row.onsiteTickets / row.totalTickets) * 100) : null,
+  };
+}
+
+/** Per-category ticket count/hours/cost — rankings are just this list sorted three ways. */
+export async function categoryKpis(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    ...scopeWork(scope),
+  );
+  const rows = await db
+    .select({
+      key: sql<string>`coalesce(${tickets.category}, '—')`,
+      ticketCount: int(sql`count(*)`),
+      cost: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
+      hours: int(sql`coalesce(sum((
+        select sum(te.duration_minutes) from ${timeEntries} te
+        where te.work_item_id = ${workItems.id} and te.voided_at is null
+      )), 0)`),
+    })
+    .from(tickets)
+    .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+    .where(base)
+    .groupBy(sql`1`)
+    .orderBy(sql`2 desc`);
+  return rows.map((r) => ({ key: r.key, ticketCount: r.ticketCount, hours: r.hours, cost: Number(r.cost) }));
+}
+
+/** Ticket count + cost by billing modality (remote/onsite/fixed_price/not_applicable). Hours by modality already exist on timeMetrics(...).byModality — reused, not duplicated. */
+export async function modalityKpis(orgId: number, period: Period, scope: MetricsScope = {}) {
+  const { from, to } = periodBounds(period);
+  const base = and(
+    eq(workItems.organizationId, orgId),
+    eq(workItems.type, "ticket"),
+    sql`${workItems.createdAt} between ${from} and ${to}`,
+    ...scopeWork(scope),
+  );
+  const rows = await db
+    .select({
+      key: sql<string>`${tickets.billingModality}::text`,
+      ticketCount: int(sql`count(*)`),
+      cost: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
+    })
+    .from(tickets)
+    .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+    .where(base)
+    .groupBy(sql`1`);
+  return rows.map((r) => ({ key: r.key, ticketCount: r.ticketCount, cost: Number(r.cost) }));
+}
+
 /* ---------------------------------------------------------------- full snapshot */
 
 export type PeriodMetrics = Awaited<ReturnType<typeof computePeriodMetrics>>;

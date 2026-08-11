@@ -5,11 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { db } from "@/db";
 import { companies, users } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
-import {
-  INDICATOR_THRESHOLD_DEFAULTS,
-  buildExecutiveAttention,
-  indicatorDefinition,
-} from "@/lib/indicators";
+import { INDICATOR_THRESHOLD_DEFAULTS, buildExecutiveAttention } from "@/lib/indicators";
 import {
   backlogAt,
   clientHealthBoard,
@@ -38,6 +34,8 @@ import {
 } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ThresholdForm } from "../reports/report-forms";
+import { Metric, NA } from "./metric";
+import { MonthlyKpisPanel } from "./monthly-kpis-panel";
 
 export const metadata: Metadata = { title: "Indicators" };
 
@@ -45,6 +43,7 @@ const PANELS = [
   ["executive", "Executive Overview"],
   ["operations", "Operations"],
   ["billing", "Billing Operations"],
+  ["monthly", "Mensual"],
   ["thresholds", "Umbrales"],
 ] as const;
 
@@ -166,48 +165,15 @@ export default async function IndicatorsPage({
       {view === "billing" ? (
         <BillingPanel orgId={user.organizationId} period={period} scope={scope} />
       ) : null}
+      {view === "monthly" ? (
+        <MonthlyKpisPanel orgId={user.organizationId} period={period} scope={scope} />
+      ) : null}
       {view === "thresholds" ? (
         <ThresholdsPanel orgId={user.organizationId} canEdit={["superadmin", "administrator"].includes(user.role)} />
       ) : null}
     </div>
   );
 }
-
-/* ------------------------------------------------------------------- shared */
-
-function Metric({
-  defKey,
-  value,
-  href,
-}: {
-  defKey: string;
-  value: string;
-  href?: string | null;
-}) {
-  const def = indicatorDefinition(defKey);
-  const body = (
-    <span className="flex items-baseline gap-2">
-      <span className="text-lg font-semibold tabular-nums">{value}</span>
-      <span className="text-xs text-muted">{def?.name ?? defKey}</span>
-    </span>
-  );
-  const target = href ?? def?.drillDownRoute;
-  return target ? (
-    <Link
-      href={target}
-      title={def ? `${def.description}\nFórmula: ${def.formula}` : undefined}
-      className="rounded-lg border border-edge bg-surface px-3 py-2 shadow-card transition-colors hover:border-primary/30 hover:bg-primary-soft/40"
-    >
-      {body}
-    </Link>
-  ) : (
-    <span title={def ? `${def.description}\nFórmula: ${def.formula}` : undefined} className="rounded-lg border border-edge bg-surface px-3 py-2 shadow-card">
-      {body}
-    </span>
-  );
-}
-
-const NA = "No disponible";
 
 /* ---------------------------------------------------------------- Executive */
 
