@@ -26,7 +26,7 @@ import {
   Users,
 } from "lucide-react";
 import { db } from "@/db";
-import { companies, services, serviceVariants, users } from "@/db/schema";
+import { companies, services, serviceVariants, users, vendors } from "@/db/schema";
 import {
   buildClientAlerts,
   daysUntil,
@@ -567,7 +567,7 @@ async function ServiciosTab({
   servicesList: Awaited<ReturnType<typeof getClientServicesList>>;
   now: Date;
 }) {
-  const [serviceRows, variantRows] = await Promise.all([
+  const [serviceRows, variantRows, vendorRows] = await Promise.all([
     db
       .select({ id: services.id, name: services.name })
       .from(services)
@@ -578,6 +578,11 @@ async function ServiciosTab({
       .from(serviceVariants)
       .where(and(eq(serviceVariants.organizationId, orgId), eq(serviceVariants.status, "active")))
       .orderBy(asc(serviceVariants.name)),
+    db
+      .select({ id: vendors.id, name: vendors.name })
+      .from(vendors)
+      .where(and(eq(vendors.organizationId, orgId), eq(vendors.status, "active")))
+      .orderBy(asc(vendors.name)),
   ]);
   const catalog = serviceRows.map((s) => ({
     ...s,
@@ -586,7 +591,7 @@ async function ServiciosTab({
 
   return (
     <div className="space-y-6">
-      <AddServiceButton companyId={companyId} servicesCatalog={catalog} />
+      <AddServiceButton companyId={companyId} servicesCatalog={catalog} vendorOptions={vendorRows} />
 
       {servicesList.length === 0 ? (
         <EmptyState icon={<Building2 />} title="Sin servicios contratados">
@@ -597,9 +602,11 @@ async function ServiciosTab({
         <ServicesTable
           companyId={companyId}
           servicesCatalog={catalog}
-          rows={servicesList.map(({ cs, serviceName, variantName }) => ({
+          vendorOptions={vendorRows}
+          rows={servicesList.map(({ cs, serviceName, variantName, vendorName }) => ({
             serviceName,
             variantName,
+            vendorName,
             derivedStatus: derivedServiceStatus(cs, now),
             cs: {
               id: cs.id,
@@ -609,6 +616,7 @@ async function ServiciosTab({
               status: cs.status,
               quantity: cs.quantity,
               provider: cs.provider,
+              vendorId: cs.vendorId,
               billingCycle: cs.billingCycle,
               cost: cs.cost,
               clientPrice: cs.clientPrice,

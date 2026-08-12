@@ -242,6 +242,13 @@ export const CATALOG_KINDS = {
     wired: true,
     note: "Disponibles al crear un proyecto: sus listas se crean automáticamente.",
   },
+  vendor_category: {
+    label: "Categorías de proveedores",
+    hasChildren: false,
+    childLabel: null,
+    wired: true,
+    note: "Alimenta el campo Categoría en el perfil de un Proveedor — evita variantes de escritura al agrupar/filtrar.",
+  },
 } as const;
 
 export type CatalogKind = keyof typeof CATALOG_KINDS;

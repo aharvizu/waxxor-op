@@ -1,0 +1,2 @@
+ALTER TABLE "services" ADD COLUMN "vendor_id" integer;--> statement-breakpoint
+ALTER TABLE "services" ADD CONSTRAINT "services_vendor_id_vendors_id_fk" FOREIGN KEY ("vendor_id") REFERENCES "public"."vendors"("id") ON DELETE no action ON UPDATE no action;

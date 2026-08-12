@@ -139,6 +139,12 @@ export const companyStatusMeta: Record<string, Meta> = {
   archived: { label: "Archived", tone: "slate" },
 };
 
+export const vendorStatusMeta: Record<string, Meta> = {
+  active: { label: "Active", tone: "green" },
+  inactive: { label: "Inactive", tone: "slate" },
+  archived: { label: "Archived", tone: "slate" },
+};
+
 export const contactTypeMeta: Record<string, Meta> = {
   owner: { label: "Owner", tone: "purple" },
   primary: { label: "Primary", tone: "blue" },

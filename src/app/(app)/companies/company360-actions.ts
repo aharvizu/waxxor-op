@@ -460,6 +460,7 @@ const clientServiceSchema = z.object({
   serviceType: clientServiceTypeSchema.default("recurring_service"),
   quantity: optionalInt,
   provider: optionalText,
+  vendorId: optionalId,
   billingCycle: optionalText,
   cost: optionalMoney,
   clientPrice: optionalMoney,
@@ -475,7 +476,7 @@ const clientServiceSchema = z.object({
 });
 
 const CLIENT_SERVICE_AUDITED = [
-  "serviceId", "variantId", "serviceType", "status", "quantity", "provider", "billingCycle",
+  "serviceId", "variantId", "serviceType", "status", "quantity", "provider", "vendorId", "billingCycle",
   "cost", "clientPrice", "startDate", "endDate", "renewalDate",
   "supportCoverage", "includedHours", "remoteRate", "onsiteRate", "fixedPrice", "notes",
 ] as const;

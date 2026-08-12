@@ -218,6 +218,7 @@ export const companyStatus = pgEnum("company_status", [
   "prospect_legacy",
   "archived",
 ]);
+export const vendorStatus = pgEnum("vendor_status", ["active", "inactive", "archived"]);
 export const contactType = pgEnum("contact_type", [
   "owner",
   "primary",
@@ -400,6 +401,70 @@ export const companyContacts = pgTable(
   ],
 );
 
+/**
+ * Vendor/Supplier — mirrors Company's profile shape (2026-08-12), for the
+ * things WE buy (licensing, hardware, connectivity, …) rather than what we
+ * sell. Deliberately a separate entity from Company, not a flag on it — see
+ * docs/features/vendors.md. Linked to client_services.vendorId (what we buy
+ * from this vendor, for which client) rather than duplicating a products
+ * list here.
+ */
+export const vendors = pgTable("vendors", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  legalName: text("legal_name"),
+  taxId: text("tax_id"),
+  category: text("category"),
+  website: text("website"),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  status: vendorStatus("status").notNull().default("active"),
+  tags: jsonb("tags").notNull().default([]),
+  // no FK: vendorContacts is defined after vendors (circular) — validated in actions, same pattern as companies.primaryContactId
+  primaryContactId: integer("primary_contact_id"),
+  accountOwnerId: integer("account_owner_id").references(() => users.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** Vendor contact — mirrors `contacts`, kept as a separate table since `contacts` is tightly coupled to companyId (NOT NULL, cascaded, referenced from workItems/conversations/messages as a client contact). */
+export const vendorContacts = pgTable(
+  "vendor_contacts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    vendorId: integer("vendor_id")
+      .notNull()
+      .references(() => vendors.id, { onDelete: "cascade" }),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    jobTitle: text("job_title"),
+    department: text("department"),
+    email: text("email"),
+    phone: text("phone"),
+    mobile: text("mobile"),
+    whatsappNumber: text("whatsapp_number"),
+    contactType: contactType("contact_type").notNull().default("other"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("vendor_contacts_vendor_idx").on(table.organizationId, table.vendorId)],
+);
+
 /** Global per-org service catalog (Microsoft 365, backup, soporte, …). */
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
@@ -416,6 +481,11 @@ export const services = pgTable("services", {
   defaultSlaDefinitionId: integer("default_sla_definition_id").references(
     () => slaDefinitions.id,
   ),
+  // Which Vendor offers this catalog product/service (2026-08-12) — distinct
+  // from client_services.vendorId, which records who actually supplied a
+  // given CLIENT's contracted instance. This one is the catalog-level
+  // default: "Proveedores → Productos" manages it.
+  vendorId: integer("vendor_id").references(() => vendors.id),
   isRenewable: boolean("is_renewable").notNull().default(false),
   status: serviceStatus("status").notNull().default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -478,7 +548,13 @@ export const clientServices = pgTable(
     serviceType: clientServiceType("service_type").notNull().default("recurring_service"),
     status: clientServiceStatus("status").notNull().default("active"),
     quantity: integer("quantity"),
+    // Legacy free text, kept as-is (2026-08-12 — existing rows stay
+    // unlinked rather than being auto-matched to a vendor, which risks a
+    // wrong match on an inexact name). New rows can pick a real vendor via
+    // vendorId; provider remains editable for cases with no formal Vendor
+    // record yet.
     provider: text("provider"),
+    vendorId: integer("vendor_id").references(() => vendors.id),
     billingCycle: text("billing_cycle"),
     cost: numeric("cost", { precision: 12, scale: 2 }),
     clientPrice: numeric("client_price", { precision: 12, scale: 2 }),
@@ -2108,6 +2184,7 @@ export const configModule = pgEnum("config_module", [
   "reports",
   "knowledge",
   "recurring",
+  "vendors",
 ]);
 
 export const savedViewType = pgEnum("saved_view_type", [

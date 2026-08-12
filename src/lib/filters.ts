@@ -12,6 +12,7 @@ import {
   projects,
   recurrenceDefinitions,
   tickets,
+  vendors,
   workItems,
 } from "@/db/schema";
 import { ACTIVITY_STATUSES } from "@/lib/activities";
@@ -217,6 +218,25 @@ export const CONTACT_FIELDS: Record<string, FieldDefinition> = {
   openTickets: { key: "openTickets", label: "Tickets abiertos", type: "number", column: CONTACT_OPEN_TICKETS_SQL },
   createdAt: { key: "createdAt", label: "Creado", type: "date", column: contacts.createdAt },
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: contacts.updatedAt },
+};
+
+/** Vendors' aggregate "column" — same one-definition-not-two rationale as Companies' aggregates above. */
+export const VENDOR_ACTIVE_PURCHASES_SQL = sql<number>`(select count(*)::int from ${clientServices} cs
+  where cs.vendor_id = ${vendors.id} and cs.status = 'active')`;
+
+/** Vendors field registry. */
+export const VENDOR_FIELDS: Record<string, FieldDefinition> = {
+  status: { key: "status", label: "Estado", type: "select", column: vendors.status },
+  category: { key: "category", label: "Categoría", type: "text", column: vendors.category },
+  website: { key: "website", label: "Sitio web", type: "text", column: vendors.website },
+  email: { key: "email", label: "Correo", type: "text", column: vendors.email },
+  phone: { key: "phone", label: "Teléfono", type: "text", column: vendors.phone },
+  city: { key: "city", label: "Ciudad", type: "text", column: vendors.city },
+  country: { key: "country", label: "País", type: "text", column: vendors.country },
+  accountOwnerId: { key: "accountOwnerId", label: "Responsable", type: "user", column: vendors.accountOwnerId },
+  activePurchases: { key: "activePurchases", label: "Compras activas", type: "number", column: VENDOR_ACTIVE_PURCHASES_SQL },
+  createdAt: { key: "createdAt", label: "Creado", type: "date", column: vendors.createdAt },
+  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: vendors.updatedAt },
 };
 
 /** Loads a module's field registry with its active custom fields appended as filterable "select"/"text"/etc fields. */
@@ -492,6 +512,27 @@ export function companyQuickFilterSql(key: CompanyQuickFilterKey, userId: number
       return sql`${COMPANY_OPEN_TICKETS_SQL} > 0`;
     case "pending_billing":
       return sql`${COMPANY_PENDING_BILLING_SQL} > 0`;
+    default:
+      return undefined;
+  }
+}
+
+export type VendorQuickFilterKey = "mine" | "active" | "with_purchases";
+export const VENDOR_QUICK_FILTERS: { key: VendorQuickFilterKey; label: string }[] = [
+  { key: "mine", label: "Mis proveedores" },
+  { key: "active", label: "Activos" },
+  { key: "with_purchases", label: "Con compras activas" },
+];
+
+/** Quick-filter SQL for Vendors. */
+export function vendorQuickFilterSql(key: VendorQuickFilterKey, userId: number): SQL | undefined {
+  switch (key) {
+    case "mine":
+      return eq(vendors.accountOwnerId, userId);
+    case "active":
+      return eq(vendors.status, "active");
+    case "with_purchases":
+      return sql`${VENDOR_ACTIVE_PURCHASES_SQL} > 0`;
     default:
       return undefined;
   }

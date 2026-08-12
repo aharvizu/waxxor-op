@@ -31,6 +31,7 @@ import {
   Repeat,
   Search,
   ShieldCheck,
+  Truck,
   Users,
   X,
 } from "lucide-react";
@@ -136,6 +137,7 @@ export function AppShell({
       items: [
         { href: "/companies", label: "Empresas", icon: Building2 },
         { href: "/contacts", label: "Contactos", icon: Users },
+        { href: "/vendors", label: "Proveedores", icon: Truck },
       ],
     },
     {

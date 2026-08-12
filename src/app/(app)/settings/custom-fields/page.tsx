@@ -13,6 +13,7 @@ const MODULE_LABELS: Record<ConfigModule, string> = {
   projects: "Proyectos",
   companies: "Empresas",
   contacts: "Contactos",
+  vendors: "Proveedores",
   reports: "Reportes",
   knowledge: "Base de conocimiento",
   recurring: "Recurrentes",

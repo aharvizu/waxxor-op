@@ -503,6 +503,7 @@ export type ClientServiceDefaults = {
   status: string;
   quantity: number | null;
   provider: string | null;
+  vendorId: number | null;
   billingCycle: string | null;
   cost: string | null;
   clientPrice: string | null;
@@ -517,11 +518,13 @@ export type ClientServiceDefaults = {
 export function ClientServiceForm({
   companyId,
   servicesCatalog,
+  vendorOptions,
   clientService,
   onSuccess,
 }: {
   companyId: number;
   servicesCatalog: ServiceCatalogEntry[];
+  vendorOptions: Option[];
   clientService?: ClientServiceDefaults;
   onSuccess?: () => void;
 }) {
@@ -576,7 +579,10 @@ export function ClientServiceForm({
         <Field label="Cantidad (licencias / unidades)" name="quantity" errors={errors}>
           <TextInput name="quantity" value={value} errors={errors} type="number" />
         </Field>
-        <Field label="Proveedor" name="provider" errors={errors}>
+        <Field label="Proveedor (catálogo)" name="vendorId" errors={errors}>
+          <SelectInput name="vendorId" value={value} options={vendorOptions.map((v) => ({ value: String(v.id), label: v.name }))} allowEmpty="— Sin proveedor del catálogo —" />
+        </Field>
+        <Field label="Proveedor (texto libre, opcional)" name="provider" errors={errors}>
           <TextInput name="provider" value={value} errors={errors} />
         </Field>
         <Field label="Ciclo de facturación" name="billingCycle" errors={errors}>
@@ -621,9 +627,11 @@ export function ClientServiceForm({
 export function AddServiceButton({
   companyId,
   servicesCatalog,
+  vendorOptions,
 }: {
   companyId: number;
   servicesCatalog: ServiceCatalogEntry[];
+  vendorOptions: Option[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -650,6 +658,7 @@ export function AddServiceButton({
           <ClientServiceForm
             companyId={companyId}
             servicesCatalog={servicesCatalog}
+            vendorOptions={vendorOptions}
             onSuccess={() => setOpen(false)}
           />
         )}
@@ -662,6 +671,7 @@ export type ServiceListRow = {
   cs: ClientServiceDefaults;
   serviceName: string;
   variantName: string | null;
+  vendorName: string | null;
   derivedStatus: "active" | "expiring" | "expired" | "cancelled" | "archived";
 };
 
@@ -669,10 +679,12 @@ export type ServiceListRow = {
 export function ServicesTable({
   companyId,
   servicesCatalog,
+  vendorOptions,
   rows,
 }: {
   companyId: number;
   servicesCatalog: ServiceCatalogEntry[];
+  vendorOptions: Option[];
   rows: ServiceListRow[];
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -692,7 +704,7 @@ export function ServicesTable({
           </tr>
         </THead>
         <tbody className="divide-y divide-edge">
-          {rows.map(({ cs, serviceName, variantName, derivedStatus }) => (
+          {rows.map(({ cs, serviceName, variantName, vendorName, derivedStatus }) => (
             <Fragment key={cs.id}>
               <tr>
                 <Td className="font-medium text-fg">
@@ -714,7 +726,15 @@ export function ServicesTable({
                     {supportCoverageMeta[cs.supportCoverage]?.label ?? cs.supportCoverage}
                   </Badge>
                 </Td>
-                <Td className="text-muted">{cs.provider ?? "—"}</Td>
+                <Td className="text-muted">
+                  {vendorName ? (
+                    <Link href={`/vendors/${cs.vendorId}`} className="hover:text-primary hover:underline">
+                      {vendorName}
+                    </Link>
+                  ) : (
+                    (cs.provider ?? "—")
+                  )}
+                </Td>
                 <Td className="tabular-nums text-muted">{cs.clientPrice ? fmtMoney(cs.clientPrice) : "—"}</Td>
                 <Td className="text-muted">{cs.renewalDate ? fmtDate(cs.renewalDate) : "—"}</Td>
                 <Td>
@@ -737,6 +757,7 @@ export function ServicesTable({
                     <ClientServiceForm
                       companyId={companyId}
                       servicesCatalog={servicesCatalog}
+                      vendorOptions={vendorOptions}
                       clientService={cs}
                       onSuccess={() => setEditingId(null)}
                     />

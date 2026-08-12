@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Configuración · Empresas" };
 
 export default async function CompaniesSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
-  const [defaults, internalUsers, defaultSlas, categories, tags, serviceRows, variantRows] = await Promise.all([
+  const [defaults, internalUsers, defaultSlas, categories, tags, vendorCategories, serviceRows, variantRows] = await Promise.all([
     getSetting(user.organizationId, "companies.defaults"),
     db
       .select({ id: users.id, name: users.name })
@@ -35,6 +35,7 @@ export default async function CompaniesSettingsPage() {
       ),
     getCatalog(user.organizationId, "company_category", { includeInactive: true }),
     getCatalog(user.organizationId, "company_tag", { includeInactive: true }),
+    getCatalog(user.organizationId, "vendor_category", { includeInactive: true }),
     db.select().from(services).where(eq(services.organizationId, user.organizationId)).orderBy(asc(services.name)),
     db.select().from(serviceVariants).where(eq(serviceVariants.organizationId, user.organizationId)).orderBy(asc(serviceVariants.name)),
   ]);
@@ -122,7 +123,7 @@ export default async function CompaniesSettingsPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="p-5">
           <CardHeader
             title={CATALOG_KINDS.company_category.label}
@@ -149,6 +150,20 @@ export default async function CompaniesSettingsPage() {
             childLabel={null}
             canDelete={user.role === "superadmin"}
             addPlaceholder="Nueva etiqueta…"
+          />
+        </Card>
+        <Card className="p-5">
+          <CardHeader
+            title={CATALOG_KINDS.vendor_category.label}
+            description={CATALOG_KINDS.vendor_category.note}
+          />
+          <CatalogManager
+            kind="vendor_category"
+            items={vendorCategories}
+            hasChildren={false}
+            childLabel={null}
+            canDelete={user.role === "superadmin"}
+            addPlaceholder="Nueva categoría…"
           />
         </Card>
       </div>

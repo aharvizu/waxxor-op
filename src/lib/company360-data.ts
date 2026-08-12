@@ -17,6 +17,7 @@ import {
   tickets,
   timeEntries,
   users,
+  vendors,
   workItems,
 } from "@/db/schema";
 import type { RenewalItem } from "@/lib/company360";
@@ -233,10 +234,12 @@ export async function getClientServicesList(orgId: number, companyId: number) {
       serviceName: services.name,
       serviceCategory: services.category,
       variantName: serviceVariants.name,
+      vendorName: vendors.name,
     })
     .from(clientServices)
     .innerJoin(services, eq(clientServices.serviceId, services.id))
     .leftJoin(serviceVariants, eq(clientServices.variantId, serviceVariants.id))
+    .leftJoin(vendors, eq(clientServices.vendorId, vendors.id))
     .where(and(eq(clientServices.organizationId, orgId), eq(clientServices.companyId, companyId)))
     .orderBy(asc(services.name));
 }

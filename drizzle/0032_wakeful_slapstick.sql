@@ -1,0 +1,1 @@
+ALTER TYPE "public"."config_module" ADD VALUE 'vendors';
