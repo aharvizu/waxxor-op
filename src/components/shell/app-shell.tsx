@@ -10,6 +10,7 @@ import {
   Bell,
   BookOpen,
   Building2,
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronsUpDown,
@@ -116,6 +117,7 @@ export function AppShell({
         { href: "/today", label: "Hoy", icon: Home },
         { href: "/inbox", label: "Inbox", icon: MessageSquare },
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/calendar", label: "Calendario", icon: CalendarDays },
       ],
     },
     {
