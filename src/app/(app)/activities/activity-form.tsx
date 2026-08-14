@@ -32,11 +32,12 @@ const priorities = [
   ["critical", "Critical"],
 ] as const;
 
-/** Create form when `activity` is omitted; edit form when provided. */
+/** Create form when `activity` is omitted; edit form when provided. Assignee only shows on create — editing an existing activity's assignee already happens in WorkflowCard on its detail page, so this form doesn't duplicate that control. */
 export function ActivityForm({
   activity,
   companies,
   activityTypeOptions,
+  users = [],
   submitLabel,
   defaultType,
   defaultCompanyId,
@@ -45,6 +46,8 @@ export function ActivityForm({
   companies: Option[];
   /** Active names from the org's activity-type catalog (Settings → Actividades). */
   activityTypeOptions: string[];
+  /** Assignable (non-client) org users — only rendered/used on the create form. */
+  users?: Option[];
   submitLabel: string;
   /** Optional preselected type for the create form (e.g. from Today's + Crear). */
   defaultType?: string;
@@ -93,7 +96,7 @@ export function ActivityForm({
           className={inputClass}
         />
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className={activity ? "grid grid-cols-1 gap-4 sm:grid-cols-3" : "grid grid-cols-1 gap-4 sm:grid-cols-4"}>
         <div>
           <label htmlFor="activityType" className={labelClass}>
             Type
@@ -143,6 +146,22 @@ export function ActivityForm({
             ]}
           />
         </div>
+        {!activity ? (
+          <div>
+            <label htmlFor="assigneeId" className={labelClass}>
+              Assignee
+            </label>
+            <SearchableSelect
+              id="assigneeId"
+              name="assigneeId"
+              defaultValue={value("assigneeId", "")}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...users.map((u) => ({ value: String(u.id), label: u.name })),
+              ]}
+            />
+          </div>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
@@ -200,10 +219,12 @@ export function ActivityForm({
 export function NewActivityButton({
   companies,
   activityTypeOptions,
+  users,
   defaultCompanyId,
 }: {
   companies: Option[];
   activityTypeOptions: string[];
+  users?: Option[];
   defaultCompanyId?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -223,6 +244,7 @@ export function NewActivityButton({
         <ActivityForm
           companies={companies}
           activityTypeOptions={activityTypeOptions}
+          users={users}
           submitLabel="Create activity"
           defaultCompanyId={defaultCompanyId}
         />

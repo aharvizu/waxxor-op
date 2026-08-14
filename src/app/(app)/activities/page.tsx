@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
@@ -116,13 +116,18 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     .where(eq(users.organizationId, user.organizationId))
     .orderBy(asc(users.name));
 
-  const [companyRows, activityTypeOptions] = await Promise.all([
+  const [companyRows, activityTypeOptions, assignableUsers] = await Promise.all([
     db
       .select({ id: companies.id, name: companies.name })
       .from(companies)
       .where(eq(companies.organizationId, user.organizationId))
       .orderBy(asc(companies.name)),
     getCatalogNames(user.organizationId, "time_entry_type"),
+    db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(and(eq(users.organizationId, user.organizationId), ne(users.role, "client")))
+      .orderBy(asc(users.name)),
   ]);
 
   return (
@@ -130,7 +135,9 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
       <PageHeader
         title="Activities"
         subtitle="Standalone work — follow-ups, meetings, internal tasks — that isn't a ticket or a project."
-        action={<NewActivityButton companies={companyRows} activityTypeOptions={activityTypeOptions} />}
+        action={
+          <NewActivityButton companies={companyRows} activityTypeOptions={activityTypeOptions} users={assignableUsers} />
+        }
       />
 
       <ActivitiesViewContent
