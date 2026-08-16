@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CalendarClock } from "lucide-react";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
-import type { BadgeTone } from "@/components/ui";
+import { cx, type BadgeTone } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 import { changeTicketStatus, setTicketPriority } from "./actions";
 import { CatalogChip, toCatalogMap, type TicketPriorityOption, type TicketRow, type TicketStatusOption } from "./ticket-views";
+import { ACTIVE_TICKET_STATUSES } from "@/lib/today-rules";
 
 /** Reference RGB for each Badge tone — used only to pick the closest tone for
  * a Kanban column header, since KanbanBoard (shared across modules) renders
@@ -63,6 +66,7 @@ export function TicketKanban({
   priorities: TicketPriorityOption[];
 }) {
   const router = useRouter();
+  const now = new Date();
   const catalog = groupField === "priority" ? priorities : statuses;
   const priorityMap = toCatalogMap(priorities);
 
@@ -106,6 +110,20 @@ export function TicketKanban({
             {groupField !== "priority" ? <CatalogChip entry={priorityMap.get(r.priorityId)} fallback={r.priority} /> : null}
           </div>
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
+          {r.resolutionTargetAt ? (
+            <div
+              className={cx(
+                "mb-2 flex items-center gap-1 text-xs",
+                r.resolutionTargetAt.getTime() < now.getTime() &&
+                  (ACTIVE_TICKET_STATUSES as readonly string[]).includes(r.status)
+                  ? "font-medium text-danger"
+                  : "text-muted",
+              )}
+            >
+              <CalendarClock className="size-3.5 shrink-0" />
+              {fmtDate(r.resolutionTargetAt)}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between text-xs text-muted">
             {r.companyName && r.companyId ? (
               <Link

@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { CalendarClock } from "lucide-react";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
-import { Badge } from "@/components/ui";
+import { Badge, cx } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 import { activityStatusMeta, ticketPriorityMeta } from "@/lib/labels";
 import { ACTIVITY_STATUSES } from "@/lib/activities";
+import { ACTIVE_ACTIVITY_STATUSES } from "@/lib/today-rules";
 import { updateActivityWorkflow } from "./actions";
 import type { ActivityRow } from "./activity-views";
 
@@ -18,6 +21,7 @@ import type { ActivityRow } from "./activity-views";
  * pattern as Tickets/Projects: no new transition rules invented here.
  */
 export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const columns: KanbanColumn<ActivityRow>[] = ACTIVITY_STATUSES.map((value) => ({
     key: value,
     label: activityStatusMeta[value]?.label ?? value,
@@ -49,6 +53,19 @@ export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
             <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>
           </div>
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
+          {r.dueDate ? (
+            <div
+              className={cx(
+                "mb-2 flex items-center gap-1 text-xs",
+                r.dueDate < todayStr && ACTIVE_ACTIVITY_STATUSES.includes(r.status as (typeof ACTIVE_ACTIVITY_STATUSES)[number])
+                  ? "font-medium text-danger"
+                  : "text-muted",
+              )}
+            >
+              <CalendarClock className="size-3.5 shrink-0" />
+              {fmtDate(r.dueDate)}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between text-xs text-muted">
             <span className="truncate">{r.companyName ?? "—"}</span>
             <span className="shrink-0">{r.assigneeName ?? "Sin asignar"}</span>
