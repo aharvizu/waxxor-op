@@ -46,6 +46,13 @@ export function addDays(date: LocalDate, delta: number): LocalDate {
   return iso(y, m - 1, day + delta);
 }
 
+/** Whole days from `a` to `b` (negative if `b` is before `a`) — used to place a date on a pixel timeline. */
+export function daysBetween(a: LocalDate, b: LocalDate): number {
+  const pa = parts(a);
+  const pb = parts(b);
+  return Math.round((Date.UTC(pb.y, pb.m - 1, pb.day) - Date.UTC(pa.y, pa.m - 1, pa.day)) / 86_400_000);
+}
+
 export const MONTH_LABELS_ES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",

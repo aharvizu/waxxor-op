@@ -91,12 +91,14 @@ import {
   RowAction,
   StatusSelect,
 } from "../project-forms";
+import { ProjectGantt } from "./project-gantt";
 
 export const metadata: Metadata = { title: "Project" };
 
 const TABS = [
   ["resumen", "Resumen"],
   ["trabajo", "Trabajo"],
+  ["gantt", "Gantt"],
   ["hitos", "Hitos"],
   ["riesgos", "Riesgos"],
   ["tiempo", "Tiempo"],
@@ -273,6 +275,7 @@ export default async function ProjectDetailPage({
           now={now}
         />
       ) : null}
+      {tab === "gantt" ? <GanttTab orgId={user.organizationId} projectId={projectId} now={now} /> : null}
       {tab === "hitos" ? (
         <HitosTab
           orgId={user.organizationId}
@@ -997,6 +1000,26 @@ async function TrabajoTab({
       )}
     </div>
   );
+}
+
+/* --------------------------------------------------------------------- Gantt */
+
+async function GanttTab({ orgId, projectId, now }: { orgId: number; projectId: number; now: Date }) {
+  const [tree, dependencies, milestones] = await Promise.all([
+    getProjectWorkTree(orgId, projectId),
+    getProjectDependencies(orgId, projectId),
+    getProjectMilestones(orgId, projectId),
+  ]);
+
+  if (tree.activities.length === 0) {
+    return (
+      <EmptyState icon={<FolderKanban />} title="Este proyecto todavía no tiene actividades">
+        Agrega actividades desde la pestaña Trabajo para verlas aquí en la línea de tiempo.
+      </EmptyState>
+    );
+  }
+
+  return <ProjectGantt tree={tree} dependencies={dependencies} milestones={milestones} now={now} />;
 }
 
 /* -------------------------------------------------------------------- Hitos */

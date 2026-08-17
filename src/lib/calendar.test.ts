@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addMonths, monthGridDays, weekDays } from "./calendar";
+import { addDays, addMonths, daysBetween, monthGridDays, weekDays } from "./calendar";
 
 describe("monthGridDays", () => {
   it("starts on the Monday on/before the 1st and ends on a Sunday", () => {
@@ -54,5 +54,17 @@ describe("addDays", () => {
   });
   it("rolls backward over a month boundary", () => {
     expect(addDays("2026-08-01", -1)).toBe("2026-07-31");
+  });
+});
+
+describe("daysBetween", () => {
+  it("counts whole days across a month boundary", () => {
+    expect(daysBetween("2026-08-30", "2026-09-02")).toBe(3);
+  });
+  it("is zero for the same date", () => {
+    expect(daysBetween("2026-08-15", "2026-08-15")).toBe(0);
+  });
+  it("is negative when b is before a", () => {
+    expect(daysBetween("2026-08-15", "2026-08-10")).toBe(-5);
   });
 });
