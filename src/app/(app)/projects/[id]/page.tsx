@@ -98,7 +98,6 @@ export const metadata: Metadata = { title: "Project" };
 const TABS = [
   ["resumen", "Resumen"],
   ["trabajo", "Trabajo"],
-  ["gantt", "Gantt"],
   ["hitos", "Hitos"],
   ["riesgos", "Riesgos"],
   ["tiempo", "Tiempo"],
@@ -271,11 +270,10 @@ export default async function ProjectDetailPage({
           projectId={projectId}
           internalUsers={internalUsers}
           archived={archived}
-          tableMode={mode === "table"}
+          workMode={mode === "table" ? "table" : mode === "gantt" ? "gantt" : "list"}
           now={now}
         />
       ) : null}
-      {tab === "gantt" ? <GanttTab orgId={user.organizationId} projectId={projectId} now={now} /> : null}
       {tab === "hitos" ? (
         <HitosTab
           orgId={user.organizationId}
@@ -638,19 +636,20 @@ async function TrabajoTab({
   projectId,
   internalUsers,
   archived,
-  tableMode,
+  workMode,
   now,
 }: {
   orgId: number;
   projectId: number;
   internalUsers: { id: number; name: string }[];
   archived: boolean;
-  tableMode: boolean;
+  workMode: "list" | "table" | "gantt";
   now: Date;
 }) {
-  const [tree, dependencies, activityTypeOptions] = await Promise.all([
+  const [tree, dependencies, milestones, activityTypeOptions] = await Promise.all([
     getProjectWorkTree(orgId, projectId),
     getProjectDependencies(orgId, projectId),
+    getProjectMilestones(orgId, projectId),
     getCatalogNames(orgId, "time_entry_type"),
   ]);
   const activeLists = tree.lists.filter((l) => l.status !== "archived");
@@ -821,7 +820,7 @@ async function TrabajoTab({
             href={`/projects/${projectId}?tab=trabajo`}
             className={cx(
               "rounded-md px-3 py-1.5 text-xs font-medium",
-              !tableMode ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle",
+              workMode === "list" ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle",
             )}
           >
             Lista estructurada
@@ -830,10 +829,19 @@ async function TrabajoTab({
             href={`/projects/${projectId}?tab=trabajo&mode=table`}
             className={cx(
               "rounded-md px-3 py-1.5 text-xs font-medium",
-              tableMode ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle",
+              workMode === "table" ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle",
             )}
           >
             Tabla
+          </Link>
+          <Link
+            href={`/projects/${projectId}?tab=trabajo&mode=gantt`}
+            className={cx(
+              "rounded-md px-3 py-1.5 text-xs font-medium",
+              workMode === "gantt" ? "bg-primary-soft text-primary" : "border border-edge text-muted hover:bg-subtle",
+            )}
+          >
+            Gantt
           </Link>
         </div>
         {!archived ? (
@@ -854,7 +862,9 @@ async function TrabajoTab({
         ) : null}
       </div>
 
-      {tableMode ? (
+      {workMode === "gantt" ? (
+        <ProjectGantt tree={tree} dependencies={dependencies} milestones={milestones} now={now} />
+      ) : workMode === "table" ? (
         <Card className="overflow-visible">
           <Table>
             <THead>
@@ -1003,24 +1013,6 @@ async function TrabajoTab({
 }
 
 /* --------------------------------------------------------------------- Gantt */
-
-async function GanttTab({ orgId, projectId, now }: { orgId: number; projectId: number; now: Date }) {
-  const [tree, dependencies, milestones] = await Promise.all([
-    getProjectWorkTree(orgId, projectId),
-    getProjectDependencies(orgId, projectId),
-    getProjectMilestones(orgId, projectId),
-  ]);
-
-  if (tree.activities.length === 0) {
-    return (
-      <EmptyState icon={<FolderKanban />} title="Este proyecto todavía no tiene actividades">
-        Agrega actividades desde la pestaña Trabajo para verlas aquí en la línea de tiempo.
-      </EmptyState>
-    );
-  }
-
-  return <ProjectGantt tree={tree} dependencies={dependencies} milestones={milestones} now={now} />;
-}
 
 /* -------------------------------------------------------------------- Hitos */
 
