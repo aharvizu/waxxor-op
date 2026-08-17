@@ -6,8 +6,10 @@ import { billingSupportData } from "@/lib/report-metrics";
 import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
+import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
 import { Card, CardHeader, EmptyState, PageHeader, THead, Table, TBody, Td, Th, buttonClass, buttonSecondaryClass, cx } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
+import { InvoiceStatusCell } from "./billing-forms";
 
 export const metadata: Metadata = { title: "Cobros y facturación" };
 
@@ -41,6 +43,13 @@ export default async function BillingSupportPage({
   const period = resolvePeriod(periodRule, ORG_TIMEZONE, new Date());
 
   const { clients, totals } = await billingSupportData(user.organizationId, period, {});
+  const canManageInvoices = user.role === "superadmin" || user.role === "administrator";
+  const invoiceStatuses = await getBillingInvoiceStatuses(
+    user.organizationId,
+    period.start,
+    period.end,
+    clients.map((c) => c.companyId).filter((id) => id !== null),
+  );
 
   return (
     <div>
@@ -96,6 +105,7 @@ export default async function BillingSupportPage({
                   <Th>Tickets</Th>
                   <Th>Horas</Th>
                   <Th>Total</Th>
+                  <Th>Factura</Th>
                   <Th />
                 </tr>
               </THead>
@@ -106,6 +116,20 @@ export default async function BillingSupportPage({
                     <Td className="tabular-nums text-muted">{c.tickets.length}</Td>
                     <Td className="tabular-nums text-muted">{formatMinutes(c.totalMinutes)}</Td>
                     <Td className="tabular-nums text-muted">{fmtMoney(c.totalCost)}</Td>
+                    <Td>
+                      {c.companyId ? (
+                        <InvoiceStatusCell
+                          companyId={c.companyId}
+                          companyName={c.companyName}
+                          periodStart={period.start}
+                          periodEnd={period.end}
+                          status={invoiceStatuses.get(c.companyId)}
+                          canManage={canManageInvoices}
+                        />
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </Td>
                     <Td className="text-right">
                       <Link
                         href={`/reports/billing/print?period=${periodRule}${c.companyId ? `&companyId=${c.companyId}` : ""}`}

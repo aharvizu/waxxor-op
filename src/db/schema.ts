@@ -768,6 +768,36 @@ export const ticketBillingStatuses = pgTable(
 );
 
 /**
+ * Invoiced-state overlay for the Reportes → Cobros y facturación statement
+ * (one row per organization + client + period). Independent of per-ticket
+ * billingStatus — marking a statement "Facturado" never touches the tickets
+ * it summarizes, same separation as Fecha agendada vs. SLA on tickets.
+ */
+export const billingInvoices = pgTable(
+  "billing_invoices",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => companies.id),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    invoiceNumber: text("invoice_number"),
+    invoicedAt: timestamp("invoiced_at"),
+    invoicedById: integer("invoiced_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("billing_invoices_unique_idx").on(table.organizationId, table.companyId, table.periodStart, table.periodEnd),
+    index("billing_invoices_org_idx").on(table.organizationId),
+  ],
+);
+
+/**
  * Configurable SLA policies. Assignment snapshots into the ticket, so editing
  * a definition never retroactively changes existing tickets.
  */

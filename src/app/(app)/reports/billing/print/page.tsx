@@ -8,6 +8,7 @@ import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/li
 import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
 import { formatMinutes } from "@/lib/time-entries";
+import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
 import { PrintButton } from "@/components/print-button";
 
 export const metadata: Metadata = { title: "Cobros y facturación — PDF" };
@@ -55,6 +56,12 @@ export default async function BillingSupportPrintPage({
     getSetting(user.organizationId, "reports.branding"),
     db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, user.organizationId)),
   ]);
+  const invoiceStatuses = await getBillingInvoiceStatuses(
+    user.organizationId,
+    period.start,
+    period.end,
+    clients.map((c) => c.companyId).filter((id) => id !== null),
+  );
 
   const orgName = org?.name ?? "Waxxor";
   const periodLabel = `${PERIOD_LABELS[periodRule] ?? periodRule} (${period.start} – ${period.end})`;
@@ -83,6 +90,9 @@ export default async function BillingSupportPrintPage({
                 <div className="text-sm text-slate-700">
                   <p>Cliente: <strong>{client.companyName}</strong></p>
                   <p>Periodo: <strong>{periodLabel}</strong></p>
+                  {client.companyId && invoiceStatuses.get(client.companyId)?.invoicedAt ? (
+                    <p>Factura: <strong>{invoiceStatuses.get(client.companyId)?.invoiceNumber}</strong></p>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-slate-500 uppercase">Total a cobrar</p>
