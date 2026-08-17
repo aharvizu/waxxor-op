@@ -26,6 +26,8 @@ export type TicketRow = {
   category: string | null;
   slaName: string | null;
   resolutionTargetAt: Date | null;
+  /** "Fecha agendada" — independent of the SLA target, workItems.dueDate. */
+  dueDate: string | null;
   billingStatus: string;
   companyId: number | null;
   companyName: string | null;
@@ -113,6 +115,18 @@ export function buildColumnRegistry(
         return <span className={cx("tabular-nums", overdue ? "font-medium text-danger" : "text-muted")}>{r.resolutionTargetAt ? fmtDate(r.resolutionTargetAt) : "—"}</span>;
       },
     },
+    scheduledFor: {
+      key: "scheduledFor",
+      label: "Fecha agendada",
+      render: (r) => {
+        const overdue = r.dueDate && r.dueDate < new Date().toISOString().slice(0, 10);
+        return (
+          <span className={cx("tabular-nums", overdue ? "font-medium text-amber-600 dark:text-amber-400" : "text-muted")}>
+            {r.dueDate ? fmtDate(r.dueDate) : "—"}
+          </span>
+        );
+      },
+    },
     minutes: { key: "minutes", label: "Tiempo", render: (r) => <span className="tabular-nums text-muted">{r.minutes > 0 ? formatMinutes(r.minutes) : "—"}</span> },
     billingStatus: {
       key: "billingStatus",
@@ -134,7 +148,7 @@ export function buildColumnRegistry(
   return registry;
 }
 
-export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "slaName", "dueAt", "minutes", "billingStatus", "updatedAt"];
+export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "slaName", "dueAt", "scheduledFor", "minutes", "billingStatus", "updatedAt"];
 export const TICKET_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: buildColumnRegistry([])[key]?.label ?? key }));
 export const TICKET_KANBAN_GROUP_OPTIONS = [
   { key: "status", label: "Estado" },
@@ -144,6 +158,7 @@ export const TICKET_KANBAN_GROUP_OPTIONS = [
 /** Maps a column key to its sortable value — most columns mirror a TicketRow field directly, but `dueAt`/`cf_*` are aliases over resolutionTargetAt/customFields. */
 function ticketSortValue(r: TicketRow, key: string): unknown {
   if (key === "dueAt") return r.resolutionTargetAt;
+  if (key === "scheduledFor") return r.dueDate;
   if (key.startsWith("cf_")) return r.customFields[key.slice(3)];
   return r[key as keyof TicketRow];
 }

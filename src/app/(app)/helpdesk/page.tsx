@@ -139,6 +139,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
       category: tickets.category,
       slaName: tickets.slaName,
       resolutionTargetAt: tickets.resolutionTargetAt,
+      dueDate: workItems.dueDate,
       billingStatus: tickets.billingStatus,
       companyId: workItems.companyId,
       companyName: companies.name,

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, companies, tickets, users, workItems } from "@/db/schema";
 import { ACTIVE_ACTIVITY_STATUSES, ACTIVE_TICKET_STATUSES } from "@/lib/today-rules";
@@ -6,8 +6,12 @@ import { ACTIVE_ACTIVITY_STATUSES, ACTIVE_TICKET_STATUSES } from "@/lib/today-ru
 /**
  * Data layer for /calendar. Reuses the exact same "still open" status lists
  * Today already established (today-rules.ts) rather than defining a second
- * one, and the same anchor-date convention: tickets → resolutionTargetAt
- * (SLA target — tickets have no dueDate of their own), activities → dueDate.
+ * one, and the same anchor-date convention: activities → dueDate. Tickets
+ * carry two independent dates — resolutionTargetAt (SLA target) and dueDate
+ * ("Fecha agendada", scheduled with the client — never feeds the SLA) — so a
+ * ticket can render up to two chips, one per date, tagged via `dateKind` so
+ * the grid can style them distinctly. When both land on the same day only
+ * the "scheduled" chip renders, to avoid a literal duplicate.
  * Scoped to an explicit [from, to] date window (unlike getTodayItems, which
  * has no date filter and relies on a row cap) so a month/week view never
  * silently drops items past a cap.
@@ -20,6 +24,8 @@ export type CalendarItem = {
   folio: string | null;
   title: string;
   date: string; // YYYY-MM-DD — the anchor date this item renders under
+  /** Only meaningful for tickets: which of the two dates this chip anchors on. */
+  dateKind?: "sla" | "scheduled";
   status: string;
   priority: string;
   companyName: string | null;
@@ -57,7 +63,10 @@ async function getCalendarTickets(
     eq(workItems.organizationId, orgId),
     eq(workItems.type, "ticket"),
     inArray(workItems.status, ACTIVE_TICKET_STATUSES),
-    sql`${tickets.resolutionTargetAt}::date between ${from} and ${to}`,
+    or(
+      sql`${tickets.resolutionTargetAt}::date between ${from} and ${to}`,
+      sql`${workItems.dueDate} between ${from} and ${to}`,
+    )!,
   ];
   if (assigneeId !== null) conditions.push(eq(workItems.assigneeId, assigneeId));
 
@@ -67,7 +76,8 @@ async function getCalendarTickets(
       workItemId: workItems.id,
       folio: tickets.folio,
       title: workItems.title,
-      date: sql<string>`${tickets.resolutionTargetAt}::date::text`,
+      slaDate: sql<string | null>`${tickets.resolutionTargetAt}::date::text`,
+      scheduledDate: workItems.dueDate,
       status: workItems.status,
       priority: workItems.priority,
       companyName: companies.name,
@@ -80,7 +90,16 @@ async function getCalendarTickets(
     .leftJoin(users, eq(workItems.assigneeId, users.id))
     .where(and(...conditions));
 
-  return rows.filter((t) => t.date).map((t) => ({ kind: "ticket" as const, ...t }));
+  const items: CalendarItem[] = [];
+  for (const { slaDate, scheduledDate, ...base } of rows) {
+    if (slaDate && slaDate >= from && slaDate <= to) {
+      items.push({ kind: "ticket", dateKind: "sla", date: slaDate, ...base });
+    }
+    if (scheduledDate && scheduledDate >= from && scheduledDate <= to && scheduledDate !== slaDate) {
+      items.push({ kind: "ticket", dateKind: "scheduled", date: scheduledDate, ...base });
+    }
+  }
+  return items;
 }
 
 async function getCalendarActivities(

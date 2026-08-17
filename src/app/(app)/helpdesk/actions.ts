@@ -310,6 +310,8 @@ const createTicketSchema = z.object({
   modality: optionalText,
   contact: optionalText,
   slaDefinitionId: optionalId, // honored for superadmin only
+  // "Agendado con el cliente" — independent of SLA, never feeds resolutionTargetAt.
+  dueDate: optionalText,
 });
 
 export async function createTicket(
@@ -349,6 +351,7 @@ export async function createTicket(
         companyId,
         contactId,
         assigneeId,
+        dueDate: data.dueDate,
       });
       const explicitSlaId = user.role === "superadmin" ? data.slaDefinitionId : null;
       const definition = await resolveSlaDefinition(
@@ -424,6 +427,7 @@ const detailsSchema = z.object({
   contact: optionalText,
   companyId: optionalId,
   contactId: optionalId,
+  dueDate: optionalText,
 });
 
 export async function updateTicketDetails(
@@ -451,6 +455,7 @@ export async function updateTicketDetails(
         description: data.description,
         companyId,
         contactId,
+        dueDate: data.dueDate,
       });
       const patch = {
         category: data.category,

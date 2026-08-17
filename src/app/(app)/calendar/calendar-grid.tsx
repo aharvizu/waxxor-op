@@ -1,23 +1,35 @@
 import Link from "next/link";
-import { ClipboardCheck, LifeBuoy } from "lucide-react";
+import { CalendarDays, ClipboardCheck, LifeBuoy } from "lucide-react";
 import type { CalendarItem } from "@/lib/calendar-data";
 import { Card, cx } from "@/components/ui";
 
 const VISIBLE_PER_DAY = { month: 3, week: 20 } as const;
 
+/**
+ * Tickets render blue for their SLA-target chip and amber for their "Fecha
+ * agendada" chip — same color split used on the Kanban card and the ticket
+ * table's dueAt/scheduledFor columns. Since dateKind: "sla" and "scheduled"
+ * can land on different days, a ticket's SLA appearing overdue on one day
+ * while an amber "Agendado" chip sits on a later day is the intended visual
+ * for "affected the SLA but there's scheduled work" — no separate badge needed.
+ */
 function ItemChip({ item, viewType }: { item: CalendarItem; viewType: "month" | "week" }) {
   const href = item.kind === "ticket" ? `/helpdesk/${item.id}` : `/activities/${item.id}`;
-  const Icon = item.kind === "ticket" ? LifeBuoy : ClipboardCheck;
+  const isScheduled = item.kind === "ticket" && item.dateKind === "scheduled";
+  const Icon = item.kind === "activity" ? ClipboardCheck : isScheduled ? CalendarDays : LifeBuoy;
+  const label = isScheduled ? "Agendado" : item.kind === "ticket" ? "SLA" : null;
   return (
     <Link
       href={href}
-      title={`${item.folio ? `${item.folio} · ` : ""}${item.title}${item.assigneeName ? ` · ${item.assigneeName}` : ""}`}
+      title={`${label ? `${label} · ` : ""}${item.folio ? `${item.folio} · ` : ""}${item.title}${item.assigneeName ? ` · ${item.assigneeName}` : ""}`}
       className={cx(
         "flex items-center gap-1.5 truncate rounded-md font-medium transition-colors",
         viewType === "week" ? "px-2 py-1 text-xs" : "px-1.5 py-0.5 text-[11px]",
-        item.kind === "ticket"
-          ? "bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-400/10 dark:text-blue-300"
-          : "bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-400/10 dark:text-violet-300",
+        item.kind === "activity"
+          ? "bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-400/10 dark:text-violet-300"
+          : isScheduled
+            ? "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-400/10 dark:text-amber-300"
+            : "bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-400/10 dark:text-blue-300",
       )}
     >
       <Icon className={cx("shrink-0", viewType === "week" ? "size-3.5" : "size-3")} />

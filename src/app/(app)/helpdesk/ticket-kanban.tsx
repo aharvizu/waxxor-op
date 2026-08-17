@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, CalendarDays } from "lucide-react";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
 import { cx, type BadgeTone } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
@@ -122,6 +122,20 @@ export function TicketKanban({
             >
               <CalendarClock className="size-3.5 shrink-0" />
               {fmtDate(r.resolutionTargetAt)}
+            </div>
+          ) : null}
+          {r.dueDate ? (
+            <div
+              className={cx(
+                "mb-2 flex items-center gap-1 text-xs",
+                r.dueDate < now.toISOString().slice(0, 10) &&
+                  (ACTIVE_TICKET_STATUSES as readonly string[]).includes(r.status)
+                  ? "font-medium text-amber-600 dark:text-amber-400"
+                  : "text-amber-600/80 dark:text-amber-400/80",
+              )}
+            >
+              <CalendarDays className="size-3.5 shrink-0" />
+              Agendado · {fmtDate(r.dueDate)}
             </div>
           ) : null}
           <div className="flex items-center justify-between text-xs text-muted">

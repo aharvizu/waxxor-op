@@ -71,7 +71,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <div>
       <PageHeader
         title="Calendario"
-        subtitle="Tickets por fecha objetivo de SLA y actividades por fecha de vencimiento — solo trabajo abierto."
+        subtitle="Tickets por fecha objetivo de SLA (azul) y fecha agendada (ámbar), actividades por fecha de vencimiento — solo trabajo abierto."
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

@@ -101,6 +101,8 @@ export const TICKET_FIELDS: Record<string, FieldDefinition> = {
   assigneeId: { key: "assigneeId", label: "Responsable", type: "user", column: workItems.assigneeId },
   createdAt: { key: "createdAt", label: "Creado", type: "date", column: workItems.createdAt },
   dueAt: { key: "dueAt", label: "Vence", type: "date", column: tickets.resolutionTargetAt },
+  // Independent from dueAt/SLA — when the client asked for the work to happen on a specific day, not a deadline.
+  scheduledFor: { key: "scheduledFor", label: "Fecha agendada", type: "date", column: workItems.dueDate },
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
 };
 

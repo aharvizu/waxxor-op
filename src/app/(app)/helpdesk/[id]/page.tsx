@@ -5,6 +5,7 @@ import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  CalendarDays,
   ClipboardCheck,
   FileText,
   History,
@@ -346,6 +347,12 @@ export default async function TicketPage({
           <CatalogChip option={currentPriority} />
           <CatalogChip option={currentBilling} />
           {t.slaName ? <Badge tone="blue">SLA · {t.slaName}</Badge> : null}
+          {w.dueDate ? (
+            <Badge tone="amber">
+              <CalendarDays className="size-3" />
+              Agendado · {fmtDate(w.dueDate)}
+            </Badge>
+          ) : null}
           {t.reopenCount > 0 ? <Badge tone="red">Reopened ×{t.reopenCount}</Badge> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -397,6 +404,7 @@ export default async function TicketPage({
                     channel: t.channel,
                     modality: t.modality,
                     contact: t.contact,
+                    dueDate: w.dueDate,
                   }}
                   companies={companyRows}
                   contacts={contactRows.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, companyId: c.companyId }))}
@@ -732,6 +740,7 @@ export default async function TicketPage({
                       billingPending={billingPending}
                       billingStatuses={closeBillingOptions}
                       categoryOptions={categoryNames}
+                      suggestedResolution={timeRows[0]?.entry.result?.trim() || timeRows[0]?.entry.description || null}
                     />
                   </div>
                 </Card>

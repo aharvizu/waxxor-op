@@ -146,6 +146,12 @@ export function NewTicketForm({
           </label>
           <input id="contact" name="contact" className={inputClass} />
         </div>
+        <div>
+          <label htmlFor="dueDate" className={labelClass}>
+            Fecha agendada (optional)
+          </label>
+          <input id="dueDate" name="dueDate" type="date" className={inputClass} />
+        </div>
       </div>
       {slas.length > 0 ? (
         <div>

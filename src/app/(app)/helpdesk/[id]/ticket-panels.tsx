@@ -339,6 +339,7 @@ export function ResolveForm({
   billingPending,
   billingStatuses,
   categoryOptions,
+  suggestedResolution,
 }: {
   ticketId: number;
   category: string | null;
@@ -348,6 +349,10 @@ export function ResolveForm({
   billingStatuses: Option[];
   /** Active names from the org's ticket-category catalog — the only selectable values (Settings → Tickets). */
   categoryOptions: string[];
+  /** Result/description of the most recent time entry — prefilled as an editable
+   * suggestion so a tech isn't forced to retype the same text twice, per the
+   * user's request. Not a live link: once loaded, the field is independent. */
+  suggestedResolution: string | null;
 }) {
   const [state, formAction] = useForm(resolveTicket);
   const [next, setNext] = useState("pending_confirmation");
@@ -362,6 +367,7 @@ export function ResolveForm({
           name="resolution"
           rows={4}
           required
+          defaultValue={suggestedResolution ?? ""}
           placeholder="What was done to solve it…"
           aria-invalid={errors.resolution ? true : undefined}
           className={inputClass}
@@ -607,6 +613,8 @@ export function SidePanelForm({
     channel: string | null;
     modality: string | null;
     contact: string | null;
+    /** "Fecha agendada" — independent of the SLA target, never affects it. */
+    dueDate: string | null;
   };
   companies: Option[];
   contacts: { id: number; name: string; companyId: number }[];
@@ -689,6 +697,10 @@ export function SidePanelForm({
         <div>
           <label className={labelClass}>Contact note</label>
           <input name="contact" defaultValue={defaults.contact ?? ""} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Fecha agendada</label>
+          <input name="dueDate" type="date" defaultValue={defaults.dueDate ?? ""} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
