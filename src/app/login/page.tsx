@@ -36,12 +36,10 @@ export default async function LoginPage() {
         />
 
         <div className="relative max-w-md">
-          {logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logo} alt={orgName} className="mb-8 h-12 w-auto" />
-          ) : (
-            <div className="mb-8 text-lg font-semibold text-white">{orgName}</div>
-          )}
+          {/* Dedicated dark-background variant — the org's general profile logo (used
+              in Settings/PDFs, both light backgrounds) has a wordmark with no contrast here. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/waxxor-logo-dark.png" alt={orgName} className="mb-8 h-12 w-auto" />
           <h1 className="text-3xl leading-tight font-semibold tracking-tight text-white">
             Convertimos empresas en empresas ciberseguras.
           </h1>
