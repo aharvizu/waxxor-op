@@ -51,11 +51,16 @@ export default async function BillingSupportPrintPage({
   const period = resolvePeriod(periodRule, ORG_TIMEZONE, new Date());
   const companyId = params.companyId ? Number(params.companyId) : null;
 
-  const [{ clients, totals }, branding, [org]] = await Promise.all([
+  const [{ clients, totals }, branding, profile, [org]] = await Promise.all([
     billingSupportData(user.organizationId, period, { companyId }),
     getSetting(user.organizationId, "reports.branding"),
+    getSetting(user.organizationId, "organization.profile"),
     db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, user.organizationId)),
   ]);
+  // reports.branding.logo (dedicated report branding) wins when set;
+  // otherwise fall back to the org's general profile logo (Settings → General)
+  // so a logo already uploaded there doesn't need to be duplicated here.
+  const logo = branding.logo ?? profile.logo;
   const invoiceStatuses = await getBillingInvoiceStatuses(
     user.organizationId,
     period.start,
@@ -78,12 +83,12 @@ export default async function BillingSupportPrintPage({
         clients.map((client, i) => (
           <section key={client.companyId ?? "none"} style={i < clients.length - 1 ? { pageBreakAfter: "always" } : undefined}>
             <header className="mb-6 border-b-4 border-slate-900 pb-4">
-              {branding.logo ? (
+              {logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={branding.logo} alt={orgName} className="mb-3 h-10 w-auto" />
+                <img src={logo} alt={orgName} className="mb-3 h-10 w-auto" />
               ) : null}
               <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">
-                {orgName} {branding.coverSubtitle ? `· ${branding.coverSubtitle}` : "· Servicios de TI y Ciberseguridad"}
+                {branding.coverSubtitle || "Seguridad Informática"}
               </p>
               <h1 className="mt-2 text-2xl font-bold">Soporte de facturación</h1>
               <div className="mt-3 flex items-end justify-between">
