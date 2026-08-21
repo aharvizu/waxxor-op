@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,25 @@ export const metadata: Metadata = {
     template: "%s · Watson",
   },
   description: "Watson — Operations OS for technology service companies",
+  // capable: true is what makes "Add to Home Screen" launch standalone
+  // (no Safari chrome) instead of opening the shortcut in the browser.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Watson",
+  },
+  other: {
+    // Next only emits the unprefixed "mobile-web-app-capable" from
+    // appleWebApp.capable — iOS Safari still requires this legacy,
+    // apple-prefixed one for the standalone-launch behavior above.
+    "apple-mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#7c3aed",
 };
 
 // Applies the saved theme before first paint to avoid a flash of the wrong theme.
