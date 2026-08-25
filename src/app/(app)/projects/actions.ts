@@ -1019,6 +1019,7 @@ export async function createProjectActivity(
         .values({
           organizationId: user.organizationId,
           workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
           activityType: data.activityType,
           projectId: project.id,
           projectListId: list.id,

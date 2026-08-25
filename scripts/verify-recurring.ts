@@ -273,7 +273,11 @@ async function main() {
         .values({ organizationId: orgId, type: "activity", title: "REC-VERIFY rollback probe" })
         .returning({ id: workItems.id });
       rollbackWorkItemId = wi.id;
-      await tx.insert(activities).values({ organizationId: orgId, workItemId: wi.id });
+      await tx.insert(activities).values({
+        organizationId: orgId,
+        workItemId: wi.id,
+        folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
+      });
       await recordAudit(tx, {
         organizationId: orgId,
         entityType: null as unknown as string, // NOT NULL violation → rollback

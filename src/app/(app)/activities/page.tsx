@@ -90,6 +90,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   const rawRows = await db
     .select({
       id: activities.id,
+      folio: activities.folio,
       title: workItems.title,
       status: workItems.status,
       priority: workItems.priority,

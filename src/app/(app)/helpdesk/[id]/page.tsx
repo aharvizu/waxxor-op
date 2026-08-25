@@ -113,6 +113,7 @@ export default async function TicketPage({
     userRows,
     linkable,
     [timeTotal],
+    [sourceActivity],
   ] = await Promise.all([
     db
       .select({ message: messages, authorName: users.name })
@@ -194,6 +195,12 @@ export default async function TicketPage({
       })
       .from(timeEntries)
       .where(and(eq(timeEntries.workItemId, w.id), isNull(timeEntries.voidedAt))),
+    db
+      .select({ id: activities.id, folio: activities.folio, title: workItems.title })
+      .from(activities)
+      .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+      .where(eq(activities.convertedTicketId, t.id))
+      .limit(1),
   ]);
 
   // unified timeline: messages + operational audit + time entries
@@ -507,6 +514,25 @@ export default async function TicketPage({
           ) : null}
 
           {tab === "activities" ? (
+            <>
+            {sourceActivity ? (
+              <Card className="overflow-hidden">
+                <CardHeader
+                  title="Origen"
+                  description="Este ticket nació de una actividad — se conserva como referencia histórica, de solo lectura."
+                />
+                <div className="p-5">
+                  <Link
+                    href={`/activities/${sourceActivity.id}`}
+                    className="flex items-center gap-2 text-sm font-medium text-fg hover:text-primary"
+                  >
+                    <Badge tone="purple">Actividad</Badge>
+                    <span className="font-mono text-xs text-faint">{sourceActivity.folio}</span>
+                    {sourceActivity.title}
+                  </Link>
+                </div>
+              </Card>
+            ) : null}
             <Card className="overflow-hidden">
               <CardHeader
                 title="Related activities"
@@ -562,6 +588,7 @@ export default async function TicketPage({
                 />
               </div>
             </Card>
+            </>
           ) : null}
 
           {tab === "time" ? <TimeEntriesCard workItemId={w.id} readOnly={isClosed} /> : null}

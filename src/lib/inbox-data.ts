@@ -1,6 +1,8 @@
 import { and, desc, eq, exists, ilike, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
+  activities,
   attachments,
   companies,
   contacts,
@@ -10,6 +12,7 @@ import {
   messages,
   projects,
   tickets,
+  timeEntries,
   users,
   workItems,
 } from "@/db/schema";
@@ -43,6 +46,7 @@ const LIST_LIMIT = 100;
 
 /** Conversation list with per-user unread/pin/favorite state. One round-trip. */
 export async function listConversations(orgId: number, userId: number, f: InboxFilters) {
+  const activityWorkItems = alias(workItems, "list_activity_work_items");
   const lastMessage = db.$with("last_message").as(
     db
       .selectDistinctOn([messages.conversationId], {
@@ -123,6 +127,8 @@ export async function listConversations(orgId: number, userId: number, f: InboxF
       projectId: conversations.projectId,
       projectName: projects.name,
       activityId: conversations.workItemId,
+      activityTitle: activityWorkItems.title,
+      activityFolio: activities.folio,
       lastBody: lastMessage.body,
       lastDirection: lastMessage.direction,
       lastAt: lastMessage.occurredAt,
@@ -138,6 +144,8 @@ export async function listConversations(orgId: number, userId: number, f: InboxF
     .leftJoin(companies, eq(conversations.companyId, companies.id))
     .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
     .leftJoin(workItems, eq(tickets.workItemId, workItems.id))
+    .leftJoin(activityWorkItems, eq(activityWorkItems.id, conversations.workItemId))
+    .leftJoin(activities, eq(activities.workItemId, conversations.workItemId))
     .leftJoin(projects, eq(conversations.projectId, projects.id))
     .leftJoin(
       conversationParticipants,
@@ -190,9 +198,10 @@ export async function getConversationDetail(orgId: number, userId: number, id: n
 
   const [activity] = conv.conversation.workItemId
     ? await db
-        .select({ id: workItems.id, title: workItems.title })
-        .from(workItems)
-        .where(eq(workItems.id, conv.conversation.workItemId))
+        .select({ id: activities.id, folio: activities.folio, title: workItems.title })
+        .from(activities)
+        .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+        .where(eq(activities.workItemId, conv.conversation.workItemId))
     : [];
   const [ticketItem] = conv.ticketWorkItemId
     ? await db
@@ -351,4 +360,150 @@ export async function getConversationSummary(
     awaitingReply: Number(row?.awaitingReply ?? 0),
     lastActivityAt: row?.lastActivityAt ?? null,
   };
+}
+
+/* ============================================================ team feed */
+
+export type TeamFeedFilters = { date: string; userId?: number };
+
+export type TeamFeedItem = {
+  kind: "time" | "message";
+  id: number;
+  at: Date;
+  userId: number | null;
+  userName: string | null;
+  title: string | null;
+  folio: string | null;
+  companyName: string | null;
+  ticketId: number | null;
+  activityId: number | null;
+  href: string;
+  /** time-only */
+  durationMinutes?: number;
+  timeType?: string;
+  description?: string;
+  /** message-only */
+  direction?: string;
+  body?: string;
+  channel?: string;
+};
+
+/**
+ * Daily "what did the team do" review (Inbox, 2026-08-25): time logged on
+ * Activities and Tickets, plus conversation messages, merged into one
+ * chronological feed for a given day — the ClickUp-style Inbox reading the
+ * PRD's "Improve operational execution" goal calls for, distinct from the
+ * per-conversation inbox above.
+ */
+export async function getTeamActivityFeed(orgId: number, f: TeamFeedFilters): Promise<TeamFeedItem[]> {
+  const activityWorkItems = alias(workItems, "feed_activity_work_items");
+  const ticketWorkItems = alias(workItems, "feed_ticket_work_items");
+
+  const timeConditions: SQL[] = [
+    eq(timeEntries.organizationId, orgId),
+    eq(timeEntries.date, f.date),
+    isNull(timeEntries.voidedAt),
+  ];
+  if (f.userId) timeConditions.push(eq(timeEntries.userId, f.userId));
+
+  const timeRows = await db
+    .select({
+      id: timeEntries.id,
+      at: timeEntries.createdAt,
+      userId: timeEntries.userId,
+      userName: users.name,
+      title: workItems.title,
+      companyName: companies.name,
+      ticketId: tickets.id,
+      ticketFolio: tickets.folio,
+      activityId: activities.id,
+      activityFolio: activities.folio,
+      durationMinutes: timeEntries.durationMinutes,
+      timeType: timeEntries.timeType,
+      description: timeEntries.description,
+    })
+    .from(timeEntries)
+    .innerJoin(workItems, eq(timeEntries.workItemId, workItems.id))
+    .leftJoin(tickets, eq(tickets.workItemId, workItems.id))
+    .leftJoin(activities, eq(activities.workItemId, workItems.id))
+    .leftJoin(companies, eq(workItems.companyId, companies.id))
+    .leftJoin(users, eq(timeEntries.userId, users.id))
+    .where(and(...timeConditions))
+    .orderBy(desc(timeEntries.createdAt));
+
+  const msgConditions: SQL[] = [
+    eq(conversations.organizationId, orgId),
+    ne(messages.direction, "system"),
+    isNull(messages.deletedAt),
+    sql`${messages.occurredAt}::date = ${f.date}::date`,
+  ];
+  if (f.userId) msgConditions.push(eq(messages.authorUserId, f.userId));
+
+  const msgRows = await db
+    .select({
+      id: messages.id,
+      at: messages.occurredAt,
+      userId: messages.authorUserId,
+      userName: users.name,
+      direction: messages.direction,
+      body: messages.body,
+      channel: messages.channel,
+      title: sql<string | null>`coalesce(${ticketWorkItems.title}, ${activityWorkItems.title})`,
+      companyName: companies.name,
+      ticketId: tickets.id,
+      ticketFolio: tickets.folio,
+      activityId: activities.id,
+      activityFolio: activities.folio,
+    })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .leftJoin(tickets, eq(conversations.ticketId, tickets.id))
+    .leftJoin(activities, eq(activities.workItemId, conversations.workItemId))
+    .leftJoin(activityWorkItems, eq(activityWorkItems.id, conversations.workItemId))
+    .leftJoin(ticketWorkItems, eq(ticketWorkItems.id, tickets.workItemId))
+    .leftJoin(companies, eq(conversations.companyId, companies.id))
+    .leftJoin(users, eq(messages.authorUserId, users.id))
+    .where(and(...msgConditions))
+    .orderBy(desc(messages.occurredAt));
+
+  const items: TeamFeedItem[] = [
+    ...timeRows.map((r) => ({
+      kind: "time" as const,
+      id: r.id,
+      at: r.at,
+      userId: r.userId,
+      userName: r.userName,
+      title: r.title,
+      folio: r.ticketFolio ?? r.activityFolio,
+      companyName: r.companyName,
+      ticketId: r.ticketId,
+      activityId: r.activityId,
+      href: r.ticketId ? `/helpdesk/${r.ticketId}?tab=time` : `/activities/${r.activityId}`,
+      durationMinutes: r.durationMinutes,
+      timeType: r.timeType,
+      description: r.description,
+    })),
+    ...msgRows.map((r) => ({
+      kind: "message" as const,
+      id: r.id,
+      at: r.at,
+      userId: r.userId,
+      userName: r.userName,
+      title: r.title,
+      folio: r.ticketFolio ?? r.activityFolio,
+      companyName: r.companyName,
+      ticketId: r.ticketId,
+      activityId: r.activityId,
+      href: r.ticketId
+        ? `/helpdesk/${r.ticketId}?tab=conversation`
+        : r.activityId
+          ? `/activities/${r.activityId}`
+          : "/inbox",
+      direction: r.direction,
+      body: r.body,
+      channel: r.channel,
+    })),
+  ];
+  items.sort((a, b) => b.at.getTime() - a.at.getTime());
+  return items;
 }

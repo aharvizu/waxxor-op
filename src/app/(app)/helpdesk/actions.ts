@@ -1298,6 +1298,7 @@ export async function createRelatedActivity(
         .values({
           organizationId: user.organizationId,
           workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
           activityType: data.activityType,
           parentTicketId: row.ticket.id,
         })

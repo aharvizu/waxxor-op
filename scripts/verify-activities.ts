@@ -15,7 +15,7 @@ config({ path: [".env.local", ".env"] });
 async function main() {
   const { neon } = await import("@neondatabase/serverless");
   const sqlHttp = neon(process.env.DATABASE_URL!);
-  const { and, eq } = await import("drizzle-orm");
+  const { and, eq, sql } = await import("drizzle-orm");
   const { db } = await import("../src/db");
   const { activities, workItems } = await import("../src/db/schema");
   const { recordAudit } = await import("../src/lib/audit");
@@ -48,7 +48,11 @@ async function main() {
     });
     const [a] = await tx
       .insert(activities)
-      .values({ organizationId: org.id, workItemId: item.id })
+      .values({
+        organizationId: org.id,
+        workItemId: item.id,
+        folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
+      })
       .returning({ id: activities.id });
     await recordAudit(tx, {
       organizationId: org.id,
@@ -128,7 +132,11 @@ async function main() {
       const item = await createWorkItem(tx, user, { type: "activity", title: MARKER });
       await tx
         .insert(activities)
-        .values({ organizationId: org.id, workItemId: item.id });
+        .values({
+          organizationId: org.id,
+          workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
+        });
       await recordAudit(tx, {
         organizationId: org.id,
         entityType: null as unknown as string, // NOT NULL violation

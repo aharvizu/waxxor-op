@@ -69,6 +69,7 @@ async function main() {
         .values({
           organizationId: org.id,
           workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
           archivedAt: opts.archived ? new Date() : null,
         })
         .returning({ id: activities.id });

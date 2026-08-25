@@ -964,6 +964,11 @@ export const activities = pgTable("activities", {
     .notNull()
     .unique()
     .references(() => workItems.id),
+  // Immutable, sequence-generated inside the creating transaction (activity_folio_seq,
+  // same pattern as tickets.folio). Kept as-is when the activity converts to a
+  // ticket — the row becomes a tombstone, not a delete, so the folio survives as
+  // a historical reference back to the originating activity.
+  folio: text("folio").notNull().unique(),
   /** Catalog-validated (Settings → Actividades → Tipos de trabajo, catalog_items kind "time_entry_type" — merged with time-entry types 2026-07-30), not an enum — admins can add custom types. "general", "meeting" and "reminder" are system-protected (Today's quick-create + recurrence key off them literally). */
   activityType: text("activity_type").notNull().default("general"),
   recurrenceTemplateId: integer("recurrence_template_id"),

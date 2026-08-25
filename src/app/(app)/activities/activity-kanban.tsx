@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
 import { Badge, cx } from "@/components/ui";
@@ -21,6 +22,7 @@ import type { ActivityRow } from "./activity-views";
  * pattern as Tickets/Projects: no new transition rules invented here.
  */
 export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
+  const router = useRouter();
   const todayStr = new Date().toISOString().slice(0, 10);
   const columns: KanbanColumn<ActivityRow>[] = ACTIVITY_STATUSES.map((value) => ({
     key: value,
@@ -45,13 +47,32 @@ export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
       onMove={onMove}
       emptyLabel="Sin actividades"
       renderCard={(r) => (
-        <Link
-          href={`/activities/${r.id}`}
-          className="block rounded-lg border border-edge bg-surface p-3 text-sm shadow-card transition-colors hover:border-edge-strong"
+        <div
+          role="link"
+          tabIndex={0}
+          onClick={() => router.push(`/activities/${r.id}`)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") router.push(`/activities/${r.id}`);
+          }}
+          className="cursor-pointer rounded-lg border border-edge bg-surface p-3 text-sm shadow-card transition-colors hover:border-edge-strong"
         >
-          <div className="mb-1.5 flex items-center justify-end gap-2">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <span className="font-mono text-xs text-faint">{r.folio}</span>
             <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>
           </div>
+          {r.companyName && r.companyId ? (
+            <Link
+              href={`/companies/${r.companyId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="mb-2 inline-block max-w-full"
+            >
+              <Badge tone="blue" className="max-w-full hover:ring-2">
+                <span className="truncate">{r.companyName}</span>
+              </Badge>
+            </Link>
+          ) : (
+            <p className="mb-2 text-xs text-faint">Sin cliente</p>
+          )}
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
           {r.dueDate ? (
             <div
@@ -66,11 +87,10 @@ export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
               {fmtDate(r.dueDate)}
             </div>
           ) : null}
-          <div className="flex items-center justify-between text-xs text-muted">
-            <span className="truncate">{r.companyName ?? "—"}</span>
+          <div className="flex items-center justify-end text-xs text-muted">
             <span className="shrink-0">{r.assigneeName ?? "Sin asignar"}</span>
           </div>
-        </Link>
+        </div>
       )}
     />
   );

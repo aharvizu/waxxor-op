@@ -433,6 +433,7 @@ async function main() {
         await tx.insert(activities).values({
           organizationId: orgId,
           workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
           activityType: "implementation",
           projectId: row.id,
           projectListId: list.id,
@@ -544,6 +545,7 @@ async function main() {
       await tx.insert(activities).values({
         organizationId: orgId,
         workItemId: created.id,
+        folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
         activityType: rand(["general", "follow_up", "meeting", "preventive", "training", "administrative"] as const),
       });
       if (completed) {

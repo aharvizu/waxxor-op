@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, CalendarDays } from "lucide-react";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
-import { cx, type BadgeTone } from "@/components/ui";
+import { Badge, cx, type BadgeTone } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
 import { changeTicketStatus, setTicketPriority } from "./actions";
 import { CatalogChip, toCatalogMap, type TicketPriorityOption, type TicketRow, type TicketStatusOption } from "./ticket-views";
@@ -109,6 +109,19 @@ export function TicketKanban({
             <span className="font-mono text-[11px] text-faint">{r.folio}</span>
             {groupField !== "priority" ? <CatalogChip entry={priorityMap.get(r.priorityId)} fallback={r.priority} /> : null}
           </div>
+          {r.companyName && r.companyId ? (
+            <Link
+              href={`/companies/${r.companyId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="mb-2 inline-block max-w-full"
+            >
+              <Badge tone="blue" className="max-w-full hover:ring-2">
+                <span className="truncate">{r.companyName}</span>
+              </Badge>
+            </Link>
+          ) : (
+            <p className="mb-2 text-xs text-faint">Sin cliente</p>
+          )}
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
           {r.resolutionTargetAt ? (
             <div
@@ -138,18 +151,7 @@ export function TicketKanban({
               Agendado · {fmtDate(r.dueDate)}
             </div>
           ) : null}
-          <div className="flex items-center justify-between text-xs text-muted">
-            {r.companyName && r.companyId ? (
-              <Link
-                href={`/companies/${r.companyId}`}
-                onClick={(e) => e.stopPropagation()}
-                className="truncate hover:text-primary hover:underline"
-              >
-                {r.companyName}
-              </Link>
-            ) : (
-              <span className="truncate">—</span>
-            )}
+          <div className="flex items-center justify-end text-xs text-muted">
             <span className="shrink-0">{r.assigneeName ?? "Sin asignar"}</span>
           </div>
         </div>

@@ -2,13 +2,14 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, CheckCircle2, Paperclip, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, CheckCircle2, Paperclip, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import {
   buttonClass,
   buttonDangerClass,
   buttonSecondaryClass,
   buttonSuccessClass,
   cx,
+  inputClass,
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -21,6 +22,9 @@ import {
   completeActivity,
   deleteActivity,
   deleteActivityAttachment,
+  deleteActivityMessage,
+  editActivityMessage,
+  logActivityMessage,
   reopenActivity,
   restoreActivity,
   updateActivityWorkflow,
@@ -233,5 +237,129 @@ export function DeleteActivityAttachmentButton({
       </button>
       {state && !state.ok ? <FormAlert state={state} /> : null}
     </form>
+  );
+}
+
+/* -------------------------------------------------------- conversation */
+
+export function ActivityComposer({ activityId }: { activityId: number }) {
+  const [state, formAction] = useActionState<ActionState, FormData>(logActivityMessage, null);
+  const [kind, setKind] = useState<"outbound" | "inbound" | "note" | "call">("outbound");
+  const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  return (
+    <form action={formAction} className="space-y-3 rounded-lg border border-dashed border-edge-strong p-4">
+      <input type="hidden" name="id" value={activityId} />
+      <FormAlert state={state} />
+      <div className="flex flex-wrap gap-2 text-sm">
+        {(
+          [
+            ["outbound", "Mensaje al cliente"],
+            ["inbound", "Mensaje recibido"],
+            ["note", "Nota interna"],
+            ["call", "Llamada"],
+          ] as const
+        ).map(([v, label]) => (
+          <label
+            key={v}
+            className={cx(
+              "cursor-pointer rounded-md border px-2.5 py-1 transition-colors",
+              kind === v
+                ? "border-primary/40 bg-primary-soft text-primary"
+                : "border-edge text-muted hover:bg-subtle",
+            )}
+          >
+            <input
+              type="radio"
+              name="kind"
+              value={v}
+              checked={kind === v}
+              onChange={() => setKind(v)}
+              className="sr-only"
+            />
+            {label}
+          </label>
+        ))}
+        {kind !== "note" && kind !== "call" ? (
+          <SearchableSelect
+            name="channel"
+            defaultValue="manual"
+            aria-label="Canal"
+            className="h-8 w-auto text-xs"
+            options={[
+              { value: "manual", label: "manual" },
+              { value: "whatsapp", label: "whatsapp" },
+              { value: "email", label: "email" },
+              { value: "phone", label: "phone" },
+              { value: "portal", label: "portal" },
+            ]}
+          />
+        ) : null}
+      </div>
+      <textarea
+        name="body"
+        rows={3}
+        required
+        placeholder={kind === "note" ? "Nota interna (nunca visible al cliente)…" : "Qué se dijo…"}
+        aria-invalid={errors.body ? true : undefined}
+        className={inputClass}
+      />
+      <FieldError errors={errors.body} />
+      <SubmitButton>{kind === "note" ? "Agregar nota" : "Registrar interacción"}</SubmitButton>
+    </form>
+  );
+}
+
+export function ActivityMessageActions({
+  messageId,
+  activityId,
+  body,
+}: {
+  messageId: number;
+  activityId: number;
+  body: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editState, editAction] = useActionState<ActionState, FormData>(editActivityMessage, null);
+  const [deleteState, deleteAction] = useActionState<ActionState, FormData>(deleteActivityMessage, null);
+
+  return (
+    <div>
+      <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          type="button"
+          aria-label="Editar mensaje"
+          onClick={() => setEditing((v) => !v)}
+          className="flex size-6 items-center justify-center rounded text-faint hover:bg-primary-soft hover:text-primary"
+        >
+          <Pencil className="size-3" />
+        </button>
+        <form action={deleteAction}>
+          <input type="hidden" name="messageId" value={messageId} />
+          <input type="hidden" name="activityId" value={activityId} />
+          <button
+            type="submit"
+            aria-label="Eliminar mensaje"
+            className="flex size-6 items-center justify-center rounded text-faint hover:bg-danger/10 hover:text-danger"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        </form>
+      </span>
+      {deleteState && !deleteState.ok ? <FormAlert state={deleteState} className="mt-1" /> : null}
+      {editing ? (
+        <form action={editAction} className="mt-2 space-y-2">
+          <input type="hidden" name="messageId" value={messageId} />
+          <input type="hidden" name="activityId" value={activityId} />
+          <textarea name="body" rows={2} defaultValue={body} required className={inputClass} />
+          <span className="flex gap-1.5">
+            <SubmitButton className="h-7 px-2 text-xs">Guardar</SubmitButton>
+            <button type="button" onClick={() => setEditing(false)} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
+              Cancelar
+            </button>
+          </span>
+          {editState && !editState.ok ? <FormAlert state={editState} className="mt-1" /> : null}
+        </form>
+      ) : null}
+    </div>
   );
 }

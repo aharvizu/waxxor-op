@@ -242,6 +242,7 @@ async function generateEntity(
       .values({
         organizationId: def.organizationId,
         workItemId: item.id,
+        folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
         activityType: (templateData.activityType as (typeof activities.$inferSelect)["activityType"]) ?? "general",
         ...(templateData.targetType === "project_activity"
           ? { projectId: def.projectId, projectListId: def.projectListId }

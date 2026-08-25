@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRightLeft, FileText } from "lucide-react";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, FileText, Phone, StickyNote } from "lucide-react";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { activities, attachments, companies, users, workItems } from "@/db/schema";
+import { activities, attachments, companies, conversations, messages, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
@@ -13,6 +13,8 @@ import { getCatalogNames } from "@/lib/settings-data";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { ActivityForm } from "../activity-form";
 import {
+  ActivityComposer,
+  ActivityMessageActions,
   ActivityUploadForm,
   DeleteActivityAttachmentButton,
   DeleteActivityButton,
@@ -49,7 +51,7 @@ export default async function ActivityPage({
     redirect(`/helpdesk/${row.activity.convertedTicketId}`);
   }
 
-  const [companyRows, userRows, activityTypeOptions, fileRows] = await Promise.all([
+  const [companyRows, userRows, activityTypeOptions, fileRows, messageRows] = await Promise.all([
     db
       .select({ id: companies.id, name: companies.name })
       .from(companies)
@@ -67,6 +69,13 @@ export default async function ActivityPage({
       .leftJoin(users, eq(attachments.uploadedById, users.id))
       .where(eq(attachments.workItemId, row.item.id))
       .orderBy(desc(attachments.createdAt)),
+    db
+      .select({ message: messages, authorName: users.name })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .leftJoin(users, eq(messages.authorUserId, users.id))
+      .where(eq(conversations.workItemId, row.item.id))
+      .orderBy(desc(messages.occurredAt)),
   ]);
 
   const a = row.activity;
@@ -76,7 +85,12 @@ export default async function ActivityPage({
   return (
     <div className="max-w-4xl">
       <PageHeader
-        title={w.title}
+        title={
+          <>
+            <span className="mr-2 font-mono text-base font-normal text-faint">{a.folio}</span>
+            {w.title}
+          </>
+        }
         subtitle={`${activityTypeMeta[a.activityType]?.label ?? a.activityType}${
           row.companyName ? ` · ${row.companyName}` : ""
         } · Created ${fmtDateTime(w.createdAt)}${
@@ -107,9 +121,6 @@ export default async function ActivityPage({
             <ArrowRightLeft /> Convert to ticket
           </Link>
         ) : null}
-        <Link href={`/inbox?workItemId=${w.id}`} className={buttonSecondaryClass}>
-          Conversaciones
-        </Link>
         {user.role === "superadmin" ? <DeleteActivityButton activityId={a.id} /> : null}
       </div>
 
@@ -159,6 +170,81 @@ export default async function ActivityPage({
               activityTypeOptions={activityTypeOptions}
               submitLabel="Save changes"
             />
+          )}
+        </div>
+      </Card>
+
+      <Card className="mt-6 overflow-hidden">
+        <CardHeader
+          title="Conversación"
+          description="Mensajes, notas y llamadas de esta actividad — más recientes primero. Nada se envía externamente en el MVP."
+          action={
+            <Link href={`/inbox?workItemId=${w.id}`} className={buttonSecondaryClass}>
+              Abrir en Inbox
+            </Link>
+          }
+        />
+        <div className="space-y-4 p-5">
+          {!archived ? <ActivityComposer activityId={a.id} /> : null}
+          {messageRows.length === 0 ? (
+            <p className="text-sm text-muted">Nada registrado todavía.</p>
+          ) : (
+            <ul className="space-y-3">
+              {messageRows.map((m) => {
+                const meta = (m.message.metadata ?? {}) as Record<string, unknown>;
+                const icon = meta.call ? (
+                  <Phone className="size-3.5" />
+                ) : m.message.direction === "internal" ? (
+                  <StickyNote className="size-3.5" />
+                ) : m.message.direction === "inbound" ? (
+                  <ArrowDownLeft className="size-3.5" />
+                ) : (
+                  <ArrowUpRight className="size-3.5" />
+                );
+                const title = meta.call
+                  ? `Llamada registrada (${m.message.channel})`
+                  : m.message.direction === "internal"
+                    ? `Nota interna${m.message.editedAt ? " (editada)" : ""}`
+                    : m.message.direction === "inbound"
+                      ? `Recibido vía ${m.message.channel}`
+                      : `Enviado al cliente vía ${m.message.channel}`;
+                return (
+                  <li key={m.message.id} className="group flex gap-3">
+                    <span
+                      className={
+                        m.message.direction === "internal"
+                          ? "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-amber-400/15 text-amber-600 dark:text-amber-300"
+                          : "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"
+                      }
+                    >
+                      {icon}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-sm font-medium text-fg">{title}</span>
+                        <span className="shrink-0 text-xs text-faint tabular-nums">
+                          {m.authorName ? `${m.authorName} · ` : ""}
+                          {fmtDateTime(m.message.occurredAt)}
+                        </span>
+                      </div>
+                      {m.message.deletedAt ? (
+                        <p className="mt-0.5 text-sm text-faint italic">Mensaje eliminado</p>
+                      ) : (
+                        <p className="mt-0.5 text-sm whitespace-pre-wrap text-muted">{m.message.body}</p>
+                      )}
+                      {!m.message.deletedAt && m.message.authorUserId === Number(user.id) && !archived ? (
+                        <ActivityMessageActions
+                          key={`${m.message.id}-${m.message.editedAt?.getTime() ?? 0}`}
+                          messageId={m.message.id}
+                          activityId={a.id}
+                          body={m.message.body}
+                        />
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </Card>

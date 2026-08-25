@@ -115,6 +115,7 @@ async function main() {
         .values({
           organizationId: orgId,
           workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
           projectId: created.project.id,
           projectListId: created.list.id,
           parentActivityId,

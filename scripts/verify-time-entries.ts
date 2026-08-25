@@ -48,7 +48,11 @@ async function main() {
   let ticketWi = 0;
   await db.transaction(async (tx) => {
     const a = await createWorkItem(tx, user, { type: "activity", title: "TIME-VERIFY act" });
-    await tx.insert(activities).values({ organizationId: org.id, workItemId: a.id });
+    await tx.insert(activities).values({
+      organizationId: org.id,
+      workItemId: a.id,
+      folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
+    });
     activityWi = a.id;
     const t = await createWorkItem(tx, user, { type: "ticket", title: "TIME-VERIFY tk" });
     const [teStatus, tePriority, teBillingStatus] = await Promise.all([

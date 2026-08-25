@@ -119,7 +119,12 @@ async function main() {
       })
       .returning();
     ids.workItems.push(activityItem.id);
-    await db.insert(activities).values({ organizationId: org.id, workItemId: activityItem.id, activityType: "general" });
+    await db.insert(activities).values({
+      organizationId: org.id,
+      workItemId: activityItem.id,
+      folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
+      activityType: "general",
+    });
 
     const [conv] = await db
       .insert(conversations)

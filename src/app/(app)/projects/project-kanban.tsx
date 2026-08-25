@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
 import { Badge } from "@/components/ui";
 import { projectHealthMeta, projectStatusMeta } from "@/lib/labels";
@@ -19,6 +20,7 @@ import type { ProjectRow } from "./project-views";
  * a terminal status simply fails validation and reverts, same as Tickets.
  */
 export function ProjectKanban({ rows, groupField }: { rows: ProjectRow[]; groupField: "status" | "healthStatus" }) {
+  const router = useRouter();
   const values = groupField === "healthStatus" ? PROJECT_HEALTHS : PROJECT_STATUSES;
   const meta = groupField === "healthStatus" ? projectHealthMeta : projectStatusMeta;
 
@@ -48,9 +50,14 @@ export function ProjectKanban({ rows, groupField }: { rows: ProjectRow[]; groupF
       onMove={onMove}
       emptyLabel="Sin proyectos"
       renderCard={(r) => (
-        <Link
-          href={`/projects/${r.id}`}
-          className="block rounded-lg border border-edge bg-surface p-3 text-sm shadow-card transition-colors hover:border-edge-strong"
+        <div
+          role="link"
+          tabIndex={0}
+          onClick={() => router.push(`/projects/${r.id}`)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") router.push(`/projects/${r.id}`);
+          }}
+          className="cursor-pointer rounded-lg border border-edge bg-surface p-3 text-sm shadow-card transition-colors hover:border-edge-strong"
         >
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <span className="font-mono text-[11px] text-faint">{r.folio}</span>
@@ -58,12 +65,24 @@ export function ProjectKanban({ rows, groupField }: { rows: ProjectRow[]; groupF
               <Badge tone={projectStatusMeta[r.status]?.tone ?? "slate"}>{projectStatusMeta[r.status]?.label ?? r.status}</Badge>
             ) : null}
           </div>
+          {r.companyName && r.companyId ? (
+            <Link
+              href={`/companies/${r.companyId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="mb-2 inline-block max-w-full"
+            >
+              <Badge tone="blue" className="max-w-full hover:ring-2">
+                <span className="truncate">{r.companyName}</span>
+              </Badge>
+            </Link>
+          ) : (
+            <p className="mb-2 text-xs text-faint">Interno</p>
+          )}
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.name}</p>
-          <div className="flex items-center justify-between text-xs text-muted">
-            <span className="truncate">{r.companyName ?? "Interno"}</span>
+          <div className="flex items-center justify-end text-xs text-muted">
             <span className="shrink-0">{r.managerName ?? "Sin PM"}</span>
           </div>
-        </Link>
+        </div>
       )}
     />
   );

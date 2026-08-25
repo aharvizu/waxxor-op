@@ -1,24 +1,36 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, eq, ne } from "drizzle-orm";
-import { AtSign, Inbox as InboxIcon, MessageSquare } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  AtSign,
+  Inbox as InboxIcon,
+  MessageSquare,
+  StickyNote,
+  Timer,
+} from "lucide-react";
 import { db } from "@/db";
 import { companies, projects, users } from "@/db/schema";
 import { conversationStatusMeta } from "@/lib/conversations";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   INBOX_VIEWS,
   getConversationDetail,
+  getTeamActivityFeed,
   listConversations,
   type InboxView,
 } from "@/lib/inbox-data";
+import { formatMinutes } from "@/lib/time-entries";
 import { requireUser } from "@/lib/session";
 import {
   Badge,
   Card,
+  CardHeader,
   EmptyState,
   PageHeader,
   buttonClass,
+  buttonSecondaryClass,
   cx,
   inputClass,
 } from "@/components/ui";
@@ -58,15 +70,27 @@ type Search = {
   q?: string;
   c?: string;
   new?: string;
+  mode?: string;
+  date?: string;
+  member?: string;
 };
+
+const MODES = [
+  ["conversations", "Conversaciones"],
+  ["feed", "Actividad del equipo"],
+] as const;
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const params = await searchParams;
+  const mode = params.mode === "feed" ? "feed" : "conversations";
   const view = (INBOX_VIEWS as readonly string[]).includes(params.view ?? "")
     ? (params.view as InboxView)
     : "all";
   const selectedId = params.c ? Number(params.c) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const feedDate = /^\d{4}-\d{2}-\d{2}$/.test(params.date ?? "") ? params.date! : today;
+  const memberId = params.member && Number.isInteger(Number(params.member)) ? Number(params.member) : undefined;
 
   const num = (v?: string) => (v && Number.isInteger(Number(v)) ? Number(v) : undefined);
   const filters = {
@@ -80,8 +104,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     q: params.q?.trim() || undefined,
   };
 
-  const [rows, companyRows, projectRows, internalUsers, detail] = await Promise.all([
-    listConversations(user.organizationId, Number(user.id), filters),
+  const [rows, companyRows, projectRows, internalUsers, detail, feedRows] = await Promise.all([
+    mode === "conversations"
+      ? listConversations(user.organizationId, Number(user.id), filters)
+      : Promise.resolve([]),
     db
       .select({ id: companies.id, name: companies.name })
       .from(companies)
@@ -103,9 +129,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         ),
       )
       .orderBy(asc(users.name)),
-    selectedId
+    mode === "conversations" && selectedId
       ? getConversationDetail(user.organizationId, Number(user.id), selectedId)
       : Promise.resolve(null),
+    mode === "feed"
+      ? getTeamActivityFeed(user.organizationId, { date: feedDate, userId: memberId })
+      : Promise.resolve([]),
   ]);
 
   const baseQuery = new URLSearchParams(
@@ -120,6 +149,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     const qs = q.toString();
     return `/inbox${qs ? `?${qs}` : ""}`;
   };
+  const shiftDate = (date: string, days: number) => {
+    const d = new Date(`${date}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
 
   return (
     <div>
@@ -127,12 +161,42 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         title="Inbox"
         subtitle="Todas las conversaciones de tickets, clientes, actividades y proyectos en un solo lugar."
         action={
-          <Link href={href({ new: "1", c: undefined })} className={buttonClass}>
-            Nueva conversación
-          </Link>
+          mode === "conversations" ? (
+            <Link href={href({ new: "1", c: undefined })} className={buttonClass}>
+              Nueva conversación
+            </Link>
+          ) : undefined
         }
       />
 
+      <div className="mb-4 flex flex-wrap gap-1 text-xs">
+        {MODES.map(([m, label]) => (
+          <Link
+            key={m}
+            href={href({ mode: m === "conversations" ? undefined : m })}
+            className={cx(
+              "rounded-full border px-3 py-1.5 transition-colors",
+              mode === m
+                ? "border-primary bg-primary-soft font-medium text-primary"
+                : "border-edge text-muted hover:text-fg",
+            )}
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
+
+      {mode === "feed" ? (
+        <TeamFeedView
+          items={feedRows}
+          date={feedDate}
+          today={today}
+          memberId={memberId}
+          internalUsers={internalUsers}
+          href={href}
+          shiftDate={shiftDate}
+        />
+      ) : (
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_1fr]">
         {/* -------------------------------------------------- list pane */}
         <div className="space-y-3">
@@ -198,6 +262,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                 const title =
                   r.subject ??
                   (r.ticketFolio ? `${r.ticketFolio} · ${r.ticketTitle ?? ""}` : null) ??
+                  (r.activityFolio ? `${r.activityFolio} · ${r.activityTitle ?? ""}` : null) ??
                   r.companyName ??
                   r.projectName ??
                   `Conversación #${r.id}`;
@@ -283,7 +348,129 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           )}
         </div>
       </div>
+      )}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- team feed */
+
+function TeamFeedView({
+  items,
+  date,
+  today,
+  memberId,
+  internalUsers,
+  href,
+  shiftDate,
+}: {
+  items: Awaited<ReturnType<typeof getTeamActivityFeed>>;
+  date: string;
+  today: string;
+  memberId: number | undefined;
+  internalUsers: { id: number; name: string }[];
+  href: (extra: Record<string, string | number | undefined>) => string;
+  shiftDate: (date: string, days: number) => string;
+}) {
+  const totalMinutes = items
+    .filter((i) => i.kind === "time")
+    .reduce((sum, i) => sum + (i.durationMinutes ?? 0), 0);
+  const messageCount = items.filter((i) => i.kind === "message").length;
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Actividad del equipo"
+        description="Tiempo en Actividades y Tickets, más Conversaciones, en un solo feed cronológico — la revisión diaria de qué hizo el equipo."
+        action={
+          <span className="flex items-center gap-2">
+            <Link href={href({ date: shiftDate(date, -1) })} className={cx(buttonSecondaryClass, "h-8 px-2 text-xs")}>
+              ←
+            </Link>
+            <span className="text-sm font-medium text-fg tabular-nums">
+              {fmtDate(date)}{date === today ? " · Hoy" : ""}
+            </span>
+            <Link href={href({ date: shiftDate(date, 1) })} className={cx(buttonSecondaryClass, "h-8 px-2 text-xs")}>
+              →
+            </Link>
+          </span>
+        }
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-edge px-5 py-3">
+        <form method="get" className="flex items-center gap-2">
+          <input type="hidden" name="mode" value="feed" />
+          <input type="hidden" name="date" value={date} />
+          <SearchableSelect
+            name="member"
+            defaultValue={memberId ? String(memberId) : ""}
+            submitOnChange
+            className="h-8 w-auto text-xs"
+            options={[
+              { value: "", label: "Todo el equipo" },
+              ...internalUsers.map((u) => ({ value: String(u.id), label: u.name })),
+            ]}
+          />
+        </form>
+        <span className="text-xs text-muted tabular-nums">
+          {formatMinutes(totalMinutes)} registrados · {messageCount} mensaje{messageCount === 1 ? "" : "s"}
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <div className="p-5">
+          <EmptyState icon={<InboxIcon className="size-6" />} title="Sin actividad">
+            Nada registrado por el equipo en este día.
+          </EmptyState>
+        </div>
+      ) : (
+        <ul className="divide-y divide-edge">
+          {items.map((i) => (
+            <li key={`${i.kind}-${i.id}`} className="flex gap-3 px-5 py-3">
+              <span
+                className={cx(
+                  "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
+                  i.kind === "time"
+                    ? "bg-primary-soft text-primary"
+                    : i.direction === "internal"
+                      ? "bg-amber-400/15 text-amber-600 dark:text-amber-300"
+                      : "bg-primary-soft text-primary",
+                )}
+              >
+                {i.kind === "time" ? (
+                  <Timer className="size-3.5" />
+                ) : i.direction === "internal" ? (
+                  <StickyNote className="size-3.5" />
+                ) : i.direction === "inbound" ? (
+                  <ArrowDownLeft className="size-3.5" />
+                ) : (
+                  <ArrowUpRight className="size-3.5" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1.5 text-sm">
+                    <Badge tone={i.ticketId ? "blue" : "purple"}>{i.ticketId ? "Ticket" : "Actividad"}</Badge>
+                    <Link href={i.href} className="truncate font-medium text-fg hover:text-primary">
+                      {i.folio ? `${i.folio} · ` : ""}
+                      {i.title ?? "—"}
+                    </Link>
+                  </span>
+                  <span className="shrink-0 text-xs text-faint tabular-nums">
+                    {i.userName ?? "—"} ·{" "}
+                    {new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(i.at)}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-sm text-muted">
+                  {i.companyName ? `${i.companyName} · ` : ""}
+                  {i.kind === "time"
+                    ? `${formatMinutes(i.durationMinutes ?? 0)} · ${(i.timeType ?? "").replaceAll("_", " ")}${i.description ? ` — ${i.description}` : ""}`
+                    : i.body}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -306,6 +493,7 @@ function ConversationPane({
   const title =
     conv.subject ??
     (detail.ticketFolio ? `${detail.ticketFolio} · ${detail.ticketTitle ?? ""}` : null) ??
+    (detail.activity ? `${detail.activity.folio} · ${detail.activity.title}` : null) ??
     detail.companyName ??
     `Conversación #${conv.id}`;
   const hasUnread =
@@ -450,7 +638,7 @@ function ConversationPane({
             {detail.activity ? (
               <li>
                 <Link href={`/activities/${detail.activity.id}`} className="text-primary hover:underline">
-                  Actividad: {detail.activity.title}
+                  Actividad: {detail.activity.folio} · {detail.activity.title}
                 </Link>
               </li>
             ) : null}

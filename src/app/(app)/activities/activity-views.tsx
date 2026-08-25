@@ -11,6 +11,7 @@ import { ActivityKanban } from "./activity-kanban";
 
 export type ActivityRow = {
   id: number;
+  folio: string;
   title: string;
   status: string;
   priority: string;
@@ -25,6 +26,11 @@ export type ActivityRow = {
 export type ColumnDef = { key: string; label: string; render: (r: ActivityRow) => React.ReactNode };
 
 export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
+  folio: {
+    key: "folio",
+    label: "Folio",
+    render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span>,
+  },
   title: {
     key: "title",
     label: "Actividad",
@@ -57,7 +63,7 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
   },
 };
 
-export const DEFAULT_COLUMNS = ["title", "activityType", "companyName", "assigneeName", "priority", "status", "dueDate"];
+export const DEFAULT_COLUMNS = ["folio", "title", "activityType", "companyName", "assigneeName", "priority", "status", "dueDate"];
 export const ACTIVITY_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: COLUMN_REGISTRY[key]?.label ?? key }));
 export const ACTIVITY_KANBAN_GROUP_OPTIONS = [{ key: "status", label: "Estado" }];
 
@@ -128,7 +134,7 @@ export function ListView({ rows }: { rows: ActivityRow[] }) {
           <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
             <Badge tone={activityStatusMeta[r.status]?.tone ?? "slate"}>{activityStatusMeta[r.status]?.label ?? r.status}</Badge>
             <Link href={`/activities/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">
-              {r.title}
+              {r.folio} · {r.title}
             </Link>
             <span className="shrink-0 text-xs text-muted">{r.companyName ?? "—"}</span>
             <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>

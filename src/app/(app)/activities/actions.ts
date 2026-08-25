@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
-import { activities, attachments, companies, conversations, timeEntries, users, workItems } from "@/db/schema";
+import { activities, attachments, companies, conversations, messages, timeEntries, users, workItems } from "@/db/schema";
 import {
   type ActionState,
   businessError,
@@ -26,6 +26,7 @@ import {
   saveAttachment,
 } from "@/lib/attachments";
 import { diffFields, recordAudit } from "@/lib/audit";
+import { canEditMessage, canSoftDeleteMessage, postConversationMessage } from "@/lib/conversations";
 import { getCatalogNames } from "@/lib/settings-data";
 import { requireRole, requireUser, type SessionUser } from "@/lib/session";
 import {
@@ -225,6 +226,7 @@ export async function createActivity(
         .values({
           organizationId: user.organizationId,
           workItemId: item.id,
+          folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
           activityType: data.activityType,
         })
         .returning({ id: activities.id });
@@ -640,4 +642,200 @@ export async function deleteActivityAttachment(
   }
   revalidatePath(`/activities/${data.activityId}`);
   return success("Attachment deleted.");
+}
+
+/* -------------------------------------------------- conversation & notes */
+
+/** First non-archived conversation linked to this activity's work item — lazily
+ * created on first message, same pattern as the ticket composer (getOrCreateConversation
+ * in helpdesk/actions.ts), but keyed by workItemId since it isn't unique like ticketId:
+ * an activity may already have a conversation started from Inbox. */
+async function getOrCreateActivityConversation(
+  tx: DbExecutor,
+  user: SessionUser,
+  row: { activity: typeof activities.$inferSelect; item: typeof workItems.$inferSelect },
+) {
+  const [existing] = await tx
+    .select()
+    .from(conversations)
+    .where(eq(conversations.workItemId, row.item.id))
+    .orderBy(conversations.id)
+    .limit(1);
+  if (existing) return existing;
+  const [created] = await tx
+    .insert(conversations)
+    .values({
+      organizationId: user.organizationId,
+      companyId: row.item.companyId,
+      workItemId: row.item.id,
+      channel: "manual",
+    })
+    .returning();
+  return created;
+}
+
+const activityMessageSchema = z.object({
+  id: z.coerce.number().int().positive(), // activity id
+  kind: z.enum(["outbound", "inbound", "note", "call"]),
+  body: z
+    .string("Write the message or note.")
+    .trim()
+    .min(1, "Write the message or note."),
+  channel: z
+    .enum(["manual", "whatsapp", "email", "phone", "portal", "internal"])
+    .default("manual"),
+});
+
+export async function logActivityMessage(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const { data, error } = parseForm(activityMessageSchema, formData);
+  if (error) return error;
+
+  const direction =
+    data.kind === "inbound" ? "inbound" : data.kind === "note" ? "internal" : "outbound";
+  const channel = data.kind === "call" ? "phone" : data.kind === "note" ? "internal" : data.channel;
+
+  try {
+    await db.transaction(async (tx) => {
+      const row = await loadActivity(tx, user, data.id);
+      if (row.activity.archivedAt) throw new ArchivedActivityError();
+      const conversation = await getOrCreateActivityConversation(tx, user, row);
+      const message = await postConversationMessage(tx, {
+        organizationId: user.organizationId,
+        actorUserId: Number(user.id),
+        conversationId: conversation.id,
+        direction,
+        body: data.body,
+        channel,
+        metadata: data.kind === "call" ? { call: true } : null,
+      });
+      await tx
+        .update(workItems)
+        .set({ updatedAt: new Date() })
+        .where(eq(workItems.id, row.item.id));
+      await recordAudit(tx, {
+        organizationId: user.organizationId,
+        userId: Number(user.id),
+        entityType: "message",
+        entityId: message.id,
+        action: "create",
+        metadata: { activityId: row.activity.id, kind: data.kind, direction, channel },
+      });
+    });
+  } catch (err) {
+    if (err instanceof ActivityNotFoundError) return businessError("Esta actividad ya no existe.");
+    if (err instanceof ConvertedActivityError) {
+      return businessError("Esta actividad fue convertida en ticket — usa la conversación del ticket.");
+    }
+    if (err instanceof ArchivedActivityError) {
+      return businessError("Restaura esta actividad antes de agregar conversación.");
+    }
+    return unexpectedError(err);
+  }
+  revalidatePath(`/activities/${data.id}`);
+  return success(data.kind === "note" ? "Nota interna agregada." : "Interacción registrada.");
+}
+
+class MessageNotFoundError extends Error {}
+class MessageRuleError extends Error {}
+
+const editActivityMessageSchema = z.object({
+  activityId: z.coerce.number().int().positive(),
+  messageId: z.coerce.number().int().positive(),
+  body: z.string("Write the message or note.").trim().min(1, "Write the message or note."),
+});
+
+export async function editActivityMessage(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const { data, error } = parseForm(editActivityMessageSchema, formData);
+  if (error) return error;
+
+  try {
+    await db.transaction(async (tx) => {
+      const [message] = await tx
+        .select()
+        .from(messages)
+        .where(and(eq(messages.id, data.messageId), eq(messages.organizationId, user.organizationId)));
+      if (!message) throw new MessageNotFoundError();
+      if (!canEditMessage(message, Number(user.id))) {
+        throw new MessageRuleError("Solo puedes editar tus propios mensajes no eliminados.");
+      }
+      await tx
+        .update(messages)
+        .set({ body: data.body, editedAt: new Date() })
+        .where(eq(messages.id, message.id));
+      await recordAudit(tx, {
+        organizationId: user.organizationId,
+        userId: Number(user.id),
+        entityType: "message",
+        entityId: message.id,
+        action: "update",
+        field: "body",
+        oldValue: message.body,
+        newValue: data.body,
+        metadata: { event: "message_edited" },
+      });
+    });
+  } catch (err) {
+    if (err instanceof MessageNotFoundError) return businessError("El mensaje ya no existe.");
+    if (err instanceof MessageRuleError) return businessError(err.message);
+    return unexpectedError(err);
+  }
+  revalidatePath(`/activities/${data.activityId}`);
+  return success("Mensaje editado.");
+}
+
+export async function deleteActivityMessage(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const { data, error } = parseForm(
+    z.object({
+      activityId: z.coerce.number().int().positive(),
+      messageId: z.coerce.number().int().positive(),
+    }),
+    formData,
+  );
+  if (error) return error;
+
+  try {
+    await db.transaction(async (tx) => {
+      const [message] = await tx
+        .select()
+        .from(messages)
+        .where(and(eq(messages.id, data.messageId), eq(messages.organizationId, user.organizationId)));
+      if (!message) throw new MessageNotFoundError();
+      if (!canSoftDeleteMessage(message, Number(user.id))) {
+        throw new MessageRuleError("Solo puedes eliminar tus propios mensajes.");
+      }
+      await tx
+        .update(messages)
+        .set({ deletedAt: new Date(), deletedById: Number(user.id) })
+        .where(eq(messages.id, message.id));
+      await recordAudit(tx, {
+        organizationId: user.organizationId,
+        userId: Number(user.id),
+        entityType: "message",
+        entityId: message.id,
+        action: "update",
+        field: "deletedAt",
+        oldValue: null,
+        newValue: new Date().toISOString(),
+        metadata: { event: "message_deleted_logical" },
+      });
+    });
+  } catch (err) {
+    if (err instanceof MessageNotFoundError) return businessError("El mensaje ya no existe.");
+    if (err instanceof MessageRuleError) return businessError(err.message);
+    return unexpectedError(err);
+  }
+  revalidatePath(`/activities/${data.activityId}`);
+  return success("Mensaje eliminado.");
 }

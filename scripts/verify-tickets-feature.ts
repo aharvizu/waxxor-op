@@ -157,7 +157,12 @@ async function main() {
     });
     const [a] = await tx
       .insert(activities)
-      .values({ organizationId: org.id, workItemId: item.id, archivedAt: new Date() })
+      .values({
+        organizationId: org.id,
+        workItemId: item.id,
+        folio: sql`'ACT-' || lpad(nextval('activity_folio_seq')::text, 6, '0')`,
+        archivedAt: new Date(),
+      })
       .returning({ id: activities.id });
     archivedActivityId = a.id;
   });

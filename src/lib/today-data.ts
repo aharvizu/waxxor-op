@@ -124,6 +124,7 @@ export async function getTodayItems(
       .with(timeByItem)
       .select({
         id: activities.id,
+        folio: activities.folio,
         workItemId: workItems.id,
         title: workItems.title,
         companyId: workItems.companyId,
@@ -193,7 +194,7 @@ export async function getTodayItems(
       kind: a.parentTicketId ? "related_activity" : "activity",
       id: a.id,
       workItemId: a.workItemId,
-      folio: null,
+      folio: a.folio,
       title: a.title,
       companyId: a.companyId,
       companyName: a.companyName,
