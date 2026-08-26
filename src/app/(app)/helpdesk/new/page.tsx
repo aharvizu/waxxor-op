@@ -7,6 +7,8 @@ import { Card, PageHeader } from "@/components/ui";
 import { getFieldDefinitions } from "@/lib/custom-fields";
 import { getCatalogNames } from "@/lib/settings-data";
 import { listTicketPriorities } from "@/lib/ticket-catalogs";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { NewTicketForm } from "./new-ticket-form";
 
 export const metadata: Metadata = { title: "New ticket" };
@@ -17,6 +19,7 @@ export default async function NewTicketPage({
   searchParams: Promise<{ companyId?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
   const { companyId } = await searchParams;
   const defaultCompanyId = companyId ? Number(companyId) : undefined;
   const [companyRows, contactRows, userRows, slaRows] = await Promise.all([
@@ -61,8 +64,12 @@ export default async function NewTicketPage({
   return (
     <div className="max-w-2xl">
       <PageHeader
-        title="New ticket"
-        subtitle="It starts as New (or Assigned when it already has an owner) and gets the SLA for its priority automatically."
+        title={t("Nuevo ticket", "New ticket", locale)}
+        subtitle={t(
+          "Empieza como Nuevo (o Asignado si ya tiene responsable) y recibe el SLA de su prioridad automáticamente.",
+          "It starts as New (or Assigned when it already has an owner) and gets the SLA for its priority automatically.",
+          locale,
+        )}
       />
       <Card className="p-6">
         <NewTicketForm

@@ -10,3 +10,17 @@
  */
 export type Locale = "es" | "en";
 export const DEFAULT_LOCALE: Locale = "es";
+
+/**
+ * Freeform UI copy (titles, descriptions, placeholders, buttons, empty
+ * states — everything that isn't one of the finite status/priority/role
+ * maps in lib/labels.ts) is translated inline at the call site instead of
+ * through a central key dictionary: `t("Texto", "Text", locale)`. At this
+ * app's scale (~150 files, one-off copy, no repeated phrases worth a
+ * shared key) a central dictionary would just be another file to keep in
+ * sync; keeping both strings next to each other where they're used is
+ * self-documenting and trivially greppable.
+ */
+export function t(es: string, en: string, locale: Locale): string {
+  return locale === "en" ? en : es;
+}

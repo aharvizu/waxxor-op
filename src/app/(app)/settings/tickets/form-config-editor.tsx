@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo } from "react";
 import { FormProvider, useFieldArray, useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
@@ -12,6 +12,8 @@ import { buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/u
 import { z } from "zod";
 import type { ActionState } from "@/lib/action-result";
 import type { FormConfig } from "@/lib/settings";
+import { useLocale } from "@/components/locale-provider";
+import { t, type Locale } from "@/lib/i18n";
 import { saveOrganizationSetting } from "../actions";
 
 export type AvailableField = { key: string; label: string; isCustomField: boolean };
@@ -33,14 +35,16 @@ const clientFormFieldSchema = z.object({
   defaultValue: z.string().optional(),
   isCustomField: z.boolean(),
 });
-const clientFormSectionSchema = z.object({
-  key: z.string(),
-  label: z.string().trim().min(1, "La sección necesita un nombre"),
-  collapsed: z.boolean(),
-  order: z.number(),
-  fields: z.array(clientFormFieldSchema),
-});
-const clientFormConfigSchema = z.object({ sections: z.array(clientFormSectionSchema) });
+function makeClientFormConfigSchema(locale: Locale) {
+  const clientFormSectionSchema = z.object({
+    key: z.string(),
+    label: z.string().trim().min(1, t("La sección necesita un nombre", "The section needs a name", locale)),
+    collapsed: z.boolean(),
+    order: z.number(),
+    fields: z.array(clientFormFieldSchema),
+  });
+  return z.object({ sections: z.array(clientFormSectionSchema) });
+}
 
 /**
  * Part 5 (dynamic config 2026-07-20): no-code form layout editor. Migrated to
@@ -60,6 +64,8 @@ export function FormConfigEditor({
   initial: FormConfig;
   availableFields: AvailableField[];
 }) {
+  const locale = useLocale();
+  const clientFormConfigSchema = useMemo(() => makeClientFormConfigSchema(locale), [locale]);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(saveOrganizationSetting, null);
   const methods = useForm<FormConfig>({
     resolver: zodResolver(clientFormConfigSchema),
@@ -75,7 +81,13 @@ export function FormConfigEditor({
   const unplaced = availableFields.filter((f) => !placedKeys.has(f.key));
 
   function addSection() {
-    appendSection({ key: `section_${Date.now()}`, label: "Nueva sección", collapsed: false, order: sections.length, fields: [] });
+    appendSection({
+      key: `section_${Date.now()}`,
+      label: t("Nueva sección", "New section", locale),
+      collapsed: false,
+      order: sections.length,
+      fields: [],
+    });
   }
 
   function handleSectionReorder(orderedIds: (number | string)[]) {
@@ -97,7 +109,7 @@ export function FormConfigEditor({
 
         <div className="space-y-3">
           {sections.length === 0 ? (
-            <p className="text-sm text-muted">Sin secciones — agrega la primera abajo.</p>
+            <p className="text-sm text-muted">{t("Sin secciones — agrega la primera abajo.", "No sections — add the first one below.", locale)}</p>
           ) : (
             <DragList
               items={sections.map((s) => ({ ...s, id: s.key }))}
@@ -115,12 +127,12 @@ export function FormConfigEditor({
         </div>
 
         <button type="button" onClick={addSection} className={cx(buttonSecondaryClass, "inline-flex items-center gap-1.5")}>
-          <Plus className="size-4" /> Agregar sección
+          <Plus className="size-4" /> {t("Agregar sección", "Add section", locale)}
         </button>
 
         <div>
           <label className={labelClass}>&nbsp;</label>
-          <SubmitButton pending={pending}>Guardar formulario</SubmitButton>
+          <SubmitButton pending={pending}>{t("Guardar formulario", "Save form", locale)}</SubmitButton>
         </div>
       </form>
     </FormProvider>
@@ -138,6 +150,7 @@ function SectionEditor({
   unplaced: AvailableField[];
   onRemoveSection: () => void;
 }) {
+  const locale = useLocale();
   const {
     control,
     watch,
@@ -183,7 +196,7 @@ function SectionEditor({
       {!collapsed ? (
         <div className="space-y-3 p-3">
           {fields.length === 0 ? (
-            <p className="text-xs text-muted">Sin campos en esta sección.</p>
+            <p className="text-xs text-muted">{t("Sin campos en esta sección.", "No fields in this section.", locale)}</p>
           ) : (
             <DragList
               items={fields.map((f) => ({ ...f, id: f.key }))}
@@ -192,17 +205,17 @@ function SectionEditor({
                 <div className="flex flex-wrap items-center gap-3 rounded-md border border-edge bg-canvas px-2.5 py-1.5">
                   <span className="min-w-32 flex-1 truncate text-sm text-fg">
                     {labelFor(field.key)}
-                    {field.isCustomField ? <span className="ml-1 text-[10px] text-faint">(personalizado)</span> : null}
+                    {field.isCustomField ? <span className="ml-1 text-[10px] text-faint">{t("(personalizado)", "(custom)", locale)}</span> : null}
                   </span>
                   <label className="flex items-center gap-1.5 text-xs text-muted">
                     <FieldCheckbox name={`sections.${index}.fields.${fi}.visible`} />
-                    Visible
+                    {t("Visible", "Visible", locale)}
                   </label>
                   <label className="flex items-center gap-1.5 text-xs text-muted">
                     <FieldCheckbox name={`sections.${index}.fields.${fi}.required`} />
-                    Obligatorio
+                    {t("Obligatorio", "Required", locale)}
                   </label>
-                  <FieldTextInput name={`sections.${index}.fields.${fi}.defaultValue`} placeholder="Valor por defecto" />
+                  <FieldTextInput name={`sections.${index}.fields.${fi}.defaultValue`} placeholder={t("Valor por defecto", "Default value", locale)} />
                   <button type="button" onClick={() => remove(fi)} className="text-muted hover:text-danger">
                     <Trash2 className="size-3.5" />
                   </button>
@@ -217,7 +230,7 @@ function SectionEditor({
                 if (v) addField(v);
               }}
               className="h-8 w-auto text-xs"
-              options={[{ value: "", label: "+ Agregar campo…" }, ...unplaced.map((f) => ({ value: f.key, label: f.label }))]}
+              options={[{ value: "", label: t("+ Agregar campo…", "+ Add field…", locale) }, ...unplaced.map((f) => ({ value: f.key, label: f.label }))]}
             />
           ) : null}
         </div>

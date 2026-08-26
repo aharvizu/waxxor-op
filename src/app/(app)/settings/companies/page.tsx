@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { services, serviceVariants, slaDefinitions, users } from "@/db/schema";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
@@ -70,31 +71,39 @@ export default async function CompaniesSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Empresas"
-        subtitle="Parámetros por defecto, SLA por defecto y catálogos de clasificación."
+        title={t("Empresas", "Companies", locale)}
+        subtitle={t(
+          "Parámetros por defecto, SLA por defecto y catálogos de clasificación.",
+          "Default parameters, default SLA, and classification catalogs.",
+          locale,
+        )}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card className="p-5">
           <CardHeader
-            title="Parámetros por defecto"
-            description="Se preseleccionan al crear una empresa nueva; siempre editables por empresa."
+            title={t("Parámetros por defecto", "Default parameters", locale)}
+            description={t(
+              "Se preseleccionan al crear una empresa nueva; siempre editables por empresa.",
+              "Preselected when creating a new company; always editable per company.",
+              locale,
+            )}
           />
           <SettingSectionForm settingKey="companies.defaults">
             <div>
-              <label className={labelClass}>Responsable de cuenta por defecto</label>
+              <label className={labelClass}>{t("Responsable de cuenta por defecto", "Default account owner", locale)}</label>
               <SearchableSelect
                 name="defaultAccountOwnerId"
                 defaultValue={defaults.defaultAccountOwnerId ? String(defaults.defaultAccountOwnerId) : ""}
-                options={[{ value: "", label: "Sin valor por defecto" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+                options={[{ value: "", label: t("Sin valor por defecto", "No default value", locale) }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
               />
             </div>
             <div>
-              <label className={labelClass}>Técnico por defecto</label>
+              <label className={labelClass}>{t("Técnico por defecto", "Default technician", locale)}</label>
               <SearchableSelect
                 name="defaultTechnicianId"
                 defaultValue={defaults.defaultTechnicianId ? String(defaults.defaultTechnicianId) : ""}
-                options={[{ value: "", label: "Sin valor por defecto" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+                options={[{ value: "", label: t("Sin valor por defecto", "No default value", locale) }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
               />
             </div>
           </SettingSectionForm>
@@ -102,11 +111,15 @@ export default async function CompaniesSettingsPage() {
 
         <Card className="p-5">
           <CardHeader
-            title="SLA por defecto"
-            description="El SLA por defecto es por prioridad de ticket y se administra en Configuración → SLA (solo SuperAdmin, regla R7)."
+            title={t("SLA por defecto", "Default SLA", locale)}
+            description={t(
+              "El SLA por defecto es por prioridad de ticket y se administra en Configuración → SLA (solo SuperAdmin, regla R7).",
+              "The default SLA is set per ticket priority and managed under Settings → SLA (SuperAdmin only, rule R7).",
+              locale,
+            )}
           />
           {defaultSlas.length === 0 ? (
-            <p className="text-sm text-muted">No hay definiciones SLA por defecto activas.</p>
+            <p className="text-sm text-muted">{t("No hay definiciones SLA por defecto activas.", "There are no active default SLA definitions.", locale)}</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {defaultSlas.map((d) => (
@@ -120,8 +133,12 @@ export default async function CompaniesSettingsPage() {
             </ul>
           )}
           <p className="mt-3 text-xs text-muted">
-            También puede fijarse SLA en el catálogo de servicios y por servicio contratado.{" "}
-            <Link href="/settings/sla" className="text-primary hover:underline">Administrar SLA →</Link>
+            {t(
+              "También puede fijarse SLA en el catálogo de servicios y por servicio contratado.",
+              "SLA can also be set in the service catalog and per contracted service.",
+              locale,
+            )}{" "}
+            <Link href="/settings/sla" className="text-primary hover:underline">{t("Administrar SLA →", "Manage SLA →", locale)}</Link>
           </p>
         </Card>
       </div>
@@ -138,7 +155,7 @@ export default async function CompaniesSettingsPage() {
             hasChildren={false}
             childLabel={null}
             canDelete={user.role === "superadmin"}
-            addPlaceholder="Nueva categoría…"
+            addPlaceholder={t("Nueva categoría…", "New category…", locale)}
           />
         </Card>
         <Card className="p-5">
@@ -152,7 +169,7 @@ export default async function CompaniesSettingsPage() {
             hasChildren={false}
             childLabel={null}
             canDelete={user.role === "superadmin"}
-            addPlaceholder="Nueva etiqueta…"
+            addPlaceholder={t("Nueva etiqueta…", "New tag…", locale)}
           />
         </Card>
         <Card className="p-5">
@@ -166,15 +183,19 @@ export default async function CompaniesSettingsPage() {
             hasChildren={false}
             childLabel={null}
             canDelete={user.role === "superadmin"}
-            addPlaceholder="Nueva categoría…"
+            addPlaceholder={t("Nueva categoría…", "New category…", locale)}
           />
         </Card>
       </div>
 
       <Card className="p-5">
         <CardHeader
-          title="Catálogo de servicios"
-          description="Servicios que ofrece la organización (Microsoft 365, Backup, Soporte, …) y sus variantes/SKU (ej. licenciamientos) — se eligen al contratar un servicio para una empresa, en su ficha."
+          title={t("Catálogo de servicios", "Service catalog", locale)}
+          description={t(
+            "Servicios que ofrece la organización (Microsoft 365, Backup, Soporte, …) y sus variantes/SKU (ej. licenciamientos) — se eligen al contratar un servicio para una empresa, en su ficha.",
+            "Services the organization offers (Microsoft 365, Backup, Support, …) and their variants/SKUs (e.g. licensing) — chosen when contracting a service for a company, on its record.",
+            locale,
+          )}
         />
         <ServicesManager services={serviceCatalog} />
       </Card>

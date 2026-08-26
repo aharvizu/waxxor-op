@@ -7,21 +7,25 @@ import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/li
 import { requireUser } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
 import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t, type Locale } from "@/lib/i18n";
 import { Card, CardHeader, EmptyState, PageHeader, THead, Table, TBody, Td, Th, buttonClass, buttonSecondaryClass, cx } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
 import { InvoiceStatusCell } from "./billing-forms";
 
 export const metadata: Metadata = { title: "Cobros y facturación" };
 
-const PERIOD_LABELS: Record<string, string> = {
-  current_week: "Semana actual",
-  previous_week: "Semana anterior",
-  current_month: "Mes actual",
-  previous_month: "Mes anterior",
-  current_quarter: "Trimestre actual",
-  previous_quarter: "Trimestre anterior",
-  current_year: "Año actual",
-};
+function getPeriodLabels(locale: Locale): Record<string, string> {
+  return {
+    current_week: t("Semana actual", "Current week", locale),
+    previous_week: t("Semana anterior", "Previous week", locale),
+    current_month: t("Mes actual", "Current month", locale),
+    previous_month: t("Mes anterior", "Previous month", locale),
+    current_quarter: t("Trimestre actual", "Current quarter", locale),
+    previous_quarter: t("Trimestre anterior", "Previous quarter", locale),
+    current_year: t("Año actual", "Current year", locale),
+  };
+}
 
 /**
  * Reportes → Cobros y facturación (Pantalla 5 of the legacy KPI brief) — a
@@ -36,6 +40,8 @@ export default async function BillingSupportPage({
   searchParams: Promise<{ period?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const PERIOD_LABELS = getPeriodLabels(locale);
   const params = await searchParams;
   const periodRule = (
     PERIOD_RULES.includes(params.period as PeriodRule) && params.period !== "custom" ? params.period : "current_month"
@@ -54,12 +60,16 @@ export default async function BillingSupportPage({
   return (
     <div>
       <PageHeader
-        title="Cobros y facturación"
-        subtitle={`${PERIOD_LABELS[periodRule]} · ${period.start} – ${period.end} · solo clientes con al menos un ticket cobrable.`}
+        title={t("Cobros y facturación", "Billing", locale)}
+        subtitle={`${PERIOD_LABELS[periodRule]} · ${period.start} – ${period.end} · ${t(
+          "solo clientes con al menos un ticket cobrable.",
+          "only clients with at least one billable ticket.",
+          locale,
+        )}`}
         action={
           clients.length > 0 ? (
             <Link href={`/reports/billing/print?period=${periodRule}`} className={buttonClass} target="_blank">
-              <FileText className="size-4" /> Exportar todos (PDF)
+              <FileText className="size-4" /> {t("Exportar todos (PDF)", "Export all (PDF)", locale)}
             </Link>
           ) : undefined
         }
@@ -72,40 +82,40 @@ export default async function BillingSupportPage({
           className="w-auto"
           options={PERIOD_RULES.filter((r) => r !== "custom").map((r) => ({ value: r, label: PERIOD_LABELS[r] ?? r }))}
         />
-        <button type="submit" className={buttonSecondaryClass}>Aplicar</button>
+        <button type="submit" className={buttonSecondaryClass}>{t("Aplicar", "Apply", locale)}</button>
       </form>
 
       {clients.length === 0 ? (
-        <EmptyState icon={<FileText className="size-8" />} title="Sin tickets cobrables en el periodo">
-          Ningún ticket del periodo tiene un importe calculado mayor a $0.
+        <EmptyState icon={<FileText className="size-8" />} title={t("Sin tickets cobrables en el periodo", "No billable tickets in the period", locale)}>
+          {t("Ningún ticket del periodo tiene un importe calculado mayor a $0.", "No ticket in the period has a calculated amount greater than $0.", locale)}
         </EmptyState>
       ) : (
         <>
           <div className="mb-4 grid grid-cols-3 gap-4">
             <Card className="p-5">
-              <div className="text-[13px] font-medium text-muted">Clientes</div>
+              <div className="text-[13px] font-medium text-muted">{t("Clientes", "Clients", locale)}</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{clients.length}</div>
             </Card>
             <Card className="p-5">
-              <div className="text-[13px] font-medium text-muted">Tickets cobrables</div>
+              <div className="text-[13px] font-medium text-muted">{t("Tickets cobrables", "Billable tickets", locale)}</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{totals.tickets}</div>
             </Card>
             <Card className="p-5">
-              <div className="text-[13px] font-medium text-muted">Total a cobrar</div>
+              <div className="text-[13px] font-medium text-muted">{t("Total a cobrar", "Total to bill", locale)}</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtMoney(totals.cost)}</div>
             </Card>
           </div>
 
           <Card className="overflow-hidden">
-            <CardHeader title="Clientes con cobro en el periodo" />
+            <CardHeader title={t("Clientes con cobro en el periodo", "Clients billed in the period", locale)} />
             <Table>
               <THead>
                 <tr>
-                  <Th>Cliente</Th>
-                  <Th>Tickets</Th>
-                  <Th>Horas</Th>
-                  <Th>Total</Th>
-                  <Th>Factura</Th>
+                  <Th>{t("Cliente", "Client", locale)}</Th>
+                  <Th>{t("Tickets", "Tickets", locale)}</Th>
+                  <Th>{t("Horas", "Hours", locale)}</Th>
+                  <Th>{t("Total", "Total", locale)}</Th>
+                  <Th>{t("Factura", "Invoice", locale)}</Th>
                   <Th />
                 </tr>
               </THead>
@@ -136,7 +146,7 @@ export default async function BillingSupportPage({
                         target="_blank"
                         className={cx(buttonSecondaryClass, "h-8 px-3 text-xs")}
                       >
-                        Exportar
+                        {t("Exportar", "Export", locale)}
                       </Link>
                     </Td>
                   </tr>

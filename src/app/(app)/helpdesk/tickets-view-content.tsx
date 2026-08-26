@@ -7,6 +7,7 @@ import { useViewConfig } from "@/components/views/use-view-config";
 import type { PublicFieldDefinition, FilterGroup } from "@/lib/filters";
 import type { SavedView } from "@/lib/views";
 import type { Role } from "@/lib/roles";
+import { useLocale } from "@/components/locale-provider";
 import {
   buildColumnRegistry,
   CalendarView,
@@ -69,13 +70,14 @@ export function TicketsViewContent({
   columnOptions: { key: string; label: string }[];
   kanbanGroupOptions: { key: string; label: string }[];
 }) {
+  const locale = useLocale();
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
   const canEditDirectly = canEditViewClient(view, currentUserId, currentUserRole);
   const statusMap = toCatalogMap(statuses);
   const priorityMap = toCatalogMap(priorities);
   const billingMap = toCatalogMap(billingStatuses);
-  const registry = buildColumnRegistry(customFieldDefs, statusMap, priorityMap, billingMap);
+  const registry = buildColumnRegistry(customFieldDefs, statusMap, priorityMap, billingMap, locale);
 
   async function saveFilters(nextFilters: FilterGroup | null) {
     setConfig((prev) => ({ ...prev, filters: nextFilters }));

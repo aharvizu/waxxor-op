@@ -17,6 +17,7 @@ import {
   type FilterGroup,
 } from "@/lib/filters";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { getLastViewId } from "@/lib/last-view";
 import { getCatalogNames } from "@/lib/settings-data";
 import { ensureInitialViews, listViews, savedViewConfigSchema } from "@/lib/views";
@@ -136,8 +137,12 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   return (
     <div>
       <PageHeader
-        title="Activities"
-        subtitle="Standalone work — follow-ups, meetings, internal tasks — that isn't a ticket or a project."
+        title={t("Actividades", "Activities", locale)}
+        subtitle={t(
+          "Trabajo independiente — seguimientos, reuniones, tareas internas — que no es un ticket ni un proyecto.",
+          "Standalone work — follow-ups, meetings, internal tasks — that isn't a ticket or a project.",
+          locale,
+        )}
         action={
           <NewActivityButton companies={companyRows} activityTypeOptions={activityTypeOptions} users={assignableUsers} />
         }

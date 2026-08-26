@@ -31,6 +31,7 @@ import { getCatalog, getCatalogNames } from "@/lib/settings-data";
 import { getArticleForTicket } from "@/lib/knowledge-data";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t as tt } from "@/lib/i18n";
 import { canCreateDraft } from "@/lib/knowledge";
 import { isWorkflowDropdownCategory } from "@/lib/tickets";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
@@ -62,15 +63,15 @@ import {
 
 export const metadata: Metadata = { title: "Ticket" };
 
-const TABS = [
-  ["details", "Details"],
-  ["billing", "Billing"],
-  ["conversation", "Conversation"],
-  ["activities", "Activities"],
-  ["time", "Time"],
-  ["files", "Files"],
-  ["history", "History"],
-  ["resolution", "Resolution"],
+const TAB_KEYS = [
+  "details",
+  "billing",
+  "conversation",
+  "activities",
+  "time",
+  "files",
+  "history",
+  "resolution",
 ] as const;
 
 export default async function TicketPage({
@@ -84,10 +85,20 @@ export default async function TicketPage({
   const [{ id }, { tab: rawTab }] = await Promise.all([params, searchParams]);
   const ticketId = Number(id);
   if (!Number.isInteger(ticketId)) notFound();
-  const tab = TABS.some(([t]) => t === rawTab) ? rawTab! : "details";
+  const tab = TAB_KEYS.some((k) => k === rawTab) ? rawTab! : "details";
 
   const locale = await getOrgLocale(user.organizationId);
   const { activityStatusMeta, confirmationTypeMeta, knowledgeStatusMeta, slaHealthMeta } = getLabels(locale);
+  const TAB_LABELS: Record<(typeof TAB_KEYS)[number], string> = {
+    details: tt("Detalles", "Details", locale),
+    billing: tt("Cobro", "Billing", locale),
+    conversation: tt("Conversación", "Conversation", locale),
+    activities: tt("Actividades", "Activities", locale),
+    time: tt("Tiempo", "Time", locale),
+    files: tt("Archivos", "Files", locale),
+    history: tt("Historial", "History", locale),
+    resolution: tt("Resolución", "Resolution", locale),
+  };
 
   const [row] = await db
     .select({
@@ -229,14 +240,18 @@ export default async function TicketPage({
             ? "in"
             : "out",
       title: meta.call
-        ? `Call logged (${m.message.channel})`
+        ? tt(`Llamada registrada (${m.message.channel})`, `Call logged (${m.message.channel})`, locale)
         : meta.confirmationRequest
-          ? "Confirmation requested"
+          ? tt("Confirmación solicitada", "Confirmation requested", locale)
           : m.message.direction === "internal"
-            ? `Internal note${m.message.editedAt ? " (edited)" : ""}`
+            ? tt(
+                `Nota interna${m.message.editedAt ? " (editada)" : ""}`,
+                `Internal note${m.message.editedAt ? " (edited)" : ""}`,
+                locale,
+              )
             : m.message.direction === "inbound"
-              ? `Received via ${m.message.channel}`
-              : `Sent to client via ${m.message.channel}`,
+              ? tt(`Recibido vía ${m.message.channel}`, `Received via ${m.message.channel}`, locale)
+              : tt(`Enviado al cliente vía ${m.message.channel}`, `Sent to client via ${m.message.channel}`, locale),
       body: m.message.body,
       actor: m.authorName,
       messageId: m.message.id,
@@ -259,7 +274,11 @@ export default async function TicketPage({
     events.push({
       at: te.entry.createdAt,
       icon: "time",
-      title: `${formatMinutes(te.entry.durationMinutes)} logged (${te.entry.timeType.replaceAll("_", " ")})`,
+      title: tt(
+        `${formatMinutes(te.entry.durationMinutes)} registrado (${te.entry.timeType.replaceAll("_", " ")})`,
+        `${formatMinutes(te.entry.durationMinutes)} logged (${te.entry.timeType.replaceAll("_", " ")})`,
+        locale,
+      ),
       body: te.entry.description,
       actor: te.userName,
     });
@@ -342,12 +361,12 @@ export default async function TicketPage({
               {row.companyName}
             </Link>
           ) : (
-            <span>No client</span>
+            <span>{tt("Sin cliente", "No client", locale)}</span>
           )}
           <span aria-hidden>·</span>
-          <span>{row.assigneeName ?? "Unassigned"}</span>
+          <span>{row.assigneeName ?? tt("Sin asignar", "Unassigned", locale)}</span>
           <span aria-hidden>·</span>
-          <span className="tabular-nums">{formatMinutes(timeTotal.total)} logged</span>
+          <span className="tabular-nums">{tt(`${formatMinutes(timeTotal.total)} registrado`, `${formatMinutes(timeTotal.total)} logged`, locale)}</span>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-fg">
           <TitleEditor ticketId={t.id} title={w.title} />
@@ -360,10 +379,10 @@ export default async function TicketPage({
           {w.dueDate ? (
             <Badge tone="amber">
               <CalendarDays className="size-3" />
-              Agendado · {fmtDate(w.dueDate)}
+              {tt("Agendado", "Scheduled", locale)} · {fmtDate(w.dueDate)}
             </Badge>
           ) : null}
-          {t.reopenCount > 0 ? <Badge tone="red">Reopened ×{t.reopenCount}</Badge> : null}
+          {t.reopenCount > 0 ? <Badge tone="red">{tt("Reabierto", "Reopened", locale)} ×{t.reopenCount}</Badge> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <PrimaryActions ticketId={t.id} isClosed={isClosed} />
@@ -385,9 +404,9 @@ export default async function TicketPage({
         {/* center */}
         <div className="space-y-4 xl:col-span-2">
           <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-edge bg-surface p-1 shadow-card">
-            {TABS.map(([key, label]) => (
+            {TAB_KEYS.map((key) => (
               <TabLink key={key} href={`/helpdesk/${t.id}?tab=${key}`} active={tab === key}>
-                {label}
+                {TAB_LABELS[key]}
                 {key === "activities" && relatedStats.total > 0
                   ? ` (${relatedStats.total})`
                   : ""}
@@ -398,7 +417,7 @@ export default async function TicketPage({
 
           {tab === "details" ? (
             <Card className="overflow-hidden">
-              <CardHeader title="Details" description="Inline editable." />
+              <CardHeader title={tt("Detalles", "Details", locale)} description={tt("Editable en línea.", "Inline editable.", locale)} />
               <div className="p-5">
                 <SidePanelForm
                   ticketId={t.id}
@@ -428,11 +447,14 @@ export default async function TicketPage({
 
           {tab === "billing" ? (
             <Card className="overflow-hidden">
-              <CardHeader title="Billing" description="Operational classification — no invoicing." />
+              <CardHeader
+                title={tt("Cobro", "Billing", locale)}
+                description={tt("Clasificación operativa — no es facturación.", "Operational classification — no invoicing.", locale)}
+              />
               <div className="p-5">
                 {t.calculatedAmount ? (
                   <p className="mb-3 text-sm text-muted">
-                    Calculated amount:{" "}
+                    {tt("Monto calculado:", "Calculated amount:", locale)}{" "}
                     <span className="font-semibold text-fg tabular-nums">
                       {fmtMoney(t.calculatedAmount)}
                     </span>
@@ -456,11 +478,15 @@ export default async function TicketPage({
           {tab === "conversation" ? (
             <Card className="overflow-hidden">
               <CardHeader
-                title="Conversation & activity"
-                description="Messages, notes, calls, time and operational changes — newest first. Nothing is sent externally in the MVP."
+                title={tt("Conversación y actividad", "Conversation & activity", locale)}
+                description={tt(
+                  "Mensajes, notas, llamadas, tiempo y cambios operativos — lo más reciente primero. Nada se envía externamente en el MVP.",
+                  "Messages, notes, calls, time and operational changes — newest first. Nothing is sent externally in the MVP.",
+                  locale,
+                )}
                 action={
                   <Link href={`/inbox?ticketId=${t.id}`} className={buttonSecondaryClass}>
-                    Abrir en Inbox
+                    {tt("Abrir en Inbox", "Open in Inbox", locale)}
                   </Link>
                 }
               />
@@ -469,7 +495,7 @@ export default async function TicketPage({
                   <Composer ticketId={t.id} />
                 </div>
                 {events.length === 0 ? (
-                  <p className="text-sm text-muted">Nothing logged yet.</p>
+                  <p className="text-sm text-muted">{tt("Nada registrado todavía.", "Nothing logged yet.", locale)}</p>
                 ) : (
                   <ul className="space-y-3">
                     {events.map((e, i) => (
@@ -521,15 +547,19 @@ export default async function TicketPage({
             {sourceActivity ? (
               <Card className="overflow-hidden">
                 <CardHeader
-                  title="Origen"
-                  description="Este ticket nació de una actividad — se conserva como referencia histórica, de solo lectura."
+                  title={tt("Origen", "Origin", locale)}
+                  description={tt(
+                    "Este ticket nació de una actividad — se conserva como referencia histórica, de solo lectura.",
+                    "This ticket originated from an activity — kept as a read-only historical reference.",
+                    locale,
+                  )}
                 />
                 <div className="p-5">
                   <Link
                     href={`/activities/${sourceActivity.id}`}
                     className="flex items-center gap-2 text-sm font-medium text-fg hover:text-primary"
                   >
-                    <Badge tone="purple">Actividad</Badge>
+                    <Badge tone="purple">{tt("Actividad", "Activity", locale)}</Badge>
                     <span className="font-mono text-xs text-faint">{sourceActivity.folio}</span>
                     {sourceActivity.title}
                   </Link>
@@ -538,22 +568,26 @@ export default async function TicketPage({
             ) : null}
             <Card className="overflow-hidden">
               <CardHeader
-                title="Related activities"
-                description="Independent activities supporting this ticket — completing them never closes the ticket."
+                title={tt("Actividades relacionadas", "Related activities", locale)}
+                description={tt(
+                  "Actividades independientes que apoyan este ticket — completarlas nunca cierra el ticket.",
+                  "Independent activities supporting this ticket — completing them never closes the ticket.",
+                  locale,
+                )}
                 action={
                   <span className="flex gap-2 text-xs text-muted">
-                    <Badge tone="slate">Total {relatedStats.total}</Badge>
-                    <Badge tone="green">Done {relatedStats.completed}</Badge>
-                    <Badge tone="blue">Open {relatedStats.pending}</Badge>
+                    <Badge tone="slate">{tt("Total", "Total", locale)} {relatedStats.total}</Badge>
+                    <Badge tone="green">{tt("Completadas", "Done", locale)} {relatedStats.completed}</Badge>
+                    <Badge tone="blue">{tt("Abiertas", "Open", locale)} {relatedStats.pending}</Badge>
                     {relatedStats.overdue > 0 ? (
-                      <Badge tone="red">Overdue {relatedStats.overdue}</Badge>
+                      <Badge tone="red">{tt("Vencidas", "Overdue", locale)} {relatedStats.overdue}</Badge>
                     ) : null}
                   </span>
                 }
               />
               <div className="space-y-4 p-5">
                 {related.length === 0 ? (
-                  <p className="text-sm text-muted">No related activities yet.</p>
+                  <p className="text-sm text-muted">{tt("Aún no hay actividades relacionadas.", "No related activities yet.", locale)}</p>
                 ) : (
                   <ul className="space-y-2">
                     {related.map((r) => (
@@ -569,8 +603,8 @@ export default async function TicketPage({
                             {r.item.title}
                           </Link>
                           <div className="text-xs text-muted">
-                            {r.assigneeName ?? "Unassigned"}
-                            {r.item.dueDate ? ` · Due ${fmtDate(r.item.dueDate)}` : ""}
+                            {r.assigneeName ?? tt("Sin asignar", "Unassigned", locale)}
+                            {r.item.dueDate ? ` · ${tt("Vence", "Due", locale)} ${fmtDate(r.item.dueDate)}` : ""}
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
@@ -599,13 +633,17 @@ export default async function TicketPage({
           {tab === "files" ? (
             <Card className="overflow-hidden">
               <CardHeader
-                title="Files"
-                description="Metadata in Postgres; blobs on the local storage adapter (productive storage pending)."
+                title={tt("Archivos", "Files", locale)}
+                description={tt(
+                  "Metadatos en Postgres; los blobs viven en el adaptador de almacenamiento local (almacenamiento productivo pendiente).",
+                  "Metadata in Postgres; blobs on the local storage adapter (productive storage pending).",
+                  locale,
+                )}
               />
               <div className="space-y-4 p-5">
                 <UploadForm ticketId={t.id} />
                 {fileRows.length === 0 ? (
-                  <p className="text-sm text-muted">No files attached.</p>
+                  <p className="text-sm text-muted">{tt("Sin archivos adjuntos.", "No files attached.", locale)}</p>
                 ) : (
                   <ul className="space-y-2">
                     {fileRows.map((f) => (
@@ -642,9 +680,12 @@ export default async function TicketPage({
 
           {tab === "history" ? (
             <Card className="overflow-hidden">
-              <CardHeader title="History" description="Complete audit trail for this ticket." />
+              <CardHeader
+                title={tt("Historial", "History", locale)}
+                description={tt("Bitácora de auditoría completa de este ticket.", "Complete audit trail for this ticket.", locale)}
+              />
               {auditRows.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-muted">No audit events.</p>
+                <p className="px-5 py-8 text-sm text-muted">{tt("Sin eventos de auditoría.", "No audit events.", locale)}</p>
               ) : (
                 <ul className="divide-y divide-edge">
                   {auditRows.map((a) => (
@@ -663,7 +704,7 @@ export default async function TicketPage({
                         </span>
                       </span>
                       <span className="shrink-0 text-xs text-faint tabular-nums">
-                        {a.actorName ?? "system"} · {fmtDateTime(a.log.createdAt)}
+                        {a.actorName ?? tt("sistema", "system", locale)} · {fmtDateTime(a.log.createdAt)}
                       </span>
                     </li>
                   ))}
@@ -677,8 +718,12 @@ export default async function TicketPage({
               {t.resolution ? (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title="Resolution"
-                    description={`Resolved ${t.resolvedAt ? fmtDateTime(t.resolvedAt) : "—"} · ${t.category ?? "no category"}${t.subcategory ? ` / ${t.subcategory}` : ""}`}
+                    title={tt("Resolución", "Resolution", locale)}
+                    description={tt(
+                      `Resuelto ${t.resolvedAt ? fmtDateTime(t.resolvedAt) : "—"} · ${t.category ?? "sin categoría"}${t.subcategory ? ` / ${t.subcategory}` : ""}`,
+                      `Resolved ${t.resolvedAt ? fmtDateTime(t.resolvedAt) : "—"} · ${t.category ?? "no category"}${t.subcategory ? ` / ${t.subcategory}` : ""}`,
+                      locale,
+                    )}
                   />
                   <p className="p-5 text-sm whitespace-pre-wrap text-fg">{t.resolution}</p>
                 </Card>
@@ -686,13 +731,17 @@ export default async function TicketPage({
               {t.resolution ? (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title="Base de conocimiento"
-                    description="Genera un artículo reutilizable a partir de esta resolución — siempre como borrador."
+                    title={tt("Base de conocimiento", "Knowledge base", locale)}
+                    description={tt(
+                      "Genera un artículo reutilizable a partir de esta resolución — siempre como borrador.",
+                      "Generates a reusable article from this resolution — always as a draft.",
+                      locale,
+                    )}
                   />
                   <div className="p-5">
                     {kbArticle ? (
                       <p className="text-sm text-fg">
-                        Ya se generó{" "}
+                        {tt("Ya se generó", "Already generated", locale)}{" "}
                         <Link href={`/knowledge/${kbArticle.id}`} className="font-medium text-primary hover:underline">
                           {kbArticle.title}
                         </Link>{" "}
@@ -709,7 +758,13 @@ export default async function TicketPage({
                         defaultCategory={t.category}
                       />
                     ) : (
-                      <p className="text-sm text-muted">No tienes permiso para crear artículos de conocimiento.</p>
+                      <p className="text-sm text-muted">
+                        {tt(
+                          "No tienes permiso para crear artículos de conocimiento.",
+                          "You don't have permission to create knowledge articles.",
+                          locale,
+                        )}
+                      </p>
                     )}
                   </div>
                 </Card>
@@ -717,7 +772,7 @@ export default async function TicketPage({
               {t.confirmationType ? (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title="Confirmation"
+                    title={tt("Confirmación", "Confirmation", locale)}
                     description={`${confirmationTypeMeta[t.confirmationType]?.label ?? t.confirmationType} · ${t.confirmationAt ? fmtDateTime(t.confirmationAt) : "—"}${t.confirmationChannel ? ` · ${t.confirmationChannel}` : ""}`}
                   />
                   {t.confirmationNotes ? (
@@ -728,23 +783,43 @@ export default async function TicketPage({
               {isClosed ? (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title={currentStatus?.category === "cancelled" ? "Cancelled" : "Closed"}
-                    description={`${t.closedAt ? fmtDateTime(t.closedAt) : "—"} · SLA first response ${
-                      t.slaFirstResponseMet === null
-                        ? "n/a"
-                        : t.slaFirstResponseMet
-                          ? "met"
-                          : "missed"
-                    } · resolution ${
-                      t.slaResolutionMet === null ? "n/a" : t.slaResolutionMet ? "met" : "missed"
-                    }${t.timeExceptionReason ? ` · time exception: ${t.timeExceptionReason}` : ""}`}
+                    title={
+                      currentStatus?.category === "cancelled"
+                        ? tt("Cancelado", "Cancelled", locale)
+                        : tt("Cerrado", "Closed", locale)
+                    }
+                    description={tt(
+                      `${t.closedAt ? fmtDateTime(t.closedAt) : "—"} · SLA primera respuesta ${
+                        t.slaFirstResponseMet === null
+                          ? "n/a"
+                          : t.slaFirstResponseMet
+                            ? "cumplido"
+                            : "incumplido"
+                      } · resolución ${
+                        t.slaResolutionMet === null ? "n/a" : t.slaResolutionMet ? "cumplido" : "incumplido"
+                      }${t.timeExceptionReason ? ` · excepción de tiempo: ${t.timeExceptionReason}` : ""}`,
+                      `${t.closedAt ? fmtDateTime(t.closedAt) : "—"} · SLA first response ${
+                        t.slaFirstResponseMet === null
+                          ? "n/a"
+                          : t.slaFirstResponseMet
+                            ? "met"
+                            : "missed"
+                      } · resolution ${
+                        t.slaResolutionMet === null ? "n/a" : t.slaResolutionMet ? "met" : "missed"
+                      }${t.timeExceptionReason ? ` · time exception: ${t.timeExceptionReason}` : ""}`,
+                      locale,
+                    )}
                   />
                 </Card>
               ) : currentStatus?.category === "resolved" ? (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title="Close ticket"
-                    description="Closure requires resolution, category, confirmation type and time (or an audited exception)."
+                    title={tt("Cerrar ticket", "Close ticket", locale)}
+                    description={tt(
+                      "El cierre requiere resolución, categoría, tipo de confirmación y tiempo (o una excepción auditada).",
+                      "Closure requires resolution, category, confirmation type and time (or an audited exception).",
+                      locale,
+                    )}
                   />
                   <div className="p-5">
                     <CloseForm
@@ -758,8 +833,12 @@ export default async function TicketPage({
               ) : (
                 <Card className="overflow-hidden">
                   <CardHeader
-                    title="Resolve ticket"
-                    description={`Time logged so far: ${formatMinutes(timeTotal.total)}.`}
+                    title={tt("Resolver ticket", "Resolve ticket", locale)}
+                    description={tt(
+                      `Tiempo registrado hasta ahora: ${formatMinutes(timeTotal.total)}.`,
+                      `Time logged so far: ${formatMinutes(timeTotal.total)}.`,
+                      locale,
+                    )}
                   />
                   <div className="p-5">
                     <ResolveForm

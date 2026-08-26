@@ -6,6 +6,7 @@ import { companies, organizations, projects, reports, users } from "@/db/schema"
 import { fmtMoney } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t, type Locale } from "@/lib/i18n";
 import type { PeriodMetrics } from "@/lib/report-metrics";
 import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
@@ -31,7 +32,7 @@ function Row({ label, value }: { label: string; value: string | number }) {
  */
 export default async function ReportPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  const locale = await getOrgLocale(user.organizationId);
+  const locale: Locale = await getOrgLocale(user.organizationId);
   const { reportTypeMeta } = getLabels(locale);
   const { id } = await params;
   const reportId = Number(id);
@@ -83,12 +84,15 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
             {reportTypeMeta[report.reportType]?.label ?? report.reportType}
           </p>
           <div className="mx-auto mt-10 max-w-sm space-y-1 text-sm text-slate-700">
-            {row.companyName ? <p>Empresa: <strong>{row.companyName}</strong></p> : null}
-            {row.projectName ? <p>Proyecto: <strong>{row.projectName}</strong></p> : null}
-            <p>Periodo: <strong>{report.periodStart} – {report.periodEnd}</strong></p>
-            <p>Responsable: <strong>{row.responsibleName ?? "—"}</strong></p>
-            <p>Fecha de generación: <strong>{report.generatedAt?.toISOString().slice(0, 10) ?? "—"}</strong></p>
-            <p>Versión: <strong>v{report.version}</strong> · {isExternal ? "Documento para cliente" : "Uso interno"}</p>
+            {row.companyName ? <p>{t("Empresa", "Company", locale)}: <strong>{row.companyName}</strong></p> : null}
+            {row.projectName ? <p>{t("Proyecto", "Project", locale)}: <strong>{row.projectName}</strong></p> : null}
+            <p>{t("Periodo", "Period", locale)}: <strong>{report.periodStart} – {report.periodEnd}</strong></p>
+            <p>{t("Responsable", "Owner", locale)}: <strong>{row.responsibleName ?? "—"}</strong></p>
+            <p>{t("Fecha de generación", "Generation date", locale)}: <strong>{report.generatedAt?.toISOString().slice(0, 10) ?? "—"}</strong></p>
+            <p>
+              {t("Versión", "Version", locale)}: <strong>v{report.version}</strong> ·{" "}
+              {isExternal ? t("Documento para cliente", "Client document", locale) : t("Uso interno", "Internal use", locale)}
+            </p>
           </div>
           {branding.corporateIntro ? (
             <p className="mx-auto mt-8 max-w-md text-xs leading-relaxed text-slate-600">{branding.corporateIntro}</p>
@@ -101,32 +105,38 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
 
       {has("executive_summary") && (report.executiveSummary || report.content) ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">1. Resumen ejecutivo</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">1. {t("Resumen ejecutivo", "Executive summary", locale)}</h2>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{report.executiveSummary || report.content}</p>
         </section>
       ) : null}
 
       {has("period_summary") ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">2. Resumen del periodo</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">2. {t("Resumen del periodo", "Period summary", locale)}</h2>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{report.content}</p>
         </section>
       ) : null}
 
       {has("tickets") ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">3. Tickets</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">3. {t("Tickets", "Tickets", locale)}</h2>
           <table className="w-full">
             <tbody>
-              <Row label="Tickets creados" value={metrics.tickets.created} />
-              <Row label="Tickets cerrados" value={metrics.tickets.closed} />
-              <Row label="Abiertos al cierre del periodo" value={metrics.tickets.openAtEnd} />
-              <Row label="Reabiertos" value={metrics.tickets.reopened} />
+              <Row label={t("Tickets creados", "Tickets created", locale)} value={metrics.tickets.created} />
+              <Row label={t("Tickets cerrados", "Tickets closed", locale)} value={metrics.tickets.closed} />
+              <Row label={t("Abiertos al cierre del periodo", "Open at end of period", locale)} value={metrics.tickets.openAtEnd} />
+              <Row label={t("Reabiertos", "Reopened", locale)} value={metrics.tickets.reopened} />
               {metrics.tickets.avgFirstResponseMinutes !== null ? (
-                <Row label="Primera respuesta promedio" value={formatMinutes(metrics.tickets.avgFirstResponseMinutes)} />
+                <Row
+                  label={t("Primera respuesta promedio", "Average first response", locale)}
+                  value={formatMinutes(metrics.tickets.avgFirstResponseMinutes)}
+                />
               ) : null}
               {metrics.tickets.avgResolutionMinutes !== null ? (
-                <Row label="Resolución promedio" value={formatMinutes(metrics.tickets.avgResolutionMinutes)} />
+                <Row
+                  label={t("Resolución promedio", "Average resolution", locale)}
+                  value={formatMinutes(metrics.tickets.avgResolutionMinutes)}
+                />
               ) : null}
             </tbody>
           </table>
@@ -135,13 +145,19 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
 
       {has("sla") ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">4. Cumplimiento de SLA</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">4. {t("Cumplimiento de SLA", "SLA compliance", locale)}</h2>
           <table className="w-full">
             <tbody>
-              <Row label="Tickets evaluados" value={metrics.sla.evaluated} />
-              <Row label="Cumplidos" value={metrics.sla.met} />
-              <Row label="Cumplimiento de resolución" value={metrics.sla.compliancePct !== null ? `${metrics.sla.compliancePct}%` : "No disponible"} />
-              <Row label="Cumplimiento de primera respuesta" value={metrics.sla.firstResponsePct !== null ? `${metrics.sla.firstResponsePct}%` : "No disponible"} />
+              <Row label={t("Tickets evaluados", "Tickets evaluated", locale)} value={metrics.sla.evaluated} />
+              <Row label={t("Cumplidos", "Met", locale)} value={metrics.sla.met} />
+              <Row
+                label={t("Cumplimiento de resolución", "Resolution compliance", locale)}
+                value={metrics.sla.compliancePct !== null ? `${metrics.sla.compliancePct}%` : t("No disponible", "Not available", locale)}
+              />
+              <Row
+                label={t("Cumplimiento de primera respuesta", "First response compliance", locale)}
+                value={metrics.sla.firstResponsePct !== null ? `${metrics.sla.firstResponsePct}%` : t("No disponible", "Not available", locale)}
+              />
             </tbody>
           </table>
         </section>
@@ -149,11 +165,11 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
 
       {has("activities") ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">5. Actividades</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">5. {t("Actividades", "Activities", locale)}</h2>
           <table className="w-full">
             <tbody>
-              <Row label="Creadas" value={metrics.activities.created} />
-              <Row label="Completadas" value={metrics.activities.completed} />
+              <Row label={t("Creadas", "Created", locale)} value={metrics.activities.created} />
+              <Row label={t("Completadas", "Completed", locale)} value={metrics.activities.completed} />
             </tbody>
           </table>
         </section>
@@ -161,12 +177,12 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
 
       {has("time") ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">6. Tiempo de atención</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">6. {t("Tiempo de atención", "Time spent", locale)}</h2>
           <table className="w-full">
             <tbody>
-              <Row label="Total registrado" value={formatMinutes(metrics.time.total)} />
-              <Row label="Facturable" value={formatMinutes(metrics.time.billable)} />
-              <Row label="Incluido en contrato" value={formatMinutes(metrics.time.inContract)} />
+              <Row label={t("Total registrado", "Total logged", locale)} value={formatMinutes(metrics.time.total)} />
+              <Row label={t("Facturable", "Billable", locale)} value={formatMinutes(metrics.time.billable)} />
+              <Row label={t("Incluido en contrato", "Included in contract", locale)} value={formatMinutes(metrics.time.inContract)} />
             </tbody>
           </table>
         </section>
@@ -175,11 +191,13 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
       {has("billing") && !isExternal ? (
         // billing amounts are internal by default — external reports exclude them
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">7. Cobro operativo (interno)</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">
+            7. {t("Cobro operativo (interno)", "Operational billing (internal)", locale)}
+          </h2>
           <table className="w-full">
             <tbody>
-              <Row label="Tickets por revisar" value={metrics.billing.pendingReview} />
-              <Row label="Monto potencial" value={fmtMoney(metrics.billing.potentialAmount)} />
+              <Row label={t("Tickets por revisar", "Tickets to review", locale)} value={metrics.billing.pendingReview} />
+              <Row label={t("Monto potencial", "Potential amount", locale)} value={fmtMoney(metrics.billing.potentialAmount)} />
             </tbody>
           </table>
         </section>
@@ -187,14 +205,14 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
 
       {has("conclusions") && report.conclusions ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">Conclusiones</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">{t("Conclusiones", "Conclusions", locale)}</h2>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{report.conclusions}</p>
         </section>
       ) : null}
 
       {has("recommendations") && report.recommendations ? (
         <section className="mb-8">
-          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">Recomendaciones</h2>
+          <h2 className="mb-2 border-b-2 border-slate-900 pb-1 text-lg font-bold">{t("Recomendaciones", "Recommendations", locale)}</h2>
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{report.recommendations}</p>
         </section>
       ) : null}
@@ -202,7 +220,7 @@ export default async function ReportPrintPage({ params }: { params: Promise<{ id
       <footer className="mt-12 border-t border-slate-300 pt-3 text-center text-xs text-slate-500">
         {branding.footerText ? <span className="block">{branding.footerText}</span> : null}
         {row.orgName} · {report.title} · v{report.version} · {report.periodStart} – {report.periodEnd} ·{" "}
-        {isExternal ? "Documento para cliente" : "Uso interno"}
+        {isExternal ? t("Documento para cliente", "Client document", locale) : t("Uso interno", "Internal use", locale)}
       </footer>
     </div>
   );

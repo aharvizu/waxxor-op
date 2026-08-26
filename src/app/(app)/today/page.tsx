@@ -20,6 +20,7 @@ import { Badge, Card, CardHeader, EmptyState, Skeleton, StatCard, buttonClass, b
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t, type Locale } from "@/lib/i18n";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { toCatalogMap } from "@/lib/catalog-map";
 import {
@@ -76,35 +77,42 @@ import {
 export const metadata: Metadata = { title: "Hoy" };
 
 const FILTERS = [
-  ["all", "Todo"],
-  ["today", "Hoy"],
-  ["overdue", "Vencidos"],
-  ["upcoming", "Próximos"],
-  ["nodate", "Sin fecha"],
-  ["unassigned", "Sin responsable"],
-  ["tickets", "Tickets"],
-  ["activities", "Actividades"],
-  ["waiting", "Esperando"],
-  ["pending_confirmation", "Confirmación"],
-  ["sla_risk", "SLA en riesgo"],
-  ["billable", "Cobrables"],
+  ["all", "Todo", "All"],
+  ["today", "Hoy", "Today"],
+  ["overdue", "Vencidos", "Overdue"],
+  ["upcoming", "Próximos", "Upcoming"],
+  ["nodate", "Sin fecha", "No date"],
+  ["unassigned", "Sin responsable", "Unassigned"],
+  ["tickets", "Tickets", "Tickets"],
+  ["activities", "Actividades", "Activities"],
+  ["waiting", "Esperando", "Waiting"],
+  ["pending_confirmation", "Confirmación", "Confirmation"],
+  ["sla_risk", "SLA en riesgo", "SLA at risk"],
+  ["billable", "Cobrables", "Billable"],
 ] as const;
 
 const GROUPS = [
-  ["none", "Sin agrupar"],
-  ["priority", "Prioridad"],
-  ["type", "Tipo"],
-  ["assignee", "Responsable"],
-  ["client", "Empresa"],
-  ["status", "Estado"],
-  ["date", "Fecha"],
+  ["none", "Sin agrupar", "Ungrouped"],
+  ["priority", "Prioridad", "Priority"],
+  ["type", "Tipo", "Type"],
+  ["assignee", "Responsable", "Assignee"],
+  ["client", "Empresa", "Client"],
+  ["status", "Estado", "Status"],
+  ["date", "Fecha", "Date"],
 ] as const;
 
-const KIND_LABEL: Record<string, string> = {
-  ticket: "Ticket",
-  activity: "Actividad",
-  related_activity: "Act. relacionada",
-};
+function kindLabel(kind: string, locale: Locale): string {
+  switch (kind) {
+    case "ticket":
+      return t("Ticket", "Ticket", locale);
+    case "activity":
+      return t("Actividad", "Activity", locale);
+    case "related_activity":
+      return t("Act. relacionada", "Related act.", locale);
+    default:
+      return kind;
+  }
+}
 
 type Search = {
   scope?: string;
@@ -198,19 +206,20 @@ export default async function TodayPage({
             qs={qs}
             activityStatusMeta={activityStatusMeta}
             ticketPriorityMeta={ticketPriorityMeta}
+            locale={locale}
           />
         </Suspense>
 
         <Suspense fallback={null}>
-          <ContinueLearningCard user={user} />
+          <ContinueLearningCard user={user} locale={locale} />
         </Suspense>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <Suspense fallback={<SectionSkeleton rows={3} />}>
-            <RemindersSection user={user} now={now} />
+            <RemindersSection user={user} now={now} locale={locale} />
           </Suspense>
           <Suspense fallback={<SectionSkeleton rows={3} />}>
-            <MessagesSection user={user} msgFilter={params.msg ?? "unattended"} qs={qs} />
+            <MessagesSection user={user} msgFilter={params.msg ?? "unattended"} qs={qs} locale={locale} />
           </Suspense>
         </div>
       </div>
@@ -224,6 +233,7 @@ export default async function TodayPage({
             activityStatusMeta={activityStatusMeta}
             ticketPriorityMeta={ticketPriorityMeta}
             activityTypeMeta={activityTypeMeta}
+            locale={locale}
           />
         </Suspense>
       ) : null}
@@ -244,11 +254,15 @@ function SectionSkeleton({ rows }: { rows: number }) {
   );
 }
 
-function SectionError({ title }: { title: string }) {
+function SectionError({ title, locale }: { title: string; locale: Locale }) {
   return (
     <Card className="flex items-center gap-3 border-danger/25 p-5 text-sm text-danger">
       <AlertTriangle className="size-4 shrink-0" />
-      No se pudo cargar la sección “{title}”. El resto de la pantalla sigue funcionando.
+      {locale === "en" ? (
+        <>Could not load the “{title}” section. The rest of the screen still works.</>
+      ) : (
+        <>No se pudo cargar la sección “{title}”. El resto de la pantalla sigue funcionando.</>
+      )}
     </Card>
   );
 }
@@ -266,6 +280,7 @@ async function CoreSections({
   qs,
   activityStatusMeta,
   ticketPriorityMeta,
+  locale,
 }: {
   user: SessionUser;
   scope: TodayScope;
@@ -277,6 +292,7 @@ async function CoreSections({
   qs: (o: Partial<Record<string, string>>) => string;
   activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
   ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
+  locale: Locale;
 }) {
   let items: TodayItem[];
   let unassigned: { tickets: number; activities: number };
@@ -300,7 +316,7 @@ async function CoreSections({
       listTicketPriorities(user.organizationId, { includeInactive: true }),
     ]);
   } catch {
-    return <SectionError title="Resumen y Mi trabajo" />;
+    return <SectionError title={t("Resumen y Mi trabajo", "Summary and My work", locale)} locale={locale} />;
   }
   const statusMap = toCatalogMap(statusRows);
   const priorityMap = toCatalogMap(priorityRows);
@@ -394,15 +410,15 @@ async function CoreSections({
 
   // Most urgent first — the point is to read what matters most without scanning the whole row.
   const indicators: [string, number, string, typeof AlertTriangle][] = [
-    ["Vencidos", counts.overdue, qs({ filter: "overdue" }), AlertTriangle],
-    ["SLA vencidos", counts.slaBreached, "/helpdesk?quick=overdue", ShieldAlert],
-    ["SLA en riesgo", counts.slaAtRisk, qs({ filter: "sla_risk" }), Timer],
-    ["Sin asignar", counts.unassignedTickets + counts.unassignedActivities, qs({ filter: "unassigned" }), UserX],
-    ["Para hoy", counts.dueToday, qs({ filter: "today" }), CalendarClock],
-    ["Tickets nuevos", counts.newTickets, "/helpdesk?status=new", TicketIcon],
-    ["Por confirmar", counts.pendingConfirmation, qs({ filter: "pending_confirmation" }), ClipboardCheck],
-    ["Conversaciones", counts.unansweredConversations, "#messages", MessagesSquare],
-    ["Cobro por revisar", counts.billingReview, "/helpdesk?billing=pending_review", CircleDollarSign],
+    [t("Vencidos", "Overdue", locale), counts.overdue, qs({ filter: "overdue" }), AlertTriangle],
+    [t("SLA vencidos", "SLA breached", locale), counts.slaBreached, "/helpdesk?quick=overdue", ShieldAlert],
+    [t("SLA en riesgo", "SLA at risk", locale), counts.slaAtRisk, qs({ filter: "sla_risk" }), Timer],
+    [t("Sin asignar", "Unassigned", locale), counts.unassignedTickets + counts.unassignedActivities, qs({ filter: "unassigned" }), UserX],
+    [t("Para hoy", "Due today", locale), counts.dueToday, qs({ filter: "today" }), CalendarClock],
+    [t("Tickets nuevos", "New tickets", locale), counts.newTickets, "/helpdesk?status=new", TicketIcon],
+    [t("Por confirmar", "Pending confirmation", locale), counts.pendingConfirmation, qs({ filter: "pending_confirmation" }), ClipboardCheck],
+    [t("Conversaciones", "Conversations", locale), counts.unansweredConversations, "#messages", MessagesSquare],
+    [t("Cobro por revisar", "Billing to review", locale), counts.billingReview, "/helpdesk?billing=pending_review", CircleDollarSign],
   ];
 
   return (
@@ -416,7 +432,12 @@ async function CoreSections({
             slaAtRisk: counts.slaAtRisk,
           })}{" "}
           <span className="text-faint tabular-nums">
-            · {formatMinutes(timeToday)} registrados {date === new Date().toISOString().slice(0, 10) ? "hoy" : `el ${fmtDate(date)}`}
+            ·{" "}
+            {t(
+              `${formatMinutes(timeToday)} registrados ${date === new Date().toISOString().slice(0, 10) ? "hoy" : `el ${fmtDate(date)}`}`,
+              `${formatMinutes(timeToday)} logged ${date === new Date().toISOString().slice(0, 10) ? "today" : `on ${fmtDate(date)}`}`,
+              locale,
+            )}
           </span>
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
@@ -436,11 +457,11 @@ async function CoreSections({
       {attention.length > 0 ? (
         <Card className="overflow-hidden border-danger/20">
           <CardHeader
-            title="Atención inmediata"
-            description="Lo que no puede esperar, en orden de urgencia."
+            title={t("Atención inmediata", "Immediate attention", locale)}
+            description={t("Lo que no puede esperar, en orden de urgencia.", "What cannot wait, in order of urgency.", locale)}
             action={
               <Link href={qs({ filter: "overdue" })} className="text-sm font-medium text-primary hover:text-primary-hover">
-                Ver todos <ArrowRight className="inline size-3.5" />
+                {t("Ver todos", "View all", locale)} <ArrowRight className="inline size-3.5" />
               </Link>
             }
           />
@@ -449,10 +470,10 @@ async function CoreSections({
               <li key={`${item.kind}-${item.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <Badge tone="red">{reason.label}</Badge>
-                  <ItemLink item={item} qs={qs} />
+                  <ItemLink item={item} qs={qs} locale={locale} />
                   <span className="hidden text-xs text-faint sm:inline">{item.companyName ?? ""}</span>
                 </div>
-                <InlineActions item={item} users={userRows} qs={qs} statuses={statusRows} priorities={priorityRows} />
+                <InlineActions item={item} users={userRows} qs={qs} statuses={statusRows} priorities={priorityRows} locale={locale} />
               </li>
             ))}
           </ul>
@@ -462,7 +483,10 @@ async function CoreSections({
       {/* Enfoque del día */}
       {focus.length > 0 ? (
         <Card className="overflow-hidden">
-          <CardHeader title="Enfoque del día" description="Tres movimientos con más impacto ahora mismo." />
+          <CardHeader
+            title={t("Enfoque del día", "Today's focus", locale)}
+            description={t("Tres movimientos con más impacto ahora mismo.", "Three moves with the most impact right now.", locale)}
+          />
           <ul className="divide-y divide-edge">
             {focus.map((f) => (
               <li key={f.title} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
@@ -471,7 +495,7 @@ async function CoreSections({
                   <div className="text-xs text-muted">{f.impact}</div>
                 </div>
                 <Link href={f.href} className={cx(buttonSecondaryClass, "h-8 px-3 text-xs")}>
-                  Ver <ArrowRight className="size-3.5" />
+                  {t("Ver", "View", locale)} <ArrowRight className="size-3.5" />
                 </Link>
               </li>
             ))}
@@ -483,11 +507,15 @@ async function CoreSections({
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card className="overflow-hidden xl:col-span-2">
           <CardHeader
-            title="Mi trabajo"
-            description={`${ordered.length} elemento${ordered.length === 1 ? "" : "s"} en este filtro.`}
+            title={t("Mi trabajo", "My work", locale)}
+            description={t(
+              `${ordered.length} elemento${ordered.length === 1 ? "" : "s"} en este filtro.`,
+              `${ordered.length} item${ordered.length === 1 ? "" : "s"} in this filter.`,
+              locale,
+            )}
           />
           <div className="flex flex-wrap items-center gap-1.5 border-b border-edge px-5 py-3">
-            {FILTERS.map(([key, label]) => (
+            {FILTERS.map(([key, esLabel, enLabel]) => (
               <Link
                 key={key}
                 href={qs({ filter: key })}
@@ -497,11 +525,11 @@ async function CoreSections({
                   filter === key ? "bg-primary-soft text-primary" : "text-muted hover:bg-subtle hover:text-fg",
                 )}
               >
-                {label}
+                {t(esLabel, enLabel, locale)}
               </Link>
             ))}
             <span className="mx-1 h-4 w-px bg-edge" aria-hidden />
-            {GROUPS.map(([key, label]) => (
+            {GROUPS.map(([key, esLabel, enLabel]) => (
               <Link
                 key={key}
                 href={qs({ group: key })}
@@ -511,12 +539,12 @@ async function CoreSections({
                   group === key ? "bg-subtle font-medium text-fg" : "text-faint hover:text-muted",
                 )}
               >
-                {label}
+                {t(esLabel, enLabel, locale)}
               </Link>
             ))}
           </div>
           {ordered.length === 0 ? (
-            <EmptyStateNoWork qs={qs} />
+            <EmptyStateNoWork qs={qs} locale={locale} />
           ) : view === "table" ? (
             <CompactTable
               items={ordered}
@@ -525,9 +553,10 @@ async function CoreSections({
               priorities={priorityMap}
               activityStatusMeta={activityStatusMeta}
               ticketPriorityMeta={ticketPriorityMeta}
+              locale={locale}
             />
           ) : view === "agenda" ? (
-            <AgendaView items={ordered} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} />
+            <AgendaView items={ordered} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} locale={locale} />
           ) : (
             <GroupedList
               items={ordered}
@@ -539,6 +568,7 @@ async function CoreSections({
               priorities={priorityRows}
               activityStatusMeta={activityStatusMeta}
               ticketPriorityMeta={ticketPriorityMeta}
+              locale={locale}
             />
           )}
         </Card>
@@ -547,7 +577,7 @@ async function CoreSections({
           {/* Agenda del día */}
           <Card className="overflow-hidden">
             <CardHeader
-              title="Agenda"
+              title={t("Agenda", "Agenda", locale)}
               description={fmtDate(date)}
               action={
                 <span className="flex gap-1">
@@ -557,33 +587,42 @@ async function CoreSections({
               }
             />
             {agendaItems.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-muted">Sin elementos agendados.</p>
+              <p className="px-5 py-6 text-sm text-muted">{t("Sin elementos agendados.", "No scheduled items.", locale)}</p>
             ) : (
-              <AgendaView items={agendaItems} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} compact />
+              <AgendaView items={agendaItems} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} compact locale={locale} />
             )}
           </Card>
 
           {/* Esperando */}
           {waiting.length > 0 ? (
             <Card className="overflow-hidden">
-              <CardHeader title="Esperando" description="Cliente, terceros, confirmaciones y bloqueos." />
+              <CardHeader
+                title={t("Esperando", "Waiting", locale)}
+                description={t(
+                  "Cliente, terceros, confirmaciones y bloqueos.",
+                  "Client, third parties, confirmations and blockers.",
+                  locale,
+                )}
+              />
               <ul className="divide-y divide-edge">
                 {waiting.slice(0, 8).map((i) => (
                   <li key={`${i.kind}-${i.id}`} className="space-y-1 px-5 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <ItemLink item={i} qs={qs} />
+                      <ItemLink item={i} qs={qs} locale={locale} />
                       <StatusBadge item={i} statuses={statusMap} fallbackTone="amber" activityStatusMeta={activityStatusMeta} />
                     </div>
                     <div className="text-xs text-muted">
                       {i.companyName ? `${i.companyName} · ` : ""}
-                      {i.assigneeName ?? "Sin responsable"} · esperando desde{" "}
-                      {fmtDateTime(i.updatedAt)}
-                      {i.dueDate ? ` · seguimiento ${fmtDate(i.dueDate)}` : " · sin seguimiento programado"}
+                      {i.assigneeName ?? t("Sin responsable", "Unassigned", locale)} ·{" "}
+                      {t("esperando desde", "waiting since", locale)} {fmtDateTime(i.updatedAt)}
+                      {i.dueDate
+                        ? ` · ${t("seguimiento", "follow-up", locale)} ${fmtDate(i.dueDate)}`
+                        : ` · ${t("sin seguimiento programado", "no follow-up scheduled", locale)}`}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
                       {i.kind === "ticket" ? (
                         <Link href={`/helpdesk/${i.id}?tab=conversation#composer`} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-                          Registrar seguimiento
+                          {t("Registrar seguimiento", "Log follow-up", locale)}
                         </Link>
                       ) : null}
                       <RescheduleControl kind={i.kind === "ticket" ? "ticket" : "activity"} id={i.id} dueDate={i.dueDate} />
@@ -666,19 +705,19 @@ function priorityLabelFor(
   return ticketPriorityMeta[item.priority]?.label ?? item.priority;
 }
 
-function ItemLink({ item, qs }: { item: TodayItem; qs: (o: Record<string, string>) => string }) {
+function ItemLink({ item, qs, locale }: { item: TodayItem; qs: (o: Record<string, string>) => string; locale: Locale }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       <Badge tone={item.kind === "ticket" ? "blue" : item.kind === "related_activity" ? "violet" : "purple"}>
         {item.kind === "activity" && item.parentActivityId
-          ? "Subactividad"
+          ? t("Subactividad", "Sub-activity", locale)
           : item.kind === "activity" && item.projectId
-            ? "Act. de proyecto"
+            ? t("Act. de proyecto", "Project act.", locale)
             : item.kind === "activity" && item.activityType === "meeting"
-              ? "Reunión"
+              ? t("Reunión", "Meeting", locale)
               : item.kind === "activity" && item.activityType === "reminder"
-                ? "Recordatorio"
-                : KIND_LABEL[item.kind]}
+                ? t("Recordatorio", "Reminder", locale)
+                : kindLabel(item.kind, locale)}
       </Badge>
       <Link
         href={qs({ peek: `${item.kind === "ticket" ? "t" : "a"}:${item.id}` })}
@@ -697,12 +736,14 @@ function InlineActions({
   qs,
   statuses,
   priorities,
+  locale,
 }: {
   item: TodayItem;
   users: { id: number; name: string }[];
   qs: (o: Record<string, string>) => string;
   statuses: TicketStatusOption[];
   priorities: TicketPriorityOption[];
+  locale: Locale;
 }) {
   if (item.kind === "ticket") {
     if (item.statusId === null || item.priorityId === null) return null; // defensive; today-data.ts always sets these for tickets
@@ -719,11 +760,11 @@ function InlineActions({
         />
         {!item.firstResponseAt ? (
           <Link href={`/helpdesk/${item.id}?tab=conversation#composer`} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-            Responder
+            {t("Responder", "Reply", locale)}
           </Link>
         ) : null}
         <Link href={qs({ peek: `t:${item.id}` })} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-          Quick View
+          {t("Vista rápida", "Quick View", locale)}
         </Link>
       </div>
     );
@@ -738,32 +779,36 @@ function InlineActions({
       )}
       <RescheduleControl kind="activity" id={item.id} dueDate={item.dueDate} />
       <Link href={qs({ peek: `a:${item.id}` })} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-        Quick View
+        {t("Vista rápida", "Quick View", locale)}
       </Link>
     </div>
   );
 }
 
-function EmptyStateNoWork({ qs }: { qs: (o: Record<string, string>) => string }) {
+function EmptyStateNoWork({ qs, locale }: { qs: (o: Record<string, string>) => string; locale: Locale }) {
   return (
     <div className="px-5 py-8">
       <EmptyState
-        title="No tienes pendientes para hoy."
+        title={t("No tienes pendientes para hoy.", "You have nothing pending for today.", locale)}
         action={
           <span className="flex flex-wrap gap-2">
             <Link href={qs({ filter: "upcoming" })} className={buttonSecondaryClass}>
-              Ver próximos
+              {t("Ver próximos", "View upcoming", locale)}
             </Link>
             <Link href="/activities/new" className={buttonClass}>
-              Crear actividad
+              {t("Crear actividad", "Create activity", locale)}
             </Link>
             <Link href="/helpdesk?quick=unassigned" className={buttonSecondaryClass}>
-              Tickets sin asignar
+              {t("Tickets sin asignar", "Unassigned tickets", locale)}
             </Link>
           </span>
         }
       >
-        Nada vencido, nada en riesgo, nada esperando por ti en este filtro.
+        {t(
+          "Nada vencido, nada en riesgo, nada esperando por ti en este filtro.",
+          "Nothing overdue, nothing at risk, nothing waiting on you in this filter.",
+          locale,
+        )}
       </EmptyState>
     </div>
   );
@@ -778,6 +823,7 @@ function RowMeta({
   priorities,
   activityStatusMeta,
   ticketPriorityMeta,
+  locale,
 }: {
   item: TodayItem;
   now: Date;
@@ -785,22 +831,23 @@ function RowMeta({
   priorities: Map<number, TicketPriorityOption>;
   activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
   ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
+  locale: Locale;
 }) {
   const overdue = isOverdue(item, now);
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted">
       {item.companyName ? <span className="hidden lg:inline">{item.companyName}</span> : null}
-      <span>{item.assigneeName ?? "Sin responsable"}</span>
+      <span>{item.assigneeName ?? t("Sin responsable", "Unassigned", locale)}</span>
       <StatusBadge item={item} statuses={statuses} activityStatusMeta={activityStatusMeta} />
       <PriorityBadge item={item} priorities={priorities} ticketPriorityMeta={ticketPriorityMeta} />
       {item.slaName ? <Badge tone={isSlaAtRisk(item, now) ? "amber" : "blue"}>SLA</Badge> : null}
-      {item.unansweredInbound ? <Badge tone="amber">Msj</Badge> : null}
+      {item.unansweredInbound ? <Badge tone="amber">{t("Msj", "Msg", locale)}</Badge> : null}
       <span className={cx("tabular-nums", overdue && "font-medium text-danger")}>
         {item.dueDate
           ? fmtDate(item.dueDate)
           : item.resolutionTargetAt
             ? fmtDateTime(item.resolutionTargetAt)
-            : "Sin fecha"}
+            : t("Sin fecha", "No date", locale)}
       </span>
       {item.minutes > 0 ? <span className="tabular-nums">{formatMinutes(item.minutes)}</span> : null}
     </div>
@@ -817,6 +864,7 @@ function GroupedList({
   priorities,
   activityStatusMeta,
   ticketPriorityMeta,
+  locale,
 }: {
   items: TodayItem[];
   group: string;
@@ -827,6 +875,7 @@ function GroupedList({
   priorities: TicketPriorityOption[];
   activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
   ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
+  locale: Locale;
 }) {
   const statusMap = toCatalogMap(statuses);
   const priorityMap = toCatalogMap(priorities);
@@ -835,15 +884,15 @@ function GroupedList({
       case "priority":
         return priorityLabelFor(i, priorityMap, ticketPriorityMeta);
       case "type":
-        return KIND_LABEL[i.kind];
+        return kindLabel(i.kind, locale);
       case "assignee":
-        return i.assigneeName ?? "Sin responsable";
+        return i.assigneeName ?? t("Sin responsable", "Unassigned", locale);
       case "client":
-        return i.companyName ?? "Sin cliente";
+        return i.companyName ?? t("Sin cliente", "No client", locale);
       case "status":
         return statusLabelFor(i, statusMap, activityStatusMeta);
       case "date":
-        return i.dueDate ?? (i.resolutionTargetAt ? i.resolutionTargetAt.toISOString().slice(0, 10) : "Sin fecha");
+        return i.dueDate ?? (i.resolutionTargetAt ? i.resolutionTargetAt.toISOString().slice(0, 10) : t("Sin fecha", "No date", locale));
       default:
         return "";
     }
@@ -865,7 +914,7 @@ function GroupedList({
           <ul className="divide-y divide-edge">
             {groupItems.slice(0, 50).map((i) => (
               <li key={`${i.kind}-${i.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5">
-                <ItemLink item={i} qs={qs} />
+                <ItemLink item={i} qs={qs} locale={locale} />
                 <div className="flex flex-wrap items-center gap-2">
                   <RowMeta
                     item={i}
@@ -874,8 +923,9 @@ function GroupedList({
                     priorities={priorityMap}
                     activityStatusMeta={activityStatusMeta}
                     ticketPriorityMeta={ticketPriorityMeta}
+                    locale={locale}
                   />
-                  <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} />
+                  <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} locale={locale} />
                 </div>
               </li>
             ))}
@@ -894,6 +944,7 @@ function AgendaView({
   statuses,
   priorities,
   compact = false,
+  locale,
 }: {
   items: TodayItem[];
   date: string;
@@ -902,6 +953,7 @@ function AgendaView({
   statuses: TicketStatusOption[];
   priorities: TicketPriorityOption[];
   compact?: boolean;
+  locale: Locale;
 }) {
   const timed = items
     .filter((i) => i.resolutionTargetAt && i.resolutionTargetAt.toISOString().slice(0, 10) === date)
@@ -915,26 +967,26 @@ function AgendaView({
             {new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Mexico_City" }).format(i.resolutionTargetAt!)}
           </span>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
-            <ItemLink item={i} qs={qs} />
-            {!compact ? <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} /> : null}
+            <ItemLink item={i} qs={qs} locale={locale} />
+            {!compact ? <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} locale={locale} /> : null}
           </div>
         </div>
       ))}
       {allDay.length > 0 ? (
         <>
           <div className="bg-subtle/60 px-5 py-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
-            Durante el día
+            {t("Durante el día", "During the day", locale)}
           </div>
           {allDay.map((i) => (
             <div key={`${i.kind}-${i.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5">
-              <ItemLink item={i} qs={qs} />
-              {!compact ? <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} /> : null}
+              <ItemLink item={i} qs={qs} locale={locale} />
+              {!compact ? <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} locale={locale} /> : null}
             </div>
           ))}
         </>
       ) : null}
       {timed.length === 0 && allDay.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-muted">Sin elementos para esta fecha.</p>
+        <p className="px-5 py-6 text-sm text-muted">{t("Sin elementos para esta fecha.", "No items for this date.", locale)}</p>
       ) : null}
     </div>
   );
@@ -947,6 +999,7 @@ function CompactTable({
   priorities,
   activityStatusMeta,
   ticketPriorityMeta,
+  locale,
 }: {
   items: TodayItem[];
   qs: (o: Record<string, string>) => string;
@@ -954,21 +1007,34 @@ function CompactTable({
   priorities: Map<number, TicketPriorityOption>;
   activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
   ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
+  locale: Locale;
 }) {
+  const headers: [string, string][] = [
+    ["Tipo", "Type"],
+    ["Título", "Title"],
+    ["Empresa", "Client"],
+    ["Responsable", "Assignee"],
+    ["Estado", "Status"],
+    ["Prioridad", "Priority"],
+    ["Fecha", "Date"],
+    ["SLA", "SLA"],
+    ["Tiempo", "Time"],
+    ["Actualizado", "Updated"],
+  ];
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-edge text-left text-[11px] font-semibold tracking-wider text-faint uppercase">
-            {["Tipo", "Título", "Empresa", "Responsable", "Estado", "Prioridad", "Fecha", "SLA", "Tiempo", "Actualizado"].map((h) => (
-              <th key={h} className="px-4 py-2.5">{h}</th>
+            {headers.map(([es, en]) => (
+              <th key={es} className="px-4 py-2.5">{t(es, en, locale)}</th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-edge">
           {items.slice(0, 100).map((i) => (
             <tr key={`${i.kind}-${i.id}`} className="hover:bg-subtle">
-              <td className="px-4 py-2 text-xs text-muted">{KIND_LABEL[i.kind]}</td>
+              <td className="px-4 py-2 text-xs text-muted">{kindLabel(i.kind, locale)}</td>
               <td className="px-4 py-2">
                 <Link href={qs({ peek: `${i.kind === "ticket" ? "t" : "a"}:${i.id}` })} className="font-medium text-fg hover:text-primary">
                   {i.folio ? `${i.folio} · ` : ""}{i.title}
@@ -999,7 +1065,7 @@ function CompactTable({
 /* ======================================================== CONTINUE LEARNING */
 
 /** Unobtrusive: renders nothing when there is no in-progress tutorial. */
-async function ContinueLearningCard({ user }: { user: SessionUser }) {
+async function ContinueLearningCard({ user, locale }: { user: SessionUser; locale: Locale }) {
   let continueItem: Awaited<ReturnType<typeof getContinueLearning>>;
   try {
     continueItem = await getContinueLearning(Number(user.id));
@@ -1014,7 +1080,9 @@ async function ContinueLearningCard({ user }: { user: SessionUser }) {
       className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-surface px-5 py-3.5 shadow-card transition-shadow hover:shadow-card-hover"
     >
       <span className="min-w-0">
-        <span className="block text-xs font-semibold tracking-wide text-faint uppercase">Continuar aprendiendo</span>
+        <span className="block text-xs font-semibold tracking-wide text-faint uppercase">
+          {t("Continuar aprendiendo", "Continue learning", locale)}
+        </span>
         <span className="block truncate text-sm font-medium text-fg">{continueItem.title}</span>
       </span>
       <ArrowRight className="size-4 shrink-0 text-primary" aria-hidden />
@@ -1024,7 +1092,7 @@ async function ContinueLearningCard({ user }: { user: SessionUser }) {
 
 /* ============================================================== REMINDERS */
 
-async function RemindersSection({ user, now }: { user: SessionUser; now: Date }) {
+async function RemindersSection({ user, now, locale }: { user: SessionUser; now: Date; locale: Locale }) {
   let reminders: ReturnType<typeof applyMarks>;
   try {
     const [items, clientsTouch, marks, renewals, projectSignals, recurrenceSignals, reportSignals] = await Promise.all([
@@ -1042,20 +1110,27 @@ async function RemindersSection({ user, now }: { user: SessionUser; now: Date })
       now,
     ).slice(0, 10);
   } catch {
-    return <SectionError title="No olvides" />;
+    return <SectionError title={t("No olvides", "Don't forget", locale)} locale={locale} />;
   }
 
   return (
       <Card className="overflow-hidden">
         <CardHeader
-          title="No olvides"
-          description="Reglas sobre datos reales — nada se inventa. Posponer o resolver queda auditado."
+          title={t("No olvides", "Don't forget", locale)}
+          description={t(
+            "Reglas sobre datos reales — nada se inventa. Posponer o resolver queda auditado.",
+            "Rules over real data — nothing is invented. Snoozing or resolving is audited.",
+            locale,
+          )}
           action={<Bell className="size-4 text-faint" />}
         />
         {reminders.length === 0 ? (
           <p className="px-5 py-6 text-sm text-muted">
-            Nada pendiente de recordar. Los recordatorios reaparecen solos si una
-            condición vuelve a presentarse.
+            {t(
+              "Nada pendiente de recordar. Los recordatorios reaparecen solos si una condición vuelve a presentarse.",
+              "Nothing pending to remember. Reminders reappear on their own if a condition happens again.",
+              locale,
+            )}
           </p>
         ) : (
           <ul className="divide-y divide-edge">
@@ -1064,7 +1139,11 @@ async function RemindersSection({ user, now }: { user: SessionUser; now: Date })
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <Badge tone={r.severity === "high" ? "red" : r.severity === "medium" ? "amber" : "slate"}>
-                      {r.severity === "high" ? "Alta" : r.severity === "medium" ? "Media" : "Baja"}
+                      {r.severity === "high"
+                        ? t("Alta", "High", locale)
+                        : r.severity === "medium"
+                          ? t("Media", "Medium", locale)
+                          : t("Baja", "Low", locale)}
                     </Badge>
                     <Link href={r.href} className="text-sm font-medium text-fg hover:text-primary">
                       {r.title}
@@ -1094,10 +1173,12 @@ async function MessagesSection({
   user,
   msgFilter,
   qs,
+  locale,
 }: {
   user: SessionUser;
   msgFilter: string;
   qs: (o: Record<string, string>) => string;
+  locale: Locale;
 }) {
   let all: Awaited<ReturnType<typeof getRecentMessages>>;
   let mentions: Awaited<ReturnType<typeof getUserUnreadMentions>>;
@@ -1107,7 +1188,7 @@ async function MessagesSection({
       getUserUnreadMentions(user.organizationId, Number(user.id), 5),
     ]);
   } catch {
-    return <SectionError title="Mensajes recientes" />;
+    return <SectionError title={t("Mensajes recientes", "Recent messages", locale)} locale={locale} />;
   }
   const mineName = user.name;
   const rows = all.filter((m) => {
@@ -1127,11 +1208,22 @@ async function MessagesSection({
       <div id="messages">
       <Card className="overflow-hidden">
         <CardHeader
-          title="Mensajes recientes"
-          description="Última interacción por conversación — la bandeja completa vive en Inbox."
+          title={t("Mensajes recientes", "Recent messages", locale)}
+          description={t(
+            "Última interacción por conversación — la bandeja completa vive en Inbox.",
+            "Latest interaction per conversation — the full inbox lives in Inbox.",
+            locale,
+          )}
           action={
             <span className="flex gap-1 text-xs">
-              {[["unattended", "No atendidos"], ["mine", "Míos"], ["unassigned", "Sin asignar"], ["all", "Todos"]].map(([k, label]) => (
+              {(
+                [
+                  ["unattended", "No atendidos", "Unattended"],
+                  ["mine", "Míos", "Mine"],
+                  ["unassigned", "Sin asignar", "Unassigned"],
+                  ["all", "Todos", "All"],
+                ] as const
+              ).map(([k, esLabel, enLabel]) => (
                 <Link
                   key={k}
                   href={qs({ msg: k })}
@@ -1140,7 +1232,7 @@ async function MessagesSection({
                     msgFilter === k ? "bg-primary-soft font-medium text-primary" : "text-muted hover:bg-subtle",
                   )}
                 >
-                  {label}
+                  {t(esLabel, enLabel, locale)}
                 </Link>
               ))}
             </span>
@@ -1149,25 +1241,25 @@ async function MessagesSection({
         {mentions.length > 0 ? (
           <div className="border-b border-edge bg-primary-soft/40 px-5 py-3">
             <p className="mb-1.5 text-xs font-semibold text-primary">
-              Te mencionaron ({mentions.length})
+              {t("Te mencionaron", "You were mentioned", locale)} ({mentions.length})
             </p>
             <ul className="space-y-1">
               {mentions.map((m) => (
                 <li key={m.mentionId} className="truncate text-xs text-muted">
                   <Link href={`/inbox?c=${m.conversationId}`} className="hover:text-primary">
-                    <span className="font-medium text-fg">{m.authorName ?? "Alguien"}</span>
+                    <span className="font-medium text-fg">{m.authorName ?? t("Alguien", "Someone", locale)}</span>
                     {m.companyName ? ` · ${m.companyName}` : ""}: {m.body.slice(0, 90)}
                   </Link>
                 </li>
               ))}
             </ul>
             <Link href="/inbox?view=mentions" className="mt-1.5 inline-block text-xs text-primary hover:underline">
-              Ver todas en Inbox →
+              {t("Ver todas en Inbox", "View all in Inbox", locale)} →
             </Link>
           </div>
         ) : null}
         {rows.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-muted">Sin conversaciones en este filtro.</p>
+          <p className="px-5 py-6 text-sm text-muted">{t("Sin conversaciones en este filtro.", "No conversations in this filter.", locale)}</p>
         ) : (
           <ul className="divide-y divide-edge">
             {rows.map((m) => (
@@ -1175,26 +1267,26 @@ async function MessagesSection({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Link href={`/helpdesk/${m.ticketId}?tab=conversation`} className="min-w-0 truncate text-sm font-medium text-fg hover:text-primary">
                     <span className="mr-1 font-mono text-xs text-faint">{m.folio}</span>
-                    {m.companyName ?? "Sin cliente"}
+                    {m.companyName ?? t("Sin cliente", "No client", locale)}
                     {m.contact ? ` · ${m.contact}` : ""}
                   </Link>
                   <span className="flex items-center gap-2 text-xs text-faint">
                     <Badge tone={m.direction === "inbound" ? "amber" : "slate"}>
-                      {m.direction === "inbound" ? "Recibido" : "Enviado"} · {m.channel}
+                      {m.direction === "inbound" ? t("Recibido", "Received", locale) : t("Enviado", "Sent", locale)} · {m.channel}
                     </Badge>
                     {fmtDateTime(m.occurredAt)}
                   </span>
                 </div>
                 <p className="truncate text-xs text-muted">{m.body}</p>
                 <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-faint">
-                  <span>{m.assigneeName ?? "Sin responsable"}</span>
+                  <span>{m.assigneeName ?? t("Sin responsable", "Unassigned", locale)}</span>
                   <Link href={`/helpdesk/${m.ticketId}?tab=conversation#composer`} className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-                    Registrar respuesta
+                    {t("Registrar respuesta", "Log reply", locale)}
                   </Link>
                   {m.conversationStatus !== "closed" && m.conversationStatus !== "archived" ? (
                     <AttendConversationButton conversationId={m.conversationId} />
                   ) : (
-                    <Badge tone="green">Atendida</Badge>
+                    <Badge tone="green">{t("Atendida", "Attended", locale)}</Badge>
                   )}
                 </div>
               </li>
@@ -1215,6 +1307,7 @@ async function QuickView({
   activityStatusMeta,
   ticketPriorityMeta,
   activityTypeMeta,
+  locale,
 }: {
   user: SessionUser;
   peek: string;
@@ -1222,6 +1315,7 @@ async function QuickView({
   activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
   ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
   activityTypeMeta: ReturnType<typeof getLabels>["activityTypeMeta"];
+  locale: Locale;
 }) {
   const match = /^(t|a):(\d+)$/.exec(peek);
   if (!match) return null;
@@ -1258,57 +1352,57 @@ async function QuickView({
   const billingMap = toCatalogMap(billingRows);
 
   return (
-      <div className="fixed inset-0 z-50 flex justify-end bg-black/30" role="dialog" aria-label="Quick View">
-        <Link href={closeHref} className="flex-1" aria-label="Cerrar" />
+      <div className="fixed inset-0 z-50 flex justify-end bg-black/30" role="dialog" aria-label={t("Vista rápida", "Quick View", locale)}>
+        <Link href={closeHref} className="flex-1" aria-label={t("Cerrar", "Close", locale)} />
         <div className="h-full w-full max-w-md overflow-y-auto border-l border-edge bg-surface p-6 shadow-xl">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-faint">
-                {KIND_LABEL[item.kind]}
+                {kindLabel(item.kind, locale)}
                 {item.folio ? ` · ${item.folio}` : ""}
               </div>
               <h2 className="text-lg font-semibold text-fg">{item.title}</h2>
             </div>
-            <Link href={closeHref} aria-label="Cerrar" className="rounded-md p-1 text-faint hover:bg-subtle hover:text-fg">
+            <Link href={closeHref} aria-label={t("Cerrar", "Close", locale)} className="rounded-md p-1 text-faint hover:bg-subtle hover:text-fg">
               <X className="size-4" />
             </Link>
           </div>
           <dl className="space-y-2 text-sm">
-            <QVRow label="Empresa" value={item.companyName ?? "—"} />
-            <QVRow label="Responsable" value={item.assigneeName ?? "Sin responsable"} />
-            <QVRow label="Estado" value={statusLabelFor(item, statusMap, activityStatusMeta)} />
-            <QVRow label="Prioridad" value={priorityLabelFor(item, priorityMap, ticketPriorityMeta)} />
+            <QVRow label={t("Empresa", "Client", locale)} value={item.companyName ?? "—"} />
+            <QVRow label={t("Responsable", "Assignee", locale)} value={item.assigneeName ?? t("Sin responsable", "Unassigned", locale)} />
+            <QVRow label={t("Estado", "Status", locale)} value={statusLabelFor(item, statusMap, activityStatusMeta)} />
+            <QVRow label={t("Prioridad", "Priority", locale)} value={priorityLabelFor(item, priorityMap, ticketPriorityMeta)} />
             <QVRow
-              label="Fecha"
-              value={item.dueDate ? fmtDate(item.dueDate) : item.resolutionTargetAt ? fmtDateTime(item.resolutionTargetAt) : "Sin fecha"}
+              label={t("Fecha", "Date", locale)}
+              value={item.dueDate ? fmtDate(item.dueDate) : item.resolutionTargetAt ? fmtDateTime(item.resolutionTargetAt) : t("Sin fecha", "No date", locale)}
             />
             {item.slaName ? <QVRow label="SLA" value={item.slaName} /> : null}
             {item.kind === "ticket" && item.billingStatusId !== null ? (
-              <QVRow label="Cobro" value={billingMap.get(item.billingStatusId)?.name ?? item.billingStatus ?? "—"} />
+              <QVRow label={t("Cobro", "Billing", locale)} value={billingMap.get(item.billingStatusId)?.name ?? item.billingStatus ?? "—"} />
             ) : null}
             {item.activityType ? (
-              <QVRow label="Tipo" value={activityTypeMeta[item.activityType]?.label ?? item.activityType} />
+              <QVRow label={t("Tipo", "Type", locale)} value={activityTypeMeta[item.activityType]?.label ?? item.activityType} />
             ) : null}
-            <QVRow label="Tiempo registrado" value={item.minutes > 0 ? formatMinutes(item.minutes) : "—"} />
+            <QVRow label={t("Tiempo registrado", "Time logged", locale)} value={item.minutes > 0 ? formatMinutes(item.minutes) : "—"} />
           </dl>
           <div className="mt-5 space-y-3 border-t border-edge pt-4">
-            <InlineActions item={item} users={userRows} qs={() => closeHref} statuses={statusRows} priorities={priorityRows} />
+            <InlineActions item={item} users={userRows} qs={() => closeHref} statuses={statusRows} priorities={priorityRows} locale={locale} />
             <div className="flex flex-wrap gap-2">
               <Link href={detailHref} className={buttonClass}>
-                Abrir detalle completo
+                {t("Abrir detalle completo", "Open full detail", locale)}
               </Link>
               {item.kind === "ticket" ? (
                 <>
                   <Link href={`${detailHref}?tab=time`} className={buttonSecondaryClass}>
-                    Registrar tiempo
+                    {t("Registrar tiempo", "Log time", locale)}
                   </Link>
                   <Link href={`${detailHref}?tab=resolution`} className={buttonSecondaryClass}>
-                    Resolver / Cerrar
+                    {t("Resolver / Cerrar", "Resolve / Close", locale)}
                   </Link>
                 </>
               ) : (
                 <Link href={`/activities/${item.id}/convert`} className={buttonSecondaryClass}>
-                  Convertir en ticket
+                  {t("Convertir en ticket", "Convert to ticket", locale)}
                 </Link>
               )}
             </div>

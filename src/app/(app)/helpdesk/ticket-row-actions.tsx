@@ -7,6 +7,8 @@ import type { ActionState } from "@/lib/action-result";
 import { isWorkflowDropdownCategory } from "@/lib/tickets";
 import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 import { assignTicket, changeTicketStatus, setTicketPriority } from "./actions";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 
 type Option = { id: number; name: string };
 type StatusOption = Option & { category: TicketStatusCategoryValue; isActive: boolean };
@@ -51,6 +53,7 @@ export function TicketRowActions({
   const editableStatus = currentStatus ? currentStatus.isActive && isWorkflowDropdownCategory(currentStatus.category) : false;
 
   const priorityOptions = priorities.filter((p) => p.isActive || p.id === priorityId);
+  const locale = useLocale();
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -60,10 +63,10 @@ export function TicketRowActions({
           name="assigneeId"
           key={assigneeId ?? "none"}
           defaultValue={assigneeId ? String(assigneeId) : ""}
-          aria-label="Assign"
+          aria-label={t("Asignar", "Assign", locale)}
           submitOnChange
           className={smallSelect}
-          options={[{ value: "", label: "Assign…" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+          options={[{ value: "", label: t("Asignar…", "Assign…", locale) }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
         />
       </form>
       <form action={statusAction}>
@@ -72,7 +75,7 @@ export function TicketRowActions({
           name="statusId"
           key={statusId}
           defaultValue={editableStatus ? String(statusId) : ""}
-          aria-label="Status"
+          aria-label={t("Estado", "Status", locale)}
           disabled={!editableStatus}
           submitOnChange
           className={smallSelect}
@@ -88,7 +91,7 @@ export function TicketRowActions({
           name="priorityId"
           key={priorityId}
           defaultValue={String(priorityId)}
-          aria-label="Priority"
+          aria-label={t("Prioridad", "Priority", locale)}
           submitOnChange
           className={smallSelect}
           options={priorityOptions.map((p) => ({ value: String(p.id), label: p.name }))}

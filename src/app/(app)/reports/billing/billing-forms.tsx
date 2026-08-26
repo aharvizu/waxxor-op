@@ -4,6 +4,8 @@ import { useActionState, useEffect, useState } from "react";
 import { fmtDate } from "@/lib/format";
 import type { ActionState } from "@/lib/action-result";
 import type { BillingInvoiceStatus } from "@/lib/billing-invoices";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import { Badge, buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { Modal } from "@/components/modal";
@@ -21,6 +23,7 @@ function MarkInvoicedForm({
   periodEnd: string;
   onSuccess?: () => void;
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(markBillingInvoiced, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
 
@@ -36,7 +39,7 @@ function MarkInvoicedForm({
       <FormAlert state={state} />
       <div>
         <label htmlFor="invoiceNumber" className={labelClass}>
-          Número de factura (ERP)
+          {t("Número de factura (ERP)", "Invoice number (ERP)", locale)}
         </label>
         <input
           id="invoiceNumber"
@@ -48,7 +51,7 @@ function MarkInvoicedForm({
         />
         <FieldError errors={errors.invoiceNumber} />
       </div>
-      <SubmitButton>Guardar</SubmitButton>
+      <SubmitButton>{t("Guardar", "Save", locale)}</SubmitButton>
     </form>
   );
 }
@@ -64,16 +67,17 @@ function MarkInvoicedModal({
   periodStart: string;
   periodEnd: string;
 }) {
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className={cx(buttonSecondaryClass, "h-8 px-3 text-xs")}>
-        Marcar como facturado
+        {t("Marcar como facturado", "Mark as invoiced", locale)}
       </button>
       <Modal
         open={open}
         onOpenChange={setOpen}
-        title="Marcar como facturado"
+        title={t("Marcar como facturado", "Mark as invoiced", locale)}
         description={`${companyName} · ${fmtDate(periodStart)} – ${fmtDate(periodEnd)}`}
       >
         <MarkInvoicedForm companyId={companyId} periodStart={periodStart} periodEnd={periodEnd} onSuccess={() => setOpen(false)} />
@@ -83,13 +87,14 @@ function MarkInvoicedModal({
 }
 
 function MarkPendingButton({ companyId, periodStart, periodEnd }: { companyId: number; periodStart: string; periodEnd: string }) {
+  const locale = useLocale();
   const [, formAction] = useActionState<ActionState, FormData>(markBillingPending, null);
   return (
     <form action={formAction}>
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="periodStart" value={periodStart} />
       <input type="hidden" name="periodEnd" value={periodEnd} />
-      <SubmitButton className="h-8 px-3 text-xs">Quitar</SubmitButton>
+      <SubmitButton className="h-8 px-3 text-xs">{t("Quitar", "Remove", locale)}</SubmitButton>
     </form>
   );
 }
@@ -114,17 +119,18 @@ export function InvoiceStatusCell({
   status: BillingInvoiceStatus | undefined;
   canManage: boolean;
 }) {
+  const locale = useLocale();
   if (status?.invoicedAt) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="green">Facturado · {status.invoiceNumber}</Badge>
+        <Badge tone="green">{t("Facturado", "Invoiced", locale)} · {status.invoiceNumber}</Badge>
         {canManage ? <MarkPendingButton companyId={companyId} periodStart={periodStart} periodEnd={periodEnd} /> : null}
       </div>
     );
   }
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Badge tone="slate">Pendiente</Badge>
+      <Badge tone="slate">{t("Pendiente", "Pending", locale)}</Badge>
       {canManage ? (
         <MarkInvoicedModal companyId={companyId} companyName={companyName} periodStart={periodStart} periodEnd={periodEnd} />
       ) : null}

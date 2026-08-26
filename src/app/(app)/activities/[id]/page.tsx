@@ -10,6 +10,7 @@ import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/com
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { getCatalogNames } from "@/lib/settings-data";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { ActivityForm } from "../activity-form";
@@ -97,9 +98,9 @@ export default async function ActivityPage({
         }
         subtitle={`${activityTypeMeta[a.activityType]?.label ?? a.activityType}${
           row.companyName ? ` · ${row.companyName}` : ""
-        } · Created ${fmtDateTime(w.createdAt)}${
-          w.completedAt ? ` · Completed ${fmtDateTime(w.completedAt)}` : ""
-        }${archived ? ` · Archived ${fmtDateTime(a.archivedAt!)}` : ""}`}
+        } · ${t("Creado", "Created", locale)} ${fmtDateTime(w.createdAt)}${
+          w.completedAt ? ` · ${t("Completado", "Completed", locale)} ${fmtDateTime(w.completedAt)}` : ""
+        }${archived ? ` · ${t("Archivado", "Archived", locale)} ${fmtDateTime(a.archivedAt!)}` : ""}`}
         action={
           <Badge tone={activityStatusMeta[w.status]?.tone ?? "slate"}>
             {activityStatusMeta[w.status]?.label ?? w.status}
@@ -122,7 +123,7 @@ export default async function ActivityPage({
         />
         {!archived ? (
           <Link href={`/activities/${a.id}/convert`} className={buttonSecondaryClass}>
-            <ArrowRightLeft /> Convert to ticket
+            <ArrowRightLeft /> {t("Convertir en ticket", "Convert to ticket", locale)}
           </Link>
         ) : null}
         {user.role === "superadmin" ? <DeleteActivityButton activityId={a.id} /> : null}
@@ -130,29 +131,29 @@ export default async function ActivityPage({
 
       <Card className="overflow-hidden">
         <CardHeader
-          title="Details"
+          title={t("Detalles", "Details", locale)}
           description={
             archived
-              ? "This activity is archived — restore it to make changes."
-              : "Everything about this activity."
+              ? t("Esta actividad está archivada — restáurala para hacer cambios.", "This activity is archived — restore it to make changes.", locale)
+              : t("Todo sobre esta actividad.", "Everything about this activity.", locale)
           }
         />
         <div className="p-6">
           {archived ? (
             <dl className="space-y-3 text-sm">
               <div>
-                <dt className="font-medium text-faint">Description</dt>
+                <dt className="font-medium text-faint">{t("Descripción", "Description", locale)}</dt>
                 <dd className="mt-1 whitespace-pre-wrap text-fg">
                   {w.description ?? "—"}
                 </dd>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <dt className="font-medium text-faint">Start date</dt>
+                  <dt className="font-medium text-faint">{t("Fecha de inicio", "Start date", locale)}</dt>
                   <dd className="mt-1 text-muted">{w.startDate ? fmtDate(w.startDate) : "—"}</dd>
                 </div>
                 <div>
-                  <dt className="font-medium text-faint">Due date</dt>
+                  <dt className="font-medium text-faint">{t("Fecha de vencimiento", "Due date", locale)}</dt>
                   <dd className="mt-1 text-muted">{w.dueDate ? fmtDate(w.dueDate) : "—"}</dd>
                 </div>
               </div>
@@ -172,7 +173,7 @@ export default async function ActivityPage({
               }}
               companies={companyRows}
               activityTypeOptions={activityTypeOptions}
-              submitLabel="Save changes"
+              submitLabel={t("Guardar cambios", "Save changes", locale)}
             />
           )}
         </div>
@@ -180,18 +181,22 @@ export default async function ActivityPage({
 
       <Card className="mt-6 overflow-hidden">
         <CardHeader
-          title="Conversación"
-          description="Mensajes, notas y llamadas de esta actividad — más recientes primero. Nada se envía externamente en el MVP."
+          title={t("Conversación", "Conversation", locale)}
+          description={t(
+            "Mensajes, notas y llamadas de esta actividad — más recientes primero. Nada se envía externamente en el MVP.",
+            "Messages, notes and calls for this activity — most recent first. Nothing is sent externally in the MVP.",
+            locale,
+          )}
           action={
             <Link href={`/inbox?workItemId=${w.id}`} className={buttonSecondaryClass}>
-              Abrir en Inbox
+              {t("Abrir en Inbox", "Open in Inbox", locale)}
             </Link>
           }
         />
         <div className="space-y-4 p-5">
           {!archived ? <ActivityComposer activityId={a.id} /> : null}
           {messageRows.length === 0 ? (
-            <p className="text-sm text-muted">Nada registrado todavía.</p>
+            <p className="text-sm text-muted">{t("Nada registrado todavía.", "Nothing logged yet.", locale)}</p>
           ) : (
             <ul className="space-y-3">
               {messageRows.map((m) => {
@@ -206,12 +211,16 @@ export default async function ActivityPage({
                   <ArrowUpRight className="size-3.5" />
                 );
                 const title = meta.call
-                  ? `Llamada registrada (${m.message.channel})`
+                  ? t(`Llamada registrada (${m.message.channel})`, `Call logged (${m.message.channel})`, locale)
                   : m.message.direction === "internal"
-                    ? `Nota interna${m.message.editedAt ? " (editada)" : ""}`
+                    ? t(
+                        `Nota interna${m.message.editedAt ? " (editada)" : ""}`,
+                        `Internal note${m.message.editedAt ? " (edited)" : ""}`,
+                        locale,
+                      )
                     : m.message.direction === "inbound"
-                      ? `Recibido vía ${m.message.channel}`
-                      : `Enviado al cliente vía ${m.message.channel}`;
+                      ? t(`Recibido vía ${m.message.channel}`, `Received via ${m.message.channel}`, locale)
+                      : t(`Enviado al cliente vía ${m.message.channel}`, `Sent to client via ${m.message.channel}`, locale);
                 return (
                   <li key={m.message.id} className="group flex gap-3">
                     <span
@@ -232,7 +241,7 @@ export default async function ActivityPage({
                         </span>
                       </div>
                       {m.message.deletedAt ? (
-                        <p className="mt-0.5 text-sm text-faint italic">Mensaje eliminado</p>
+                        <p className="mt-0.5 text-sm text-faint italic">{t("Mensaje eliminado", "Message deleted", locale)}</p>
                       ) : (
                         <p className="mt-0.5 text-sm whitespace-pre-wrap text-muted">{m.message.body}</p>
                       )}
@@ -254,11 +263,14 @@ export default async function ActivityPage({
       </Card>
 
       <Card className="mt-6 overflow-hidden">
-        <CardHeader title="Files" description="Attachments for this activity." />
+        <CardHeader
+          title={t("Archivos", "Files", locale)}
+          description={t("Adjuntos de esta actividad.", "Attachments for this activity.", locale)}
+        />
         <div className="space-y-4 p-5">
           {!archived ? <ActivityUploadForm activityId={a.id} /> : null}
           {fileRows.length === 0 ? (
-            <p className="text-sm text-muted">No files attached.</p>
+            <p className="text-sm text-muted">{t("Sin archivos adjuntos.", "No files attached.", locale)}</p>
           ) : (
             <ul className="space-y-2">
               {fileRows.map((f) => (

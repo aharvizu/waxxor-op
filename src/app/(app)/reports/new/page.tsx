@@ -3,6 +3,8 @@ import { and, asc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { companies, projects, reportTemplates, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { Card, PageHeader } from "@/components/ui";
 import { CreateReportForm } from "../report-forms";
 
@@ -14,6 +16,7 @@ export default async function NewReportPage({
   searchParams: Promise<{ companyId?: string; projectId?: string; type?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
   const { companyId, projectId, type } = await searchParams;
 
   const [companyRows, projectRows, templateRows, userRows] = await Promise.all([
@@ -30,8 +33,12 @@ export default async function NewReportPage({
   return (
     <div className="max-w-3xl">
       <PageHeader
-        title="Nuevo reporte"
-        subtitle="El contenido se genera con datos reales del periodo y queda congelado como snapshot."
+        title={t("Nuevo reporte", "New report", locale)}
+        subtitle={t(
+          "El contenido se genera con datos reales del periodo y queda congelado como snapshot.",
+          "Content is generated from real period data and gets frozen as a snapshot.",
+          locale,
+        )}
       />
       <Card className="p-6">
         <CreateReportForm

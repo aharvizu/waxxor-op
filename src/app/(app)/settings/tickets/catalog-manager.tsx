@@ -9,6 +9,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge, buttonDangerClass, buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
+import { useLocale } from "@/components/locale-provider";
+import { t, type Locale } from "@/lib/i18n";
 import {
   createTicketBillingStatusAction,
   createTicketPriorityAction,
@@ -92,39 +94,42 @@ const ACTIONS: Record<
 };
 
 /** Category dropdown labels — status and billing each have their own fixed dispatch set (see lib/ticket-catalogs.ts). */
-const CATEGORY_LABELS: Record<TicketCatalogKind, Record<string, string> | null> = {
-  status: {
-    open: "Abierto",
-    in_progress: "En progreso",
-    waiting: "En espera",
-    resolved: "Resuelto",
-    closed: "Cerrado",
-    cancelled: "Cancelado",
-  },
-  billing: {
-    not_billable: "No cobrable",
-    included: "Incluido en contrato",
-    pending: "Pendiente",
-    approved: "Aprobado",
-    billed: "Facturado",
-    rejected: "Rechazado",
-  },
-  priority: null,
-};
+function getCategoryLabels(locale: Locale): Record<TicketCatalogKind, Record<string, string> | null> {
+  return {
+    status: {
+      open: t("Abierto", "Open", locale),
+      in_progress: t("En progreso", "In progress", locale),
+      waiting: t("En espera", "Waiting", locale),
+      resolved: t("Resuelto", "Resolved", locale),
+      closed: t("Cerrado", "Closed", locale),
+      cancelled: t("Cancelado", "Cancelled", locale),
+    },
+    billing: {
+      not_billable: t("No cobrable", "Not billable", locale),
+      included: t("Incluido en contrato", "Included in contract", locale),
+      pending: t("Pendiente", "Pending", locale),
+      approved: t("Aprobado", "Approved", locale),
+      billed: t("Facturado", "Billed", locale),
+      rejected: t("Rechazado", "Rejected", locale),
+    },
+    priority: null,
+  };
+}
 
 function CategoryOrLevelField({ kind, defaultCategory, defaultLevel }: { kind: TicketCatalogKind; defaultCategory?: string; defaultLevel?: number }) {
+  const locale = useLocale();
   if (kind === "priority") {
     return (
       <div className="w-28">
-        <label className={labelClass}>Nivel</label>
+        <label className={labelClass}>{t("Nivel", "Level", locale)}</label>
         <input name="level" type="number" min={0} max={1000} defaultValue={defaultLevel ?? 0} className={inputClass} />
       </div>
     );
   }
-  const labels = CATEGORY_LABELS[kind]!;
+  const labels = getCategoryLabels(locale)[kind]!;
   return (
     <div className="w-44">
-      <label className={labelClass}>Categoría semántica</label>
+      <label className={labelClass}>{t("Categoría semántica", "Semantic category", locale)}</label>
       <SearchableSelect
         name="category"
         defaultValue={defaultCategory ?? Object.keys(labels)[0]}
@@ -135,6 +140,7 @@ function CategoryOrLevelField({ kind, defaultCategory, defaultLevel }: { kind: T
 }
 
 function CatalogAddForm({ kind, placeholder, onSuccess }: { kind: TicketCatalogKind; placeholder: string; onSuccess?: () => void }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(ACTIONS[kind].create, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   useEffect(() => {
@@ -145,23 +151,23 @@ function CatalogAddForm({ kind, placeholder, onSuccess }: { kind: TicketCatalogK
       <FormAlert state={state} />
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-40 flex-1">
-          <label className={labelClass}>Nombre</label>
+          <label className={labelClass}>{t("Nombre", "Name", locale)}</label>
           <input name="name" required placeholder={placeholder} className={inputClass} />
           <FieldError errors={errors.name} />
         </div>
         <div>
-          <label className={labelClass}>Color</label>
+          <label className={labelClass}>{t("Color", "Color", locale)}</label>
           <input name="color" type="color" defaultValue="#7c3aed" className="h-9 w-12 cursor-pointer rounded-lg border border-edge bg-surface p-1" />
         </div>
         <div className="w-32">
-          <label className={labelClass}>Ícono (opcional)</label>
-          <input name="icon" placeholder="ej. Clock" className={inputClass} />
+          <label className={labelClass}>{t("Ícono (opcional)", "Icon (optional)", locale)}</label>
+          <input name="icon" placeholder={t("ej. Clock", "e.g. Clock", locale)} className={inputClass} />
         </div>
         <CategoryOrLevelField kind={kind} />
-        <SubmitButton className="h-9">Nuevo</SubmitButton>
+        <SubmitButton className="h-9">{t("Nuevo", "New", locale)}</SubmitButton>
       </div>
       <div>
-        <label className={labelClass}>Descripción (opcional)</label>
+        <label className={labelClass}>{t("Descripción (opcional)", "Description (optional)", locale)}</label>
         <input name="description" className={inputClass} />
       </div>
     </form>
@@ -169,6 +175,7 @@ function CatalogAddForm({ kind, placeholder, onSuccess }: { kind: TicketCatalogK
 }
 
 function EditForm({ kind, row, onDone }: { kind: TicketCatalogKind; row: TicketCatalogRow; onDone: () => void }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(ACTIONS[kind].update, null);
   return (
     <form action={formAction} className="mt-2 space-y-2 rounded-lg border border-edge bg-subtle p-3">
@@ -176,27 +183,27 @@ function EditForm({ kind, row, onDone }: { kind: TicketCatalogKind; row: TicketC
       <FormAlert state={state} />
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-40 flex-1">
-          <label className={labelClass}>Nombre</label>
+          <label className={labelClass}>{t("Nombre", "Name", locale)}</label>
           <input name="name" required defaultValue={row.name} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Color</label>
+          <label className={labelClass}>{t("Color", "Color", locale)}</label>
           <input name="color" type="color" defaultValue={row.color ?? "#7c3aed"} className="h-9 w-12 cursor-pointer rounded-lg border border-edge bg-surface p-1" />
         </div>
         <div className="w-32">
-          <label className={labelClass}>Ícono</label>
-          <input name="icon" defaultValue={row.icon ?? ""} placeholder="ej. Clock" className={inputClass} />
+          <label className={labelClass}>{t("Ícono", "Icon", locale)}</label>
+          <input name="icon" defaultValue={row.icon ?? ""} placeholder={t("ej. Clock", "e.g. Clock", locale)} className={inputClass} />
         </div>
         <CategoryOrLevelField kind={kind} defaultCategory={row.category} defaultLevel={row.level} />
       </div>
       <div>
-        <label className={labelClass}>Descripción</label>
+        <label className={labelClass}>{t("Descripción", "Description", locale)}</label>
         <input name="description" defaultValue={row.description ?? ""} className={inputClass} />
       </div>
       <div className="flex items-center gap-2">
-        <SubmitButton className="h-8">Guardar</SubmitButton>
+        <SubmitButton className="h-8">{t("Guardar", "Save", locale)}</SubmitButton>
         <button type="button" onClick={onDone} className={cx(buttonSecondaryClass, "h-8")}>
-          Cancelar
+          {t("Cancelar", "Cancel", locale)}
         </button>
       </div>
     </form>
@@ -214,6 +221,7 @@ function DeleteDialog({
   candidates: TicketCatalogRow[];
   onCancel: () => void;
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(ACTIONS[kind].remove, null);
   const needsReassign = row.usageCount > 0;
   return (
@@ -223,30 +231,33 @@ function DeleteDialog({
       <p className="text-sm text-fg">
         {needsReassign ? (
           <>
-            Este valor está siendo utilizado por <strong>{row.usageCount}</strong> ticket{row.usageCount === 1 ? "" : "s"}.
+            {t("Este valor está siendo utilizado por", "This value is being used by", locale)} <strong>{row.usageCount}</strong> ticket
+            {row.usageCount === 1 ? "" : "s"}.
           </>
         ) : (
-          "Este valor no tiene tickets asociados."
+          t("Este valor no tiene tickets asociados.", "This value has no associated tickets.", locale)
         )}
       </p>
       {needsReassign ? (
         <div className="max-w-xs">
-          <label className={labelClass}>Reasignar tickets a</label>
+          <label className={labelClass}>{t("Reasignar tickets a", "Reassign tickets to", locale)}</label>
           <SearchableSelect
             name="reassignToId"
             required
             defaultValue=""
             options={[
-              { value: "", label: "Elegir destino…", disabled: true },
+              { value: "", label: t("Elegir destino…", "Choose a destination…", locale), disabled: true },
               ...candidates.map((c) => ({ value: String(c.id), label: c.name })),
             ]}
           />
         </div>
       ) : null}
       <div className="flex items-center gap-2">
-        <SubmitButton className={cx(buttonDangerClass, "h-8")}>{needsReassign ? "Reasignar y eliminar" : "Eliminar"}</SubmitButton>
+        <SubmitButton className={cx(buttonDangerClass, "h-8")}>
+          {needsReassign ? t("Reasignar y eliminar", "Reassign and delete", locale) : t("Eliminar", "Delete", locale)}
+        </SubmitButton>
         <button type="button" onClick={onCancel} className={cx(buttonSecondaryClass, "h-8")}>
-          Cancelar
+          {t("Cancelar", "Cancel", locale)}
         </button>
       </div>
     </form>
@@ -309,13 +320,14 @@ function CatalogRow({
   row: TicketCatalogRow;
   allRows: TicketCatalogRow[];
 }) {
+  const locale = useLocale();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [panel, setPanel] = useState<"menu" | "edit" | "delete">("menu");
   const [toggleState, toggleAction] = useActionState<ActionState, FormData>(ACTIONS[kind].toggle, null);
   const [defaultState, defaultAction] = useActionState<ActionState, FormData>(ACTIONS[kind].setDefault, null);
   const [duplicateState, duplicateAction] = useActionState<ActionState, FormData>(ACTIONS[kind].duplicate, null);
-  const categoryLabel = kind !== "priority" && row.category ? CATEGORY_LABELS[kind]?.[row.category] : undefined;
+  const categoryLabel = kind !== "priority" && row.category ? getCategoryLabels(locale)[kind]?.[row.category] : undefined;
   const reassignCandidates = allRows.filter((r) => r.id !== row.id && r.isActive);
 
   function closeMenu() {
@@ -330,12 +342,12 @@ function CatalogRow({
           <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: row.color }} aria-hidden />
         ) : null}
         <span className="font-medium text-fg">{row.name}</span>
-        {kind === "priority" ? <span className="text-xs text-muted">nivel {row.level}</span> : null}
+        {kind === "priority" ? <span className="text-xs text-muted">{t("nivel", "level", locale)} {row.level}</span> : null}
         {categoryLabel ? <Badge tone="slate">{categoryLabel}</Badge> : null}
         <span className="text-xs text-muted">{row.usageCount} ticket{row.usageCount === 1 ? "" : "s"}</span>
-        {row.isDefault ? <Badge tone="purple">Predeterminado</Badge> : null}
-        {row.isSystem ? <Badge tone="blue">Sistema</Badge> : null}
-        {!row.isActive ? <Badge tone="slate">Inactivo</Badge> : null}
+        {row.isDefault ? <Badge tone="purple">{t("Predeterminado", "Default", locale)}</Badge> : null}
+        {row.isSystem ? <Badge tone="blue">{t("Sistema", "System", locale)}</Badge> : null}
+        {!row.isActive ? <Badge tone="slate">{t("Inactivo", "Inactive", locale)}</Badge> : null}
 
         <Popover.Root
           open={menuOpen}
@@ -348,7 +360,7 @@ function CatalogRow({
             <button
               ref={triggerRef}
               type="button"
-              aria-label={`Más acciones para ${row.name}`}
+              aria-label={t(`Más acciones para ${row.name}`, `More actions for ${row.name}`, locale)}
               className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-fg"
             >
               ⋯
@@ -373,29 +385,33 @@ function CatalogRow({
                 <DeleteDialog kind={kind} row={row} candidates={reassignCandidates} onCancel={closeMenu} />
               ) : (
                 <div className="space-y-0.5">
-                  <MenuButton onClick={() => setPanel("edit")}>Editar</MenuButton>
+                  <MenuButton onClick={() => setPanel("edit")}>{t("Editar", "Edit", locale)}</MenuButton>
                   <form action={(fd) => { duplicateAction(fd); closeMenu(); }}>
                     <input type="hidden" name="id" value={row.id} />
-                    <MenuSubmitButton>Duplicar</MenuSubmitButton>
+                    <MenuSubmitButton>{t("Duplicar", "Duplicate", locale)}</MenuSubmitButton>
                   </form>
                   <form action={(fd) => { toggleAction(fd); closeMenu(); }}>
                     <input type="hidden" name="id" value={row.id} />
-                    <MenuSubmitButton>{row.isActive ? "Desactivar" : "Activar"}</MenuSubmitButton>
+                    <MenuSubmitButton>{row.isActive ? t("Desactivar", "Deactivate", locale) : t("Activar", "Activate", locale)}</MenuSubmitButton>
                   </form>
                   {!row.isDefault ? (
                     <form action={(fd) => { defaultAction(fd); closeMenu(); }}>
                       <input type="hidden" name="id" value={row.id} />
-                      <MenuSubmitButton>Definir por defecto</MenuSubmitButton>
+                      <MenuSubmitButton>{t("Definir por defecto", "Set as default", locale)}</MenuSubmitButton>
                     </form>
                   ) : null}
                   <div className="my-1 border-t border-edge" />
                   <MenuButton
                     onClick={() => setPanel("delete")}
                     disabled={row.isSystem}
-                    disabledReason="Los valores del sistema no se pueden eliminar. Puedes desactivarlos."
+                    disabledReason={t(
+                      "Los valores del sistema no se pueden eliminar. Puedes desactivarlos.",
+                      "System values can't be deleted. You can deactivate them.",
+                      locale,
+                    )}
                     danger
                   >
-                    Eliminar
+                    {t("Eliminar", "Delete", locale)}
                   </MenuButton>
                 </div>
               )}
@@ -420,6 +436,7 @@ export function TicketCatalogManager({
   items: TicketCatalogRow[];
   addPlaceholder: string;
 }) {
+  const locale = useLocale();
   const [query, setQuery] = useState("");
   const [order, setOrder] = useState<number[] | null>(null);
   const [adding, setAdding] = useState(false);
@@ -449,17 +466,17 @@ export function TicketCatalogManager({
         <CatalogAddForm kind={kind} placeholder={addPlaceholder} onSuccess={() => setAdding(false)} />
       ) : (
         <button type="button" onClick={() => setAdding(true)} className={cx(buttonSecondaryClass, "h-8 text-xs")}>
-          <Plus className="size-3.5" /> Nuevo
+          <Plus className="size-3.5" /> {t("Nuevo", "New", locale)}
         </button>
       )}
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar…"
+        placeholder={t("Buscar…", "Search…", locale)}
         className={cx(inputClass, "h-8 max-w-56 text-sm")}
       />
       {rows.length === 0 ? (
-        <p className="text-sm text-muted">{q ? "Sin resultados." : "Sin elementos todavía."}</p>
+        <p className="text-sm text-muted">{q ? t("Sin resultados.", "No results.", locale) : t("Sin elementos todavía.", "No items yet.", locale)}</p>
       ) : (
         <DragList
           items={rows}

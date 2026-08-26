@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/session";
 import { Card, CardHeader, PageHeader, buttonGhostClass } from "@/components/ui";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { getCatalogNames } from "@/lib/settings-data";
 import { ConvertForm } from "./convert-form";
 
@@ -61,20 +62,30 @@ export default async function ConvertActivityPage({
   return (
     <div className="max-w-2xl">
       <PageHeader
-        title={`Convert “${row.item.title}”`}
-        subtitle={`Current status: ${
-          activityStatusMeta[row.item.status]?.label ?? row.item.status
-        }. The resulting ticket starts as Open with a new folio; this cannot be undone automatically.`}
+        title={t(`Convertir “${row.item.title}”`, `Convert “${row.item.title}”`, locale)}
+        subtitle={t(
+          `Estado actual: ${
+            activityStatusMeta[row.item.status]?.label ?? row.item.status
+          }. El ticket resultante inicia como Abierto con un nuevo folio; esto no se puede deshacer automáticamente.`,
+          `Current status: ${
+            activityStatusMeta[row.item.status]?.label ?? row.item.status
+          }. The resulting ticket starts as Open with a new folio; this cannot be undone automatically.`,
+          locale,
+        )}
         action={
           <Link href={`/activities/${activityId}`} className={buttonGhostClass}>
-            <ArrowLeft /> Back to activity
+            <ArrowLeft /> {t("Volver a la actividad", "Back to activity", locale)}
           </Link>
         }
       />
       <Card className="overflow-hidden">
         <CardHeader
-          title="Helpdesk details"
-          description="Only what a ticket needs and the activity doesn't have yet."
+          title={t("Detalles del ticket", "Helpdesk details", locale)}
+          description={t(
+            "Solo lo que un ticket necesita y que la actividad aún no tiene.",
+            "Only what a ticket needs and the activity doesn't have yet.",
+            locale,
+          )}
         />
         <div className="p-6">
           <ConvertForm

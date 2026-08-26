@@ -19,6 +19,7 @@ import type { ActionState } from "@/lib/action-result";
 import { CONFIRMATION_TYPES, TICKET_BILLING_MODALITIES } from "@/lib/tickets";
 import { getLabels } from "@/lib/labels";
 import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import {
   assignTicket,
   changeTicketStatus,
@@ -84,6 +85,7 @@ export function StatusSelect({
 }) {
   const [state, formAction] = useForm(changeTicketStatus);
   const inDropdown = statuses.some((s) => s.id === statusId);
+  const locale = useLocale();
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={ticketId} />
@@ -92,7 +94,7 @@ export function StatusSelect({
         key={statusId}
         defaultValue={inDropdown ? String(statusId) : ""}
         disabled={disabled}
-        aria-label="Change status"
+        aria-label={t("Cambiar estado", "Change status", locale)}
         className="h-8 w-auto text-xs"
         options={[
           ...(!inDropdown ? [{ value: "", label: currentStatusName, disabled: true }] : []),
@@ -101,7 +103,7 @@ export function StatusSelect({
       />
       {!disabled ? (
         <button type="submit" className={cx(buttonSecondaryClass, "h-8 px-2.5 text-xs")}>
-          Set
+          {t("Aplicar", "Set", locale)}
         </button>
       ) : null}
       {state && !state.ok ? <FormAlert state={state} className="w-full" /> : null}
@@ -112,13 +114,14 @@ export function StatusSelect({
 export function TitleEditor({ ticketId, title }: { ticketId: number; title: string }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction] = useForm(renameTicket);
+  const locale = useLocale();
   if (!editing) {
     return (
       <span className="group inline-flex items-center gap-2">
         <span>{title}</span>
         <button
           type="button"
-          aria-label="Edit title"
+          aria-label={t("Editar título", "Edit title", locale)}
           onClick={() => setEditing(true)}
           className="text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-primary"
         >
@@ -136,7 +139,7 @@ export function TitleEditor({ ticketId, title }: { ticketId: number; title: stri
       </SubmitButton>
       <button
         type="button"
-        aria-label="Cancel"
+        aria-label={t("Cancelar", "Cancel", locale)}
         onClick={() => setEditing(false)}
         className={cx(buttonSecondaryClass, "h-9 w-9 p-0")}
       >
@@ -150,11 +153,12 @@ export function TitleEditor({ ticketId, title }: { ticketId: number; title: stri
 export function ReopenControl({ ticketId }: { ticketId: number }) {
   const [open, setOpen] = useState(false);
   const [state, formAction] = useForm(reopenTicket);
+  const locale = useLocale();
   return (
     <div>
       {!open ? (
         <button type="button" onClick={() => setOpen(true)} className={buttonSecondaryClass}>
-          <RotateCcw /> Reopen
+          <RotateCcw /> {t("Reabrir", "Reopen", locale)}
         </button>
       ) : null}
       {/* form stays in the DOM (hidden) so no-JS posts and tests can reach it */}
@@ -166,12 +170,12 @@ export function ReopenControl({ ticketId }: { ticketId: number }) {
         <input
           name="reason"
           required={open}
-          placeholder="Reason for reopening…"
+          placeholder={t("Motivo para reabrir…", "Reason for reopening…", locale)}
           className={cx(inputClass, "w-64")}
         />
-        <SubmitButton>Reopen</SubmitButton>
+        <SubmitButton>{t("Reabrir", "Reopen", locale)}</SubmitButton>
         <button type="button" onClick={() => setOpen(false)} className={buttonSecondaryClass}>
-          Cancel
+          {t("Cancelar", "Cancel", locale)}
         </button>
         <FormAlert state={state} className="w-full" />
       </form>
@@ -181,16 +185,26 @@ export function ReopenControl({ ticketId }: { ticketId: number }) {
 
 export function DeleteTicketControl({ ticketId }: { ticketId: number }) {
   const [state, formAction] = useForm(deleteTicket);
+  const locale = useLocale();
   return (
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (!confirm("Permanently delete this ticket and all its data?")) e.preventDefault();
+        if (
+          !confirm(
+            t(
+              "¿Eliminar permanentemente este ticket y todos sus datos?",
+              "Permanently delete this ticket and all its data?",
+              locale,
+            ),
+          )
+        )
+          e.preventDefault();
       }}
     >
       <input type="hidden" name="id" value={ticketId} />
       <button type="submit" className={buttonDangerClass}>
-        <Trash2 /> Delete
+        <Trash2 /> {t("Eliminar", "Delete", locale)}
       </button>
       {state && !state.ok ? <FormAlert state={state} className="mt-2" /> : null}
     </form>
@@ -203,6 +217,7 @@ export function Composer({ ticketId }: { ticketId: number }) {
   const [state, formAction] = useForm(logMessage);
   const [kind, setKind] = useState("outbound");
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const locale = useLocale();
   return (
     <form
       action={formAction}
@@ -212,11 +227,11 @@ export function Composer({ ticketId }: { ticketId: number }) {
       <FormAlert state={state} />
       <div className="flex flex-wrap gap-2 text-sm">
         {[
-          ["outbound", "Message to client"],
-          ["inbound", "Message received"],
-          ["note", "Internal note"],
-          ["call", "Call"],
-          ["confirmation_request", "Request confirmation"],
+          ["outbound", t("Mensaje al cliente", "Message to client", locale)],
+          ["inbound", t("Mensaje recibido", "Message received", locale)],
+          ["note", t("Nota interna", "Internal note", locale)],
+          ["call", t("Llamada", "Call", locale)],
+          ["confirmation_request", t("Solicitar confirmación", "Request confirmation", locale)],
         ].map(([v, label]) => (
           <label
             key={v}
@@ -242,7 +257,7 @@ export function Composer({ ticketId }: { ticketId: number }) {
           <SearchableSelect
             name="channel"
             defaultValue="manual"
-            aria-label="Channel"
+            aria-label={t("Canal", "Channel", locale)}
             className="h-8 w-auto text-xs"
             options={CHANNELS.filter((c) => c !== "internal").map((c) => ({ value: c, label: c }))}
           />
@@ -253,13 +268,15 @@ export function Composer({ ticketId }: { ticketId: number }) {
         rows={3}
         required
         placeholder={
-          kind === "note" ? "Internal note (never visible to the client)…" : "What was said…"
+          kind === "note"
+            ? t("Nota interna (nunca visible para el cliente)…", "Internal note (never visible to the client)…", locale)
+            : t("Qué se dijo…", "What was said…", locale)
         }
         aria-invalid={errors.body ? true : undefined}
         className={inputClass}
       />
       <FieldError errors={errors.body} />
-      <SubmitButton>{kind === "note" ? "Add note" : "Log interaction"}</SubmitButton>
+      <SubmitButton>{kind === "note" ? t("Agregar nota", "Add note", locale) : t("Registrar interacción", "Log interaction", locale)}</SubmitButton>
     </form>
   );
 }
@@ -280,13 +297,14 @@ export function NoteActions({
   const [editing, setEditing] = useState(false);
   const [editState, editAction] = useForm(editOwnNote);
   const [deleteState, deleteAction] = useForm(deleteMessage);
+  const locale = useLocale();
   return (
     <div>
       <span className="flex items-center gap-1">
         {canEdit ? (
           <button
             type="button"
-            aria-label="Edit note"
+            aria-label={t("Editar nota", "Edit note", locale)}
             onClick={() => setEditing((v) => !v)}
             className="flex size-6 items-center justify-center rounded text-faint hover:bg-primary-soft hover:text-primary"
           >
@@ -299,7 +317,7 @@ export function NoteActions({
             <input type="hidden" name="ticketId" value={ticketId} />
             <button
               type="submit"
-              aria-label="Delete message"
+              aria-label={t("Eliminar mensaje", "Delete message", locale)}
               className="flex size-6 items-center justify-center rounded text-faint hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 className="size-3" />
@@ -314,13 +332,13 @@ export function NoteActions({
           <FormAlert state={editState} />
           <textarea name="body" rows={2} defaultValue={body} required className={inputClass} />
           <div className="flex gap-2">
-            <SubmitButton className="h-8 px-3 text-xs">Save</SubmitButton>
+            <SubmitButton className="h-8 px-3 text-xs">{t("Guardar", "Save", locale)}</SubmitButton>
             <button
               type="button"
               onClick={() => setEditing(false)}
               className={cx(buttonSecondaryClass, "h-8 px-3 text-xs")}
             >
-              Cancel
+              {t("Cancelar", "Cancel", locale)}
             </button>
           </div>
         </form>
@@ -358,18 +376,19 @@ export function ResolveForm({
   const [state, formAction] = useForm(resolveTicket);
   const [next, setNext] = useState("pending_confirmation");
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const locale = useLocale();
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={ticketId} />
       <FormAlert state={state} />
       <div>
-        <label className={labelClass}>Resolution</label>
+        <label className={labelClass}>{t("Resolución", "Resolution", locale)}</label>
         <textarea
           name="resolution"
           rows={4}
           required
           defaultValue={suggestedResolution ?? ""}
-          placeholder="What was done to solve it…"
+          placeholder={t("Qué se hizo para resolverlo…", "What was done to solve it…", locale)}
           aria-invalid={errors.resolution ? true : undefined}
           className={inputClass}
         />
@@ -377,13 +396,13 @@ export function ResolveForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Category</label>
+          <label className={labelClass}>{t("Categoría", "Category", locale)}</label>
           <SearchableSelect
             name="category"
             required
             defaultValue={category ?? ""}
             options={[
-              { value: "", label: "— Select —", disabled: true },
+              { value: "", label: t("— Seleccionar —", "— Select —", locale), disabled: true },
               ...(category && !categoryOptions.includes(category) ? [{ value: category, label: category }] : []),
               ...categoryOptions.map((c) => ({ value: c, label: c })),
             ]}
@@ -391,26 +410,36 @@ export function ResolveForm({
           <FieldError errors={errors.category} />
         </div>
         <div>
-          <label className={labelClass}>Subcategory (optional)</label>
+          <label className={labelClass}>{t("Subcategoría (opcional)", "Subcategory (optional)", locale)}</label>
           <input name="subcategory" defaultValue={subcategory ?? ""} list="ticket-subcategory-options" className={inputClass} />
         </div>
       </div>
       <div>
-        <label className={labelClass}>After resolving</label>
+        <label className={labelClass}>{t("Después de resolver", "After resolving", locale)}</label>
         <SearchableSelect
           name="nextStatus"
           value={next}
           onValueChange={setNext}
           options={[
-            { value: "pending_confirmation", label: "Pending confirmation (follow up with the client)" },
-            { value: "closed", label: "Close now (confirmation already done)" },
+            {
+              value: "pending_confirmation",
+              label: t(
+                "Pendiente de confirmación (dar seguimiento con el cliente)",
+                "Pending confirmation (follow up with the client)",
+                locale,
+              ),
+            },
+            {
+              value: "closed",
+              label: t("Cerrar ahora (confirmación ya realizada)", "Close now (confirmation already done)", locale),
+            },
           ]}
         />
       </div>
       {next === "closed" ? (
         <CloseFields hasTime={hasTime} billingPending={billingPending} billingStatuses={billingStatuses} errors={errors} />
       ) : null}
-      <SubmitButton>{next === "closed" ? "Resolve & close" : "Resolve"}</SubmitButton>
+      <SubmitButton>{next === "closed" ? t("Resolver y cerrar", "Resolve & close", locale) : t("Resolver", "Resolve", locale)}</SubmitButton>
     </form>
   );
 }
@@ -426,49 +455,54 @@ function CloseFields({
   billingStatuses: Option[];
   errors: Record<string, string[]>;
 }) {
-  const { confirmationTypeMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { confirmationTypeMeta } = getLabels(locale);
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Confirmation type</label>
+          <label className={labelClass}>{t("Tipo de confirmación", "Confirmation type", locale)}</label>
           <SearchableSelect
             name="confirmationType"
             required
             defaultValue=""
             options={[
-              { value: "", label: "How was it confirmed…", disabled: true },
-              ...CONFIRMATION_TYPES.map((t) => ({ value: t, label: confirmationTypeMeta[t]?.label ?? t })),
+              { value: "", label: t("¿Cómo se confirmó?…", "How was it confirmed…", locale), disabled: true },
+              ...CONFIRMATION_TYPES.map((ct) => ({ value: ct, label: confirmationTypeMeta[ct]?.label ?? ct })),
             ]}
           />
           <FieldError errors={errors.confirmationType} />
         </div>
         <div>
-          <label className={labelClass}>Confirmation notes (optional)</label>
+          <label className={labelClass}>{t("Notas de confirmación (opcional)", "Confirmation notes (optional)", locale)}</label>
           <input name="confirmationNotes" className={inputClass} />
         </div>
       </div>
       {!hasTime ? (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
           <label className={labelClass}>
-            No time is logged — closing requires an audited exception reason
+            {t(
+              "No hay tiempo registrado — cerrar requiere un motivo de excepción auditado",
+              "No time is logged — closing requires an audited exception reason",
+              locale,
+            )}
           </label>
           <input
             name="timeExceptionReason"
-            placeholder="Why is it OK to close without time…"
+            placeholder={t("Por qué está bien cerrar sin tiempo…", "Why is it OK to close without time…", locale)}
             className={inputClass}
           />
         </div>
       ) : null}
       {billingPending ? (
         <div>
-          <label className={labelClass}>Billing decision (required to close)</label>
+          <label className={labelClass}>{t("Decisión de cobro (requerida para cerrar)", "Billing decision (required to close)", locale)}</label>
           <SearchableSelect
             name="billingStatusId"
             required
             defaultValue=""
             options={[
-              { value: "", label: "— Select —", disabled: true },
+              { value: "", label: t("— Seleccionar —", "— Select —", locale), disabled: true },
               ...billingStatuses.map((s) => ({ value: String(s.id), label: s.name })),
             ]}
           />
@@ -491,16 +525,17 @@ export function CloseForm({
 }) {
   const [state, formAction] = useForm(closeTicket);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const locale = useLocale();
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={ticketId} />
       <FormAlert state={state} />
       <CloseFields hasTime={hasTime} billingPending={billingPending} billingStatuses={billingStatuses} errors={errors} />
       <div>
-        <label className={labelClass}>Confirmation channel (optional)</label>
-        <input name="confirmationChannel" placeholder="e.g. WhatsApp +52…" className={inputClass} />
+        <label className={labelClass}>{t("Canal de confirmación (opcional)", "Confirmation channel (optional)", locale)}</label>
+        <input name="confirmationChannel" placeholder={t("ej. WhatsApp +52…", "e.g. WhatsApp +52…", locale)} className={inputClass} />
       </div>
-      <SubmitButton>Close ticket</SubmitButton>
+      <SubmitButton>{t("Cerrar ticket", "Close ticket", locale)}</SubmitButton>
     </form>
   );
 }
@@ -530,13 +565,14 @@ export function BillingForm({
   // Auto-switching here removes the most common way to hit that trap; the
   // server still rejects the combination outright if it happens anyway.
   const [modality, setModality] = useState(defaults.billingModality);
+  const locale = useLocale();
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={ticketId} />
       <FormAlert state={state} />
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Billing status</label>
+          <label className={labelClass}>{t("Estado de cobro", "Billing status", locale)}</label>
           <SearchableSelect
             name="billingStatusId"
             defaultValue={String(defaults.billingStatusId)}
@@ -544,7 +580,7 @@ export function BillingForm({
           />
         </div>
         <div>
-          <label className={labelClass}>Modality</label>
+          <label className={labelClass}>{t("Modalidad", "Modality", locale)}</label>
           <SearchableSelect
             name="billingModality"
             value={modality}
@@ -555,7 +591,7 @@ export function BillingForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Hourly rate</label>
+          <label className={labelClass}>{t("Tarifa por hora", "Hourly rate", locale)}</label>
           <input
             name="hourlyRate"
             type="number"
@@ -567,7 +603,7 @@ export function BillingForm({
           <FieldError errors={errors.hourlyRate} />
         </div>
         <div>
-          <label className={labelClass}>Fixed amount</label>
+          <label className={labelClass}>{t("Monto fijo", "Fixed amount", locale)}</label>
           <input
             name="fixedAmount"
             type="number"
@@ -583,10 +619,14 @@ export function BillingForm({
         </div>
       </div>
       <p className="text-xs text-muted">
-        Billable time: <span className="font-medium tabular-nums">{billableMinutes} min</span>{" "}
-        (non-voided entries marked billable). Amount = minutes/60 × rate, or the fixed amount.
+        {t("Tiempo facturable:", "Billable time:", locale)} <span className="font-medium tabular-nums">{billableMinutes} min</span>{" "}
+        {t(
+          "(entradas no anuladas marcadas como facturables). El monto = minutos/60 × tarifa, o el monto fijo.",
+          "(non-voided entries marked billable). Amount = minutes/60 × rate, or the fixed amount.",
+          locale,
+        )}
       </p>
-      <SubmitButton>Save billing</SubmitButton>
+      <SubmitButton>{t("Guardar cobro", "Save billing", locale)}</SubmitButton>
     </form>
   );
 }
@@ -632,28 +672,29 @@ export function SidePanelForm({
   const suggestedContacts = companyId
     ? contacts.filter((c) => c.companyId === Number(companyId))
     : contacts;
+  const locale = useLocale();
 
   return (
     <div className="space-y-4">
       <form action={assignAction} className="space-y-2">
         <input type="hidden" name="id" value={ticketId} />
         <FormAlert state={assignState} />
-        <label className={labelClass}>Assignee</label>
+        <label className={labelClass}>{t("Responsable", "Assignee", locale)}</label>
         <div className="flex gap-2">
           <SearchableSelect
             name="assigneeId"
             key={defaults.assigneeId ?? "none"}
             defaultValue={defaults.assigneeId ? String(defaults.assigneeId) : ""}
-            options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+            options={[{ value: "", label: t("Sin asignar", "Unassigned", locale) }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
           />
-          <SubmitButton className="h-9 px-3 text-xs">Set</SubmitButton>
+          <SubmitButton className="h-9 px-3 text-xs">{t("Aplicar", "Set", locale)}</SubmitButton>
         </div>
       </form>
 
       <form action={priorityAction} className="space-y-2">
         <input type="hidden" name="id" value={ticketId} />
         <FormAlert state={priorityState} />
-        <label className={labelClass}>Priority</label>
+        <label className={labelClass}>{t("Prioridad", "Priority", locale)}</label>
         <div className="flex gap-2">
           <SearchableSelect
             name="priorityId"
@@ -661,7 +702,7 @@ export function SidePanelForm({
             defaultValue={String(defaults.priorityId)}
             options={priorities.map((p) => ({ value: String(p.id), label: p.name }))}
           />
-          <SubmitButton className="h-9 px-3 text-xs">Set</SubmitButton>
+          <SubmitButton className="h-9 px-3 text-xs">{t("Aplicar", "Set", locale)}</SubmitButton>
         </div>
       </form>
 
@@ -670,7 +711,7 @@ export function SidePanelForm({
         <input type="hidden" name="title" value={defaults.title} />
         <FormAlert state={detailsState} />
         <div>
-          <label className={labelClass}>Description</label>
+          <label className={labelClass}>{t("Descripción", "Description", locale)}</label>
           <textarea
             name="description"
             rows={4}
@@ -679,39 +720,39 @@ export function SidePanelForm({
           />
         </div>
         <div>
-          <label className={labelClass}>Client</label>
+          <label className={labelClass}>{t("Cliente", "Client", locale)}</label>
           <SearchableSelect
             name="companyId"
             value={companyId}
             onValueChange={setCompanyId}
-            options={[{ value: "", label: "— None —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+            options={[{ value: "", label: t("— Ninguno —", "— None —", locale) }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
           />
         </div>
         <div>
-          <label className={labelClass}>Contact</label>
+          <label className={labelClass}>{t("Contacto", "Contact", locale)}</label>
           <SearchableSelect
             key={companyId}
             name="contactId"
             defaultValue={defaults.contactId ? String(defaults.contactId) : ""}
-            options={[{ value: "", label: "— None —" }, ...suggestedContacts.map((c) => ({ value: String(c.id), label: c.name }))]}
+            options={[{ value: "", label: t("— Ninguno —", "— None —", locale) }, ...suggestedContacts.map((c) => ({ value: String(c.id), label: c.name }))]}
           />
         </div>
         <div>
-          <label className={labelClass}>Contact note</label>
+          <label className={labelClass}>{t("Nota de contacto", "Contact note", locale)}</label>
           <input name="contact" defaultValue={defaults.contact ?? ""} className={inputClass} />
         </div>
         <div>
-          <label className={labelClass}>Fecha agendada</label>
+          <label className={labelClass}>{t("Fecha agendada", "Scheduled date", locale)}</label>
           <input name="dueDate" type="date" defaultValue={defaults.dueDate ?? ""} className={inputClass} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Category</label>
+            <label className={labelClass}>{t("Categoría", "Category", locale)}</label>
             <SearchableSelect
               name="category"
               defaultValue={defaults.category ?? ""}
               options={[
-                { value: "", label: "— None —" },
+                { value: "", label: t("— Ninguna —", "— None —", locale) },
                 ...(defaults.category && !categoryOptions.includes(defaults.category)
                   ? [{ value: defaults.category, label: defaults.category }]
                   : []),
@@ -720,13 +761,13 @@ export function SidePanelForm({
             />
           </div>
           <div>
-            <label className={labelClass}>Subcategory</label>
+            <label className={labelClass}>{t("Subcategoría", "Subcategory", locale)}</label>
             <input name="subcategory" defaultValue={defaults.subcategory ?? ""} list="ticket-subcategory-options" className={inputClass} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Channel</label>
+            <label className={labelClass}>{t("Canal", "Channel", locale)}</label>
             <SearchableSelect
               name="channel"
               defaultValue={defaults.channel ?? ""}
@@ -734,7 +775,7 @@ export function SidePanelForm({
             />
           </div>
           <div>
-            <label className={labelClass}>Modality</label>
+            <label className={labelClass}>{t("Modalidad", "Modality", locale)}</label>
             <SearchableSelect
               name="modality"
               defaultValue={defaults.modality ?? ""}
@@ -746,7 +787,7 @@ export function SidePanelForm({
             />
           </div>
         </div>
-        <SubmitButton className="h-9 px-3 text-xs">Save details</SubmitButton>
+        <SubmitButton className="h-9 px-3 text-xs">{t("Guardar detalles", "Save details", locale)}</SubmitButton>
       </form>
     </div>
   );
@@ -769,7 +810,8 @@ export function RelatedActivityForms({
   const [createState, createAction] = useForm(createRelatedActivity);
   const [linkState, linkAction] = useForm(linkActivity);
   const createErrors = createState && !createState.ok ? (createState.fieldErrors ?? {}) : {};
-  const { activityTypeMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { activityTypeMeta } = getLabels(locale);
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <form
@@ -778,11 +820,11 @@ export function RelatedActivityForms({
       >
         <input type="hidden" name="id" value={ticketId} />
         <FormAlert state={createState} />
-        <div className="text-sm font-semibold text-fg">New related activity</div>
+        <div className="text-sm font-semibold text-fg">{t("Nueva actividad relacionada", "New related activity", locale)}</div>
         <input
           name="title"
           required
-          placeholder="Title…"
+          placeholder={t("Título…", "Title…", locale)}
           aria-invalid={createErrors.title ? true : undefined}
           className={inputClass}
         />
@@ -791,13 +833,13 @@ export function RelatedActivityForms({
           <SearchableSelect
             name="activityType"
             defaultValue="general"
-            aria-label="Type"
-            options={activityTypeOptions.map((t) => ({ value: t, label: activityTypeMeta[t]?.label ?? t }))}
+            aria-label={t("Tipo", "Type", locale)}
+            options={activityTypeOptions.map((at) => ({ value: at, label: activityTypeMeta[at]?.label ?? at }))}
           />
           <SearchableSelect
             name="priority"
             defaultValue="medium"
-            aria-label="Priority"
+            aria-label={t("Prioridad", "Priority", locale)}
             options={PRIORITIES.map((p) => ({ value: p, label: p }))}
           />
         </div>
@@ -805,12 +847,12 @@ export function RelatedActivityForms({
           <SearchableSelect
             name="assigneeId"
             defaultValue=""
-            aria-label="Assignee"
-            options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+            aria-label={t("Responsable", "Assignee", locale)}
+            options={[{ value: "", label: t("Sin asignar", "Unassigned", locale) }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
           />
-          <input name="dueDate" type="date" aria-label="Due date" className={inputClass} />
+          <input name="dueDate" type="date" aria-label={t("Fecha límite", "Due date", locale)} className={inputClass} />
         </div>
-        <SubmitButton>Create</SubmitButton>
+        <SubmitButton>{t("Crear", "Create", locale)}</SubmitButton>
       </form>
 
       <form
@@ -819,20 +861,31 @@ export function RelatedActivityForms({
       >
         <input type="hidden" name="id" value={ticketId} />
         <FormAlert state={linkState} />
-        <div className="text-sm font-semibold text-fg">Link existing activity</div>
+        <div className="text-sm font-semibold text-fg">{t("Vincular actividad existente", "Link existing activity", locale)}</div>
         <SearchableSelect
           name="activityId"
           required
           defaultValue=""
           options={[
-            { value: "", label: linkable.length === 0 ? "No eligible activities" : "Pick an activity…", disabled: true },
+            {
+              value: "",
+              label:
+                linkable.length === 0
+                  ? t("Sin actividades elegibles", "No eligible activities", locale)
+                  : t("Elegir una actividad…", "Pick an activity…", locale),
+              disabled: true,
+            },
             ...linkable.map((a) => ({ value: String(a.id), label: a.name })),
           ]}
         />
         <p className="text-xs text-muted">
-          Archived, converted, already-linked and project activities are not eligible.
+          {t(
+            "Las actividades archivadas, convertidas, ya vinculadas y de proyectos no son elegibles.",
+            "Archived, converted, already-linked and project activities are not eligible.",
+            locale,
+          )}
         </p>
-        <SubmitButton>Link</SubmitButton>
+        <SubmitButton>{t("Vincular", "Link", locale)}</SubmitButton>
       </form>
     </div>
   );

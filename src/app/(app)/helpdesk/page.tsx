@@ -20,8 +20,10 @@ import { getLastViewId } from "@/lib/last-view";
 import { getCatalogNames } from "@/lib/settings-data";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { ensureInitialViews, listViews, savedViewConfigSchema } from "@/lib/views";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { NewTicketButton } from "./new/new-ticket-form";
-import { TICKET_COLUMN_OPTIONS, TICKET_KANBAN_GROUP_OPTIONS, type TicketRow } from "./ticket-views";
+import { buildTicketColumnOptions, buildTicketKanbanGroupOptions, type TicketRow } from "./ticket-views";
 import { TicketsViewContent } from "./tickets-view-content";
 
 export const metadata: Metadata = { title: "Helpdesk" };
@@ -32,6 +34,7 @@ type Search = { view?: string; quick?: string; filters?: string; q?: string; sta
 
 export default async function HelpdeskPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
   const params = await searchParams;
   const userId = Number(user.id);
 
@@ -205,7 +208,11 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     <div>
       <PageHeader
         title="Helpdesk"
-        subtitle="Tickets operativos: crear, asignar, trabajar, documentar, medir, resolver, confirmar, cerrar."
+        subtitle={t(
+          "Tickets operativos: crear, asignar, trabajar, documentar, medir, resolver, confirmar, cerrar.",
+          "Operational tickets: create, assign, work, document, measure, resolve, confirm, close.",
+          locale,
+        )}
         action={
           <NewTicketButton
             companies={companyRows}
@@ -237,8 +244,8 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
-        columnOptions={TICKET_COLUMN_OPTIONS}
-        kanbanGroupOptions={TICKET_KANBAN_GROUP_OPTIONS}
+        columnOptions={buildTicketColumnOptions(locale)}
+        kanbanGroupOptions={buildTicketKanbanGroupOptions(locale)}
       />
     </div>
   );

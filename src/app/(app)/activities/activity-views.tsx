@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { DEFAULT_LOCALE, t, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { ClipboardCheck, Plus } from "lucide-react";
@@ -49,7 +49,7 @@ export function buildColumnRegistry(locale: Locale): Record<string, ColumnDef> {
     },
     activityType: { key: "activityType", label: "Tipo", render: (r) => <span className="text-muted">{activityTypeMeta[r.activityType]?.label ?? r.activityType}</span> },
     companyName: { key: "companyName", label: "Cliente", render: (r) => <span className="text-muted">{r.companyName ?? "—"}</span> },
-    assigneeName: { key: "assigneeName", label: "Responsable", render: (r) => <span className="text-muted">{r.assigneeName ?? "Sin asignar"}</span> },
+    assigneeName: { key: "assigneeName", label: "Responsable", render: (r) => <span className="text-muted">{r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}</span> },
     priority: {
       key: "priority",
       label: "Prioridad",
@@ -77,17 +77,18 @@ export const ACTIVITY_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, labe
 export const ACTIVITY_KANBAN_GROUP_OPTIONS = [{ key: "status", label: "Estado" }];
 
 function EmptyActivities() {
+  const locale = useLocale();
   return (
     <EmptyState
       icon={<ClipboardCheck />}
-      title="Sin actividades"
+      title={t("Sin actividades", "No activities", locale)}
       action={
         <Link href="/activities/new" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white">
-          <Plus className="size-4" /> Nueva actividad
+          <Plus className="size-4" /> {t("Nueva actividad", "New activity", locale)}
         </Link>
       }
     >
-      Nada coincide con esta vista o filtros.
+      {t("Nada coincide con esta vista o filtros.", "Nothing matches this view or filters.", locale)}
     </EmptyState>
   );
 }
@@ -137,7 +138,8 @@ export function TableView({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({ rows }: { rows: ActivityRow[] }) {
-  const { activityStatusMeta, ticketPriorityMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { activityStatusMeta, ticketPriorityMeta } = getLabels(locale);
   if (rows.length === 0) return <EmptyActivities />;
   return (
     <Card className="overflow-hidden">
@@ -150,7 +152,7 @@ export function ListView({ rows }: { rows: ActivityRow[] }) {
             </Link>
             <span className="shrink-0 text-xs text-muted">{r.companyName ?? "—"}</span>
             <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>
-            <span className="w-28 shrink-0 truncate text-xs text-muted">{r.assigneeName ?? "Sin asignar"}</span>
+            <span className="w-28 shrink-0 truncate text-xs text-muted">{r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}</span>
           </li>
         ))}
       </ul>

@@ -8,6 +8,7 @@ import { Badge, cx } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
 import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import { ACTIVITY_STATUSES } from "@/lib/activities";
 import { ACTIVE_ACTIVITY_STATUSES } from "@/lib/today-rules";
 import { updateActivityWorkflow } from "./actions";
@@ -24,7 +25,8 @@ import type { ActivityRow } from "./activity-views";
  */
 export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
   const router = useRouter();
-  const { activityStatusMeta, ticketPriorityMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { activityStatusMeta, ticketPriorityMeta } = getLabels(locale);
   const todayStr = new Date().toISOString().slice(0, 10);
   const columns: KanbanColumn<ActivityRow>[] = ACTIVITY_STATUSES.map((value) => ({
     key: value,
@@ -47,7 +49,7 @@ export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
     <KanbanBoard
       columns={columns}
       onMove={onMove}
-      emptyLabel="Sin actividades"
+      emptyLabel={t("Sin actividades", "No activities", locale)}
       renderCard={(r) => (
         <div
           role="link"
@@ -73,7 +75,7 @@ export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
               </Badge>
             </Link>
           ) : (
-            <p className="mb-2 text-xs text-faint">Sin cliente</p>
+            <p className="mb-2 text-xs text-faint">{t("Sin cliente", "No client", locale)}</p>
           )}
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
           {r.dueDate ? (
@@ -90,7 +92,7 @@ export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
             </div>
           ) : null}
           <div className="flex items-center justify-end text-xs text-muted">
-            <span className="shrink-0">{r.assigneeName ?? "Sin asignar"}</span>
+            <span className="shrink-0">{r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}</span>
           </div>
         </div>
       )}

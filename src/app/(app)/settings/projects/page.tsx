@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { projectStatus } from "@/db/schema";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
@@ -28,20 +29,28 @@ export default async function ProjectsSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Proyectos"
-        subtitle="Valores por defecto, plantillas, colores y estados del sistema."
+        title={t("Proyectos", "Projects", locale)}
+        subtitle={t(
+          "Valores por defecto, plantillas, colores y estados del sistema.",
+          "Default values, templates, colors, and system statuses.",
+          locale,
+        )}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card className="p-5">
           <CardHeader
-            title="Valores por defecto"
-            description="Se preseleccionan al crear un proyecto; el PM siempre puede cambiarlos."
+            title={t("Valores por defecto", "Default values", locale)}
+            description={t(
+              "Se preseleccionan al crear un proyecto; el PM siempre puede cambiarlos.",
+              "Preselected when creating a project; the PM can always change them.",
+              locale,
+            )}
           />
           <SettingSectionForm settingKey="projects.defaults">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Salud inicial (healthStatus)</label>
+                <label className={labelClass}>{t("Salud inicial (healthStatus)", "Initial health (healthStatus)", locale)}</label>
                 <SearchableSelect
                   name="defaultHealth"
                   defaultValue={defaults.defaultHealth}
@@ -49,7 +58,7 @@ export default async function ProjectsSettingsPage() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Prioridad inicial</label>
+                <label className={labelClass}>{t("Prioridad inicial", "Initial priority", locale)}</label>
                 <SearchableSelect
                   name="defaultPriority"
                   defaultValue={defaults.defaultPriority}
@@ -72,7 +81,7 @@ export default async function ProjectsSettingsPage() {
             childLabel={null}
             canDelete={user.role === "superadmin"}
             withColor
-            addPlaceholder="Nombre del color…"
+            addPlaceholder={t("Nombre del color…", "Color name…", locale)}
           />
         </Card>
       </div>
@@ -89,13 +98,17 @@ export default async function ProjectsSettingsPage() {
           childLabel={null}
           canDelete={user.role === "superadmin"}
           withTemplateLists
-          addPlaceholder="Nombre de la plantilla…"
+          addPlaceholder={t("Nombre de la plantilla…", "Template name…", locale)}
         />
       </Card>
 
       <EnumCatalog
-        title="Estados de proyecto"
-        description="Estados compatibles: el ciclo de vida oficial no es configurable hoy (las reglas de completar/archivar dependen de él)."
+        title={t("Estados de proyecto", "Project statuses", locale)}
+        description={t(
+          "Estados compatibles: el ciclo de vida oficial no es configurable hoy (las reglas de completar/archivar dependen de él).",
+          "Supported statuses: the official lifecycle isn't configurable today (complete/archive rules depend on it).",
+          locale,
+        )}
         values={projectStatus.enumValues}
         meta={projectStatusMeta}
       />

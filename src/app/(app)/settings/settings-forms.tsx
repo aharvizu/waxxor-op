@@ -18,6 +18,8 @@ import {
 } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
 import type { CatalogItemRow } from "@/lib/settings-data";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import { MenuButton, MenuSubmitButton } from "./tickets/catalog-manager";
 import {
   createApiKey,
@@ -39,19 +41,20 @@ import {
 export function SettingSectionForm({
   settingKey,
   children,
-  submitLabel = "Guardar cambios",
+  submitLabel,
 }: {
   settingKey: string;
   children: ReactNode;
   submitLabel?: string;
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(saveOrganizationSetting, null);
   return (
     <form action={formAction} className="space-y-4">
       <FormAlert state={state} />
       <input type="hidden" name="settingKey" value={settingKey} />
       {children}
-      <SubmitButton>{submitLabel}</SubmitButton>
+      <SubmitButton>{submitLabel ?? t("Guardar cambios", "Save changes", locale)}</SubmitButton>
     </form>
   );
 }
@@ -76,6 +79,7 @@ function CatalogAddForm({
   withColor?: boolean;
   withTemplateLists?: boolean;
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(createCatalogItem, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   return (
@@ -97,15 +101,17 @@ function CatalogAddForm({
             className="h-9 w-12 cursor-pointer rounded-lg border border-edge bg-surface p-1"
           />
         ) : null}
-        <SubmitButton className="h-9">Agregar</SubmitButton>
+        <SubmitButton className="h-9">{t("Agregar", "Add", locale)}</SubmitButton>
       </div>
       {withTemplateLists ? (
         <div>
-          <label className={labelClass}>Listas de la plantilla (una por línea)</label>
+          <label className={labelClass}>
+            {t("Listas de la plantilla (una por línea)", "Template lists (one per line)", locale)}
+          </label>
           <textarea
             name="templateLists"
             rows={3}
-            placeholder={"Planeación\nEjecución\nCierre"}
+            placeholder={t("Planeación\nEjecución\nCierre", "Planning\nExecution\nClosing", locale)}
             className={inputClass}
           />
           <FieldError errors={errors.templateLists} />
@@ -144,6 +150,7 @@ export function CatalogManager({
   withTemplateLists?: boolean;
   addPlaceholder: string;
 }) {
+  const locale = useLocale();
   const roots = items.filter((i) => i.parentId === null);
   const childrenOf = (id: number) => items.filter((i) => i.parentId === id);
 
@@ -156,7 +163,7 @@ export function CatalogManager({
         withTemplateLists={withTemplateLists}
       />
       {roots.length === 0 ? (
-        <p className="text-sm text-muted">Sin elementos todavía.</p>
+        <p className="text-sm text-muted">{t("Sin elementos todavía.", "No items yet.", locale)}</p>
       ) : (
         <ul className="divide-y divide-edge rounded-lg border border-edge">
           {roots.map((item) => (
@@ -189,6 +196,7 @@ function CatalogEditForm({
   withTemplateLists?: boolean;
   onDone: () => void;
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(updateCatalogItem, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   const config = (item.config ?? null) as { lists?: string[] } | null;
@@ -198,7 +206,7 @@ function CatalogEditForm({
       <FormAlert state={state} />
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
-          <label className={labelClass}>Nombre</label>
+          <label className={labelClass}>{t("Nombre", "Name", locale)}</label>
           <input name="name" defaultValue={item.name} required className={inputClass} />
           <FieldError errors={errors.name} />
         </div>
@@ -214,7 +222,9 @@ function CatalogEditForm({
       </div>
       {withTemplateLists ? (
         <div>
-          <label className={labelClass}>Listas de la plantilla (una por línea)</label>
+          <label className={labelClass}>
+            {t("Listas de la plantilla (una por línea)", "Template lists (one per line)", locale)}
+          </label>
           <textarea
             name="templateLists"
             rows={3}
@@ -225,9 +235,9 @@ function CatalogEditForm({
         </div>
       ) : null}
       <div className="flex items-center gap-2">
-        <SubmitButton className="h-8">Guardar</SubmitButton>
+        <SubmitButton className="h-8">{t("Guardar", "Save", locale)}</SubmitButton>
         <button type="button" onClick={onDone} className={cx(buttonSecondaryClass, "h-8")}>
-          Cancelar
+          {t("Cancelar", "Cancel", locale)}
         </button>
       </div>
     </form>
@@ -245,6 +255,7 @@ function CatalogRowMenu({
   withColor?: boolean;
   withTemplateLists?: boolean;
 }) {
+  const locale = useLocale();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -269,7 +280,7 @@ function CatalogRowMenu({
           <button
             ref={triggerRef}
             type="button"
-            aria-label={`Más acciones para ${item.name}`}
+            aria-label={t(`Más acciones para ${item.name}`, `More actions for ${item.name}`, locale)}
             className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-fg"
           >
             ⋯
@@ -292,17 +303,19 @@ function CatalogRowMenu({
               <CatalogEditForm item={item} withColor={withColor} withTemplateLists={withTemplateLists} onDone={closeMenu} />
             ) : (
               <div className="space-y-0.5">
-                <MenuButton onClick={() => setEditing(true)}>Editar</MenuButton>
+                <MenuButton onClick={() => setEditing(true)}>{t("Editar", "Edit", locale)}</MenuButton>
                 <form action={(fd) => { toggleAction(fd); closeMenu(); }}>
                   <input type="hidden" name="id" value={item.id} />
-                  <MenuSubmitButton>{item.isActive ? "Archivar" : "Restaurar"}</MenuSubmitButton>
+                  <MenuSubmitButton>
+                    {item.isActive ? t("Archivar", "Archive", locale) : t("Restaurar", "Restore", locale)}
+                  </MenuSubmitButton>
                 </form>
                 {canDelete ? (
                   <>
                     <div className="my-1 border-t border-edge" />
                     <form action={(fd) => { deleteAction(fd); closeMenu(); }}>
                       <input type="hidden" name="id" value={item.id} />
-                      <MenuSubmitButton danger>Eliminar</MenuSubmitButton>
+                      <MenuSubmitButton danger>{t("Eliminar", "Delete", locale)}</MenuSubmitButton>
                     </form>
                   </>
                 ) : null}
@@ -336,6 +349,7 @@ function CatalogRow({
   withColor?: boolean;
   withTemplateLists?: boolean;
 }) {
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const config = (item.config ?? null) as { lists?: string[] } | null;
 
@@ -348,7 +362,11 @@ function CatalogRow({
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             className="text-muted hover:text-fg"
-            title={open ? "Contraer" : `${childLabel ?? "Subelementos"} (${childItems.length})`}
+            title={
+              open
+                ? t("Contraer", "Collapse", locale)
+                : `${childLabel ?? t("Subelementos", "Subitems", locale)} (${childItems.length})`
+            }
           >
             {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </button>
@@ -357,30 +375,36 @@ function CatalogRow({
           <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} aria-hidden />
         ) : null}
         <span className="min-w-0 truncate font-medium text-fg">{item.name}</span>
-        {!item.isActive ? <Badge tone="slate">Archivado</Badge> : null}
+        {!item.isActive ? <Badge tone="slate">{t("Archivado", "Archived", locale)}</Badge> : null}
         {hasChildren && childItems.length > 0 ? (
           <span className="text-xs text-muted">
-            {childItems.length} {childLabel?.toLowerCase() ?? "subelementos"}
+            {childItems.length} {childLabel?.toLowerCase() ?? t("subelementos", "subitems", locale)}
           </span>
         ) : null}
         <CatalogRowMenu item={item} canDelete={canDelete} withColor={withColor} withTemplateLists={withTemplateLists} />
       </div>
       {config?.lists ? (
-        <p className="mt-1 pl-6 text-xs text-muted">Listas: {config.lists.join(" · ")}</p>
+        <p className="mt-1 pl-6 text-xs text-muted">
+          {t("Listas", "Lists", locale)}: {config.lists.join(" · ")}
+        </p>
       ) : null}
       {hasChildren && open ? (
         <div className="mt-2 space-y-1 border-l border-edge pl-6">
           {childItems.map((child) => (
             <div key={child.id} className={cx("flex flex-wrap items-center gap-2 py-1", !child.isActive && "opacity-60")}>
               <span className="min-w-0 truncate font-medium text-fg">{child.name}</span>
-              {!child.isActive ? <Badge tone="slate">Archivado</Badge> : null}
+              {!child.isActive ? <Badge tone="slate">{t("Archivado", "Archived", locale)}</Badge> : null}
               <CatalogRowMenu item={child} canDelete={canDelete} />
             </div>
           ))}
           <CatalogAddForm
             kind={kind}
             parentId={item.id}
-            placeholder={`Nueva ${childLabel?.toLowerCase().replace(/s$/, "") ?? "subcategoría"}…`}
+            placeholder={t(
+              `Nueva ${childLabel?.toLowerCase().replace(/s$/, "") ?? "subcategoría"}…`,
+              `New ${childLabel?.toLowerCase().replace(/s$/, "") ?? "subcategory"}…`,
+              locale,
+            )}
           />
         </div>
       ) : null}
@@ -399,6 +423,7 @@ export function InviteUserForm({
   roles: { value: string; label: string }[];
   onSuccess?: () => void;
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(inviteUser, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   const id = useId();
@@ -410,7 +435,7 @@ export function InviteUserForm({
     <form action={formAction} className="space-y-3">
       <FormAlert state={state} />
       <div>
-        <label htmlFor={`${id}-name`} className={labelClass}>Nombre</label>
+        <label htmlFor={`${id}-name`} className={labelClass}>{t("Nombre", "Name", locale)}</label>
         <input id={`${id}-name`} name="name" required className={inputClass} />
         <FieldError errors={errors.name} />
       </div>
@@ -421,7 +446,7 @@ export function InviteUserForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor={`${id}-role`} className={labelClass}>Rol</label>
+          <label htmlFor={`${id}-role`} className={labelClass}>{t("Rol", "Role", locale)}</label>
           <SearchableSelect
             id={`${id}-role`}
             name="role"
@@ -430,13 +455,19 @@ export function InviteUserForm({
           />
         </div>
         <div>
-          <label htmlFor={`${id}-title`} className={labelClass}>Puesto (opcional)</label>
+          <label htmlFor={`${id}-title`} className={labelClass}>
+            {t("Puesto (opcional)", "Title (optional)", locale)}
+          </label>
           <input id={`${id}-title`} name="title" className={inputClass} />
         </div>
       </div>
-      <SubmitButton>Crear invitación</SubmitButton>
+      <SubmitButton>{t("Crear invitación", "Create invitation", locale)}</SubmitButton>
       <p className="text-xs text-muted">
-        Watson no envía correos: comparte el enlace de invitación que aparecerá en la tabla.
+        {t(
+          "Watson no envía correos: comparte el enlace de invitación que aparecerá en la tabla.",
+          "Watson doesn't send emails: share the invitation link that will appear in the table.",
+          locale,
+        )}
       </p>
     </form>
   );
@@ -444,18 +475,23 @@ export function InviteUserForm({
 
 /** Trigger + modal for the Usuarios header — the activation link appears in the table below, not in the form, so the modal can safely close on success. */
 export function NewUserButton({ roles }: { roles: { value: string; label: string }[] }) {
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
         <Plus className="size-4" />
-        Invitar usuario
+        {t("Invitar usuario", "Invite user", locale)}
       </button>
       <Modal
         open={open}
         onOpenChange={setOpen}
-        title="Invitar usuario"
-        description="Crea la cuenta y comparte el enlace de activación (Watson no envía correos)."
+        title={t("Invitar usuario", "Invite user", locale)}
+        description={t(
+          "Crea la cuenta y comparte el enlace de activación (Watson no envía correos).",
+          "Create the account and share the activation link (Watson doesn't send emails).",
+          locale,
+        )}
       >
         <InviteUserForm roles={roles} onSuccess={() => setOpen(false)} />
       </Modal>
@@ -472,6 +508,7 @@ export function UserActivationControl({
   isActive: boolean;
   reassignTargets: { id: number; name: string }[];
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(setUserActive, null);
   const [confirming, setConfirming] = useState(false);
 
@@ -483,7 +520,7 @@ export function UserActivationControl({
           onClick={() => setConfirming(true)}
           className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}
         >
-          Desactivar…
+          {t("Desactivar…", "Deactivate…", locale)}
         </button>
         {state && !state.ok ? <span className="text-xs text-danger">{state.message}</span> : null}
       </span>
@@ -500,22 +537,28 @@ export function UserActivationControl({
             name="reassignToId"
             className="h-7 w-auto text-xs"
             defaultValue=""
-            options={[{ value: "", label: "Sin reasignar trabajo" }, ...reassignTargets.map((t) => ({ value: String(t.id), label: `Reasignar a ${t.name}` }))]}
+            options={[
+              { value: "", label: t("Sin reasignar trabajo", "Don't reassign work", locale) },
+              ...reassignTargets.map((target) => ({
+                value: String(target.id),
+                label: t(`Reasignar a ${target.name}`, `Reassign to ${target.name}`, locale),
+              })),
+            ]}
           />
           <button type="submit" className={cx(buttonDangerClass, "h-7 px-2 text-xs")}>
-            Confirmar desactivación
+            {t("Confirmar desactivación", "Confirm deactivation", locale)}
           </button>
           <button
             type="button"
             onClick={() => setConfirming(false)}
             className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}
           >
-            Cancelar
+            {t("Cancelar", "Cancel", locale)}
           </button>
         </>
       ) : (
         <button type="submit" className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-          Activar
+          {t("Activar", "Activate", locale)}
         </button>
       )}
       {state && !state.ok ? <span className="w-full text-xs text-danger">{state.message}</span> : null}
@@ -524,12 +567,13 @@ export function UserActivationControl({
 }
 
 export function RegenerateInvitationButton({ userId }: { userId: number }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(regenerateInvitation, null);
   return (
     <form action={formAction} className="inline">
       <input type="hidden" name="id" value={userId} />
       <button type="submit" className={cx(buttonSecondaryClass, "h-7 px-2 text-xs")}>
-        Regenerar enlace
+        {t("Regenerar enlace", "Regenerate link", locale)}
       </button>
       {state && !state.ok ? <span className="ml-2 text-xs text-danger">{state.message}</span> : null}
     </form>
@@ -537,6 +581,7 @@ export function RegenerateInvitationButton({ userId }: { userId: number }) {
 }
 
 export function CopyLinkButton({ path }: { path: string }) {
+  const locale = useLocale();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -548,7 +593,7 @@ export function CopyLinkButton({ path }: { path: string }) {
         setTimeout(() => setCopied(false), 2000);
       }}
     >
-      {copied ? "Copiado ✓" : "Copiar enlace"}
+      {copied ? t("Copiado ✓", "Copied ✓", locale) : t("Copiar enlace", "Copy link", locale)}
     </button>
   );
 }
@@ -558,6 +603,7 @@ export function CopyLinkButton({ path }: { path: string }) {
 /* ------------------------------------------------------------------ */
 
 export function ApiKeyCreateForm() {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(createApiKey, null);
   return (
     <form action={formAction} className="space-y-3">
@@ -565,22 +611,28 @@ export function ApiKeyCreateForm() {
       <FormAlert state={state} />
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-48 flex-1">
-          <label className={labelClass}>Nombre de la clave</label>
-          <input name="name" required placeholder="p. ej. Integración interna" className={inputClass} />
+          <label className={labelClass}>{t("Nombre de la clave", "Key name", locale)}</label>
+          <input
+            name="name"
+            required
+            placeholder={t("p. ej. Integración interna", "e.g. Internal integration", locale)}
+            className={inputClass}
+          />
         </div>
-        <SubmitButton>Generar clave</SubmitButton>
+        <SubmitButton>{t("Generar clave", "Generate key", locale)}</SubmitButton>
       </div>
     </form>
   );
 }
 
 export function RevokeApiKeyButton({ keyId }: { keyId: number }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(revokeApiKey, null);
   return (
     <form action={formAction} className="inline">
       <input type="hidden" name="id" value={keyId} />
       <button type="submit" className={cx(buttonDangerClass, "h-7 px-2 text-xs")}>
-        Revocar
+        {t("Revocar", "Revoke", locale)}
       </button>
       {state && !state.ok ? <span className="ml-2 text-xs text-danger">{state.message}</span> : null}
     </form>

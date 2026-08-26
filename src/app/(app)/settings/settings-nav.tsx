@@ -23,41 +23,45 @@ import {
   Briefcase,
 } from "lucide-react";
 import { cx } from "@/components/ui";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 
 const SECTIONS: {
   href: string;
-  label: string;
+  labelEs: string;
+  labelEn: string;
   icon: typeof Users;
   superadminOnly?: boolean;
 }[] = [
-  { href: "/settings", label: "Organización", icon: Building2 },
-  { href: "/settings/users", label: "Usuarios", icon: Users, superadminOnly: true },
-  { href: "/settings/roles", label: "Roles y permisos", icon: Shield },
-  { href: "/settings/companies", label: "Empresas", icon: Briefcase },
-  { href: "/settings/tickets", label: "Tickets", icon: LifeBuoy },
-  { href: "/settings/custom-fields", label: "Campos Personalizados", icon: SlidersHorizontal },
-  { href: "/settings/sla", label: "SLA", icon: Timer, superadminOnly: true },
-  { href: "/settings/activities", label: "Actividades", icon: Activity },
-  { href: "/settings/projects", label: "Proyectos", icon: FolderKanban },
-  { href: "/settings/recurring", label: "Recurrentes", icon: Repeat },
-  { href: "/settings/reports", label: "Reportes", icon: ClipboardList },
-  { href: "/settings/indicators", label: "Indicadores", icon: Gauge },
-  { href: "/settings/knowledge", label: "Conocimiento", icon: BookOpen },
-  { href: "/settings/help", label: "Ayuda", icon: HelpCircle },
-  { href: "/settings/audit", label: "Auditoría", icon: ScrollText },
-  { href: "/settings/api-keys", label: "API Keys", icon: KeyRound, superadminOnly: true },
-  { href: "/settings/environment", label: "Entorno", icon: ServerCog, superadminOnly: true },
-  { href: "/settings/health", label: "Salud del sistema", icon: HeartPulse },
+  { href: "/settings", labelEs: "Organización", labelEn: "Organization", icon: Building2 },
+  { href: "/settings/users", labelEs: "Usuarios", labelEn: "Users", icon: Users, superadminOnly: true },
+  { href: "/settings/roles", labelEs: "Roles y permisos", labelEn: "Roles and permissions", icon: Shield },
+  { href: "/settings/companies", labelEs: "Empresas", labelEn: "Companies", icon: Briefcase },
+  { href: "/settings/tickets", labelEs: "Tickets", labelEn: "Tickets", icon: LifeBuoy },
+  { href: "/settings/custom-fields", labelEs: "Campos Personalizados", labelEn: "Custom Fields", icon: SlidersHorizontal },
+  { href: "/settings/sla", labelEs: "SLA", labelEn: "SLA", icon: Timer, superadminOnly: true },
+  { href: "/settings/activities", labelEs: "Actividades", labelEn: "Activities", icon: Activity },
+  { href: "/settings/projects", labelEs: "Proyectos", labelEn: "Projects", icon: FolderKanban },
+  { href: "/settings/recurring", labelEs: "Recurrentes", labelEn: "Recurring", icon: Repeat },
+  { href: "/settings/reports", labelEs: "Reportes", labelEn: "Reports", icon: ClipboardList },
+  { href: "/settings/indicators", labelEs: "Indicadores", labelEn: "Indicators", icon: Gauge },
+  { href: "/settings/knowledge", labelEs: "Conocimiento", labelEn: "Knowledge", icon: BookOpen },
+  { href: "/settings/help", labelEs: "Ayuda", labelEn: "Help", icon: HelpCircle },
+  { href: "/settings/audit", labelEs: "Auditoría", labelEn: "Audit", icon: ScrollText },
+  { href: "/settings/api-keys", labelEs: "API Keys", labelEn: "API Keys", icon: KeyRound, superadminOnly: true },
+  { href: "/settings/environment", labelEs: "Entorno", labelEn: "Environment", icon: ServerCog, superadminOnly: true },
+  { href: "/settings/health", labelEs: "Salud del sistema", labelEn: "System health", icon: HeartPulse },
 ];
 
 export function SettingsNav({ isSuperadmin }: { isSuperadmin: boolean }) {
   const pathname = usePathname();
+  const locale = useLocale();
   const visible = SECTIONS.filter((s) => !s.superadminOnly || isSuperadmin);
 
   return (
-    <nav aria-label="Configuración" className="lg:w-56 lg:shrink-0">
+    <nav aria-label={t("Configuración", "Settings", locale)} className="lg:w-56 lg:shrink-0">
       <p className="mb-2 px-3 text-xs font-semibold tracking-wide text-faint uppercase">
-        Configuración
+        {t("Configuración", "Settings", locale)}
       </p>
       <ul className="flex flex-wrap gap-1 lg:flex-col">
         {visible.map((s) => {
@@ -76,7 +80,7 @@ export function SettingsNav({ isSuperadmin }: { isSuperadmin: boolean }) {
                 )}
               >
                 <Icon className="size-4 shrink-0" aria-hidden />
-                {s.label}
+                {t(s.labelEs, s.labelEn, locale)}
               </Link>
             </li>
           );

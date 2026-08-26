@@ -9,6 +9,8 @@ import { fmtDate } from "@/lib/format";
 import { changeTicketStatus, setTicketPriority } from "./actions";
 import { CatalogChip, toCatalogMap, type TicketPriorityOption, type TicketRow, type TicketStatusOption } from "./ticket-views";
 import { ACTIVE_TICKET_STATUSES } from "@/lib/today-rules";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 
 /** Reference RGB for each Badge tone — used only to pick the closest tone for
  * a Kanban column header, since KanbanBoard (shared across modules) renders
@@ -66,6 +68,7 @@ export function TicketKanban({
   priorities: TicketPriorityOption[];
 }) {
   const router = useRouter();
+  const locale = useLocale();
   const now = new Date();
   const catalog = groupField === "priority" ? priorities : statuses;
   const priorityMap = toCatalogMap(priorities);
@@ -94,7 +97,7 @@ export function TicketKanban({
     <KanbanBoard
       columns={columns}
       onMove={onMove}
-      emptyLabel="Sin tickets"
+      emptyLabel={t("Sin tickets", "No tickets", locale)}
       renderCard={(r) => (
         <div
           role="link"
@@ -120,7 +123,7 @@ export function TicketKanban({
               </Badge>
             </Link>
           ) : (
-            <p className="mb-2 text-xs text-faint">Sin cliente</p>
+            <p className="mb-2 text-xs text-faint">{t("Sin cliente", "No client", locale)}</p>
           )}
           <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
           {r.resolutionTargetAt ? (
@@ -148,11 +151,11 @@ export function TicketKanban({
               )}
             >
               <CalendarDays className="size-3.5 shrink-0" />
-              Agendado · {fmtDate(r.dueDate)}
+              {t("Agendado", "Scheduled", locale)} · {fmtDate(r.dueDate)}
             </div>
           ) : null}
           <div className="flex items-center justify-end text-xs text-muted">
-            <span className="shrink-0">{r.assigneeName ?? "Sin asignar"}</span>
+            <span className="shrink-0">{r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}</span>
           </div>
         </div>
       )}

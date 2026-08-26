@@ -5,6 +5,8 @@ import { db } from "@/db";
 import { businessCalendars, organizations } from "@/db/schema";
 import { CURRENCIES, LANGUAGES } from "@/lib/settings";
 import { getSetting } from "@/lib/settings-data";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { requireRole } from "@/lib/session";
 import { Card, CardHeader, PageHeader, inputClass, labelClass } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -14,6 +16,7 @@ export const metadata: Metadata = { title: "Configuración · Organización" };
 
 export default async function OrganizationSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
+  const locale = await getOrgLocale(user.organizationId);
   const [profile, [org], [calendar]] = await Promise.all([
     getSetting(user.organizationId, "organization.profile"),
     db
@@ -29,18 +32,22 @@ export default async function OrganizationSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Organización"
-        subtitle="Identidad, branding, datos fiscales y horario laboral de la organización."
+        title={t("Organización", "Organization", locale)}
+        subtitle={t(
+          "Identidad, branding, datos fiscales y horario laboral de la organización.",
+          "Identity, branding, tax data, and the organization's business hours.",
+          locale,
+        )}
       />
 
       {/* One form: the whole profile section saves atomically. */}
       <SettingSectionForm settingKey="organization.profile">
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <Card className="p-5">
-            <CardHeader title="Identidad y branding" />
+            <CardHeader title={t("Identidad y branding", "Identity and branding", locale)} />
             <div className="space-y-4">
               <div>
-                <label className={labelClass}>Nombre de la organización</label>
+                <label className={labelClass}>{t("Nombre de la organización", "Organization name", locale)}</label>
                 <input
                   name="displayName"
                   defaultValue={profile.displayName ?? org?.name ?? ""}
@@ -49,7 +56,7 @@ export default async function OrganizationSettingsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Moneda</label>
+                  <label className={labelClass}>{t("Moneda", "Currency", locale)}</label>
                   <SearchableSelect
                     name="currency"
                     defaultValue={profile.currency}
@@ -57,7 +64,7 @@ export default async function OrganizationSettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Idioma</label>
+                  <label className={labelClass}>{t("Idioma", "Language", locale)}</label>
                   <SearchableSelect
                     name="language"
                     defaultValue={profile.language}
@@ -66,7 +73,7 @@ export default async function OrganizationSettingsPage() {
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Color de marca</label>
+                <label className={labelClass}>{t("Color de marca", "Brand color", locale)}</label>
                 <input
                   name="brandColor"
                   type="color"
@@ -75,18 +82,18 @@ export default async function OrganizationSettingsPage() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Logo (PNG/JPEG/SVG/WebP, máx. ~150 KB)</label>
+                <label className={labelClass}>{t("Logo (PNG/JPEG/SVG/WebP, máx. ~150 KB)", "Logo (PNG/JPEG/SVG/WebP, max ~150 KB)", locale)}</label>
                 {profile.logo ? (
                   <span className="mb-2 flex items-center gap-3">
                     {/* data URI inline — next/image no aplica */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={profile.logo}
-                      alt="Logo actual"
+                      alt={t("Logo actual", "Current logo", locale)}
                       className="h-10 w-auto rounded border border-edge bg-surface p-1"
                     />
                     <label className="flex items-center gap-1.5 text-xs text-muted">
-                      <input type="checkbox" name="clearLogo" className="size-3.5" /> Quitar logo
+                      <input type="checkbox" name="clearLogo" className="size-3.5" /> {t("Quitar logo", "Remove logo", locale)}
                     </label>
                   </span>
                 ) : null}
@@ -101,26 +108,30 @@ export default async function OrganizationSettingsPage() {
           </Card>
 
           <Card className="p-5">
-            <CardHeader title="Datos fiscales básicos" />
+            <CardHeader title={t("Datos fiscales básicos", "Basic tax data", locale)} />
             <div className="space-y-4">
               <div>
-                <label className={labelClass}>Razón social</label>
+                <label className={labelClass}>{t("Razón social", "Legal name", locale)}</label>
                 <input name="legalName" defaultValue={profile.legalName ?? ""} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>RFC / Tax ID</label>
+                <label className={labelClass}>{t("RFC / Tax ID", "RFC / Tax ID", locale)}</label>
                 <input name="taxId" defaultValue={profile.taxId ?? ""} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Domicilio fiscal</label>
+                <label className={labelClass}>{t("Domicilio fiscal", "Fiscal address", locale)}</label>
                 <input name="fiscalAddress" defaultValue={profile.fiscalAddress ?? ""} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Régimen fiscal</label>
+                <label className={labelClass}>{t("Régimen fiscal", "Tax regime", locale)}</label>
                 <input name="fiscalRegime" defaultValue={profile.fiscalRegime ?? ""} className={inputClass} />
               </div>
               <p className="text-xs text-muted">
-                Datos informativos para portadas de reportes y documentos — Watson no emite facturas.
+                {t(
+                  "Datos informativos para portadas de reportes y documentos — Watson no emite facturas.",
+                  "Informational data for report and document cover pages — Watson does not issue invoices.",
+                  locale,
+                )}
               </p>
             </div>
           </Card>
@@ -129,16 +140,20 @@ export default async function OrganizationSettingsPage() {
 
       <Card className="p-5">
         <CardHeader
-          title="Zona horaria y horario laboral"
-          description="Es el calendario laboral oficial, compartido con las definiciones de SLA (regla R7: solo SuperAdmin lo modifica)."
+          title={t("Zona horaria y horario laboral", "Time zone and business hours", locale)}
+          description={t(
+            "Es el calendario laboral oficial, compartido con las definiciones de SLA (regla R7: solo SuperAdmin lo modifica).",
+            "This is the official business calendar, shared with SLA definitions (rule R7: only SuperAdmin can modify it).",
+            locale,
+          )}
         />
         <p className="text-sm text-muted">
-          Zona horaria:{" "}
+          {t("Zona horaria", "Time zone", locale)}:{" "}
           <span className="font-medium text-fg">{calendar?.timezone ?? "America/Mexico_City"}</span>
           {" · "}
-          Horario laboral configurado en{" "}
+          {t("Horario laboral configurado en", "Business hours configured in", locale)}{" "}
           <Link href="/settings/sla" className="text-primary hover:underline">
-            Configuración → SLA →
+            {t("Configuración → SLA →", "Settings → SLA →", locale)}
           </Link>
         </p>
       </Card>

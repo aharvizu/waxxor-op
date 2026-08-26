@@ -9,6 +9,8 @@ import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { LifeBuoy, Plus } from "lucide-react";
 import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
 import { toCatalogMap } from "@/lib/catalog-map";
+import { useLocale } from "@/components/locale-provider";
+import { DEFAULT_LOCALE, t, type Locale } from "@/lib/i18n";
 import { TicketRowActions } from "./ticket-row-actions";
 import { TicketKanban } from "./ticket-kanban";
 
@@ -70,6 +72,7 @@ export function buildColumnRegistry(
   statuses: Map<number, TicketStatusOption> = new Map(),
   priorities: Map<number, TicketPriorityOption> = new Map(),
   billingStatuses: Map<number, TicketBillingOption> = new Map(),
+  locale: Locale = DEFAULT_LOCALE,
 ): Record<string, ColumnDef> {
   const registry: Record<string, ColumnDef> = {
     folio: { key: "folio", label: "Folio", render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span> },
@@ -84,7 +87,7 @@ export function buildColumnRegistry(
     },
     companyName: {
       key: "companyName",
-      label: "Empresa",
+      label: t("Empresa", "Company", locale),
       render: (r) =>
         r.companyName && r.companyId ? (
           <Link href={`/companies/${r.companyId}`} className="text-muted hover:text-primary hover:underline">
@@ -94,22 +97,26 @@ export function buildColumnRegistry(
           <span className="text-muted">—</span>
         ),
     },
-    assigneeName: { key: "assigneeName", label: "Responsable", render: (r) => <span className="text-muted">{r.assigneeName ?? "Sin asignar"}</span> },
+    assigneeName: {
+      key: "assigneeName",
+      label: t("Responsable", "Assignee", locale),
+      render: (r) => <span className="text-muted">{r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}</span>,
+    },
     status: {
       key: "status",
-      label: "Estado",
+      label: t("Estado", "Status", locale),
       render: (r) => <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />,
     },
     priority: {
       key: "priority",
-      label: "Prioridad",
+      label: t("Prioridad", "Priority", locale),
       render: (r) => <CatalogChip entry={priorities.get(r.priorityId)} fallback={r.priority} />,
     },
-    category: { key: "category", label: "Categoría", render: (r) => <span className="text-muted">{r.category ?? "—"}</span> },
+    category: { key: "category", label: t("Categoría", "Category", locale), render: (r) => <span className="text-muted">{r.category ?? "—"}</span> },
     slaName: { key: "slaName", label: "SLA", render: (r) => <span className="text-muted">{r.slaName ?? "—"}</span> },
     dueAt: {
       key: "dueAt",
-      label: "Vence",
+      label: t("Vence", "Due", locale),
       render: (r) => {
         const overdue = r.resolutionTargetAt && r.resolutionTargetAt.getTime() < Date.now();
         return <span className={cx("tabular-nums", overdue ? "font-medium text-danger" : "text-muted")}>{r.resolutionTargetAt ? fmtDate(r.resolutionTargetAt) : "—"}</span>;
@@ -117,7 +124,7 @@ export function buildColumnRegistry(
     },
     scheduledFor: {
       key: "scheduledFor",
-      label: "Fecha agendada",
+      label: t("Fecha agendada", "Scheduled date", locale),
       render: (r) => {
         const overdue = r.dueDate && r.dueDate < new Date().toISOString().slice(0, 10);
         return (
@@ -127,13 +134,13 @@ export function buildColumnRegistry(
         );
       },
     },
-    minutes: { key: "minutes", label: "Tiempo", render: (r) => <span className="tabular-nums text-muted">{r.minutes > 0 ? formatMinutes(r.minutes) : "—"}</span> },
+    minutes: { key: "minutes", label: t("Tiempo", "Time", locale), render: (r) => <span className="tabular-nums text-muted">{r.minutes > 0 ? formatMinutes(r.minutes) : "—"}</span> },
     billingStatus: {
       key: "billingStatus",
-      label: "Cobro",
+      label: t("Cobro", "Billing", locale),
       render: (r) => <CatalogChip entry={billingStatuses.get(r.billingStatusId)} fallback={r.billingStatus} />,
     },
-    updatedAt: { key: "updatedAt", label: "Actualizado", render: (r) => <span className="tabular-nums text-muted">{fmtDateTime(r.updatedAt)}</span> },
+    updatedAt: { key: "updatedAt", label: t("Actualizado", "Updated", locale), render: (r) => <span className="tabular-nums text-muted">{fmtDateTime(r.updatedAt)}</span> },
   };
   for (const f of customFieldDefs) {
     registry[`cf_${f.key}`] = {
@@ -149,11 +156,16 @@ export function buildColumnRegistry(
 }
 
 export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "slaName", "dueAt", "scheduledFor", "minutes", "billingStatus", "updatedAt"];
-export const TICKET_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: buildColumnRegistry([])[key]?.label ?? key }));
-export const TICKET_KANBAN_GROUP_OPTIONS = [
-  { key: "status", label: "Estado" },
-  { key: "priority", label: "Prioridad" },
-];
+export function buildTicketColumnOptions(locale: Locale = DEFAULT_LOCALE) {
+  const registry = buildColumnRegistry([], new Map(), new Map(), new Map(), locale);
+  return DEFAULT_COLUMNS.map((key) => ({ key, label: registry[key]?.label ?? key }));
+}
+export function buildTicketKanbanGroupOptions(locale: Locale = DEFAULT_LOCALE) {
+  return [
+    { key: "status", label: t("Estado", "Status", locale) },
+    { key: "priority", label: t("Prioridad", "Priority", locale) },
+  ];
+}
 
 /** Maps a column key to its sortable value — most columns mirror a TicketRow field directly, but `dueAt`/`cf_*` are aliases over resolutionTargetAt/customFields. */
 function ticketSortValue(r: TicketRow, key: string): unknown {
@@ -164,9 +176,18 @@ function ticketSortValue(r: TicketRow, key: string): unknown {
 }
 
 function EmptyTickets({ createHref = "/helpdesk/new" }: { createHref?: string }) {
+  const locale = useLocale();
   return (
-    <EmptyState icon={<LifeBuoy />} title="Sin tickets" action={<Link href={createHref} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white"><Plus className="size-4" /> Nuevo ticket</Link>}>
-      Nada coincide con esta vista o filtros.
+    <EmptyState
+      icon={<LifeBuoy />}
+      title={t("Sin tickets", "No tickets", locale)}
+      action={
+        <Link href={createHref} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white">
+          <Plus className="size-4" /> {t("Nuevo ticket", "New ticket", locale)}
+        </Link>
+      }
+    >
+      {t("Nada coincide con esta vista o filtros.", "Nothing matches this view or filters.", locale)}
     </EmptyState>
   );
 }
@@ -236,6 +257,7 @@ export function ListView({
   statuses: Map<number, TicketStatusOption>;
   priorities: Map<number, TicketPriorityOption>;
 }) {
+  const locale = useLocale();
   if (rows.length === 0) return <EmptyTickets />;
   return (
     <Card className="overflow-hidden">
@@ -254,7 +276,7 @@ export function ListView({
               <span className="hidden shrink-0 text-xs text-muted sm:inline">—</span>
             )}
             <CatalogChip entry={priorities.get(r.priorityId)} fallback={r.priority} />
-            <span className="hidden w-28 shrink-0 truncate text-xs text-muted md:inline">{r.assigneeName ?? "Sin asignar"}</span>
+            <span className="hidden w-28 shrink-0 truncate text-xs text-muted md:inline">{r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}</span>
           </li>
         ))}
       </ul>
@@ -285,6 +307,7 @@ export function KanbanView({
  * creación de vistas nuevas de este tipo ya no se ofrece (view-switcher.tsx). */
 
 export function CalendarView({ rows, statuses }: { rows: TicketRow[]; statuses: Map<number, TicketStatusOption> }) {
+  const locale = useLocale();
   const dated = rows.filter((r) => r.resolutionTargetAt);
   const undated = rows.filter((r) => !r.resolutionTargetAt);
   if (rows.length === 0) return <EmptyTickets />;
@@ -320,7 +343,7 @@ export function CalendarView({ rows, statuses }: { rows: TicketRow[]; statuses: 
       ))}
       {undated.length > 0 ? (
         <Card className="overflow-hidden">
-          <div className="border-b border-edge bg-subtle px-4 py-2 text-xs font-semibold tracking-wide text-muted uppercase">Sin fecha de vencimiento</div>
+          <div className="border-b border-edge bg-subtle px-4 py-2 text-xs font-semibold tracking-wide text-muted uppercase">{t("Sin fecha de vencimiento", "No due date", locale)}</div>
           <ul className="divide-y divide-edge">
             {undated.map((r) => (
               <li key={r.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
@@ -338,6 +361,7 @@ export function CalendarView({ rows, statuses }: { rows: TicketRow[]; statuses: 
 /* --------------------------------------------------------------- timeline */
 
 export function TimelineView({ rows, statuses }: { rows: TicketRow[]; statuses: Map<number, TicketStatusOption> }) {
+  const locale = useLocale();
   if (rows.length === 0) return <EmptyTickets />;
   const sorted = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return (
@@ -350,7 +374,9 @@ export function TimelineView({ rows, statuses }: { rows: TicketRow[]; statuses: 
             <CatalogChip entry={statuses.get(r.statusId)} fallback={r.status} />
             <Link href={`/helpdesk/${r.id}`} className="min-w-0 flex-1 truncate font-medium text-fg hover:text-primary">{r.folio} · {r.title}</Link>
             <div className="hidden w-28 shrink-0 text-right text-xs text-muted sm:block">
-              {r.resolutionTargetAt ? `vence ${fmtDate(r.resolutionTargetAt)}` : "sin vencimiento"}
+              {r.resolutionTargetAt
+                ? `${t("vence", "due", locale)} ${fmtDate(r.resolutionTargetAt)}`
+                : t("sin vencimiento", "no due date", locale)}
             </div>
           </li>
         ))}

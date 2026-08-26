@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { workItemPriority } from "@/db/schema";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
@@ -31,15 +32,19 @@ export default async function ActivitiesSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Actividades"
-        subtitle="Tipos y prioridades configurables."
+        title={t("Actividades", "Activities", locale)}
+        subtitle={t("Tipos y prioridades configurables.", "Configurable types and priorities.", locale)}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card className="p-5">
           <CardHeader
             title={CATALOG_KINDS.time_entry_type.label}
-            description={`${CATALOG_KINDS.time_entry_type.note} "Technical work", "General", "Meeting" y "Reminder" son del sistema — se pueden recolorear pero no renombrar ni eliminar.`}
+            description={`${CATALOG_KINDS.time_entry_type.note} ${t(
+              '"Technical work", "General", "Meeting" y "Reminder" son del sistema — se pueden recolorear pero no renombrar ni eliminar.',
+              '"Technical work", "General", "Meeting" and "Reminder" are system defaults — they can be recolored but not renamed or deleted.',
+              locale,
+            )}`}
           />
           <CatalogManager
             kind="time_entry_type"
@@ -48,19 +53,23 @@ export default async function ActivitiesSettingsPage() {
             childLabel={null}
             canDelete={canDelete}
             withColor
-            addPlaceholder="Nuevo tipo de trabajo…"
+            addPlaceholder={t("Nuevo tipo de trabajo…", "New work type…", locale)}
           />
         </Card>
         <EnumCatalog
-          title="Prioridades"
+          title={t("Prioridades", "Priorities", locale)}
           values={workItemPriority.enumValues}
           meta={ticketPriorityMeta}
         />
       </div>
 
       <EnumCatalog
-        title="Estados"
-        description="Ciclo de vida compartido con actividades de proyecto — no configurable hoy."
+        title={t("Estados", "Statuses", locale)}
+        description={t(
+          "Ciclo de vida compartido con actividades de proyecto — no configurable hoy.",
+          "Lifecycle shared with project activities — not configurable today.",
+          locale,
+        )}
         values={ACTIVITY_STATUSES}
         meta={activityStatusMeta}
       />

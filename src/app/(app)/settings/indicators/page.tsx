@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getThresholds } from "@/lib/indicator-data";
 import { INDICATOR_THRESHOLD_DEFAULTS } from "@/lib/indicators";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t } from "@/lib/i18n";
 import { requireRole } from "@/lib/session";
 import { Card, CardHeader, PageHeader } from "@/components/ui";
 import { ThresholdForm } from "../../reports/report-forms";
@@ -15,19 +17,28 @@ export const metadata: Metadata = { title: "Configuración · Indicadores" };
  */
 export default async function IndicatorsSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
+  const locale = await getOrgLocale(user.organizationId);
   const thresholds = await getThresholds(user.organizationId);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Indicadores"
-        subtitle="Umbrales que controlan la atención ejecutiva: objetivo SLA, backlog crítico, renovaciones, reportes vencidos."
+        title={t("Indicadores", "Indicators", locale)}
+        subtitle={t(
+          "Umbrales que controlan la atención ejecutiva: objetivo SLA, backlog crítico, renovaciones, reportes vencidos.",
+          "Thresholds that drive executive attention: SLA target, critical backlog, renewals, overdue reports.",
+          locale,
+        )}
       />
 
       <Card className="p-5">
         <CardHeader
-          title="Umbrales"
-          description="Cada cambio queda auditado con el valor anterior. Los paneles de /indicators los aplican de inmediato."
+          title={t("Umbrales", "Thresholds", locale)}
+          description={t(
+            "Cada cambio queda auditado con el valor anterior. Los paneles de /indicators los aplican de inmediato.",
+            "Every change is audited with the previous value. The /indicators dashboards apply them immediately.",
+            locale,
+          )}
         />
         <div className="space-y-3">
           {Object.entries(INDICATOR_THRESHOLD_DEFAULTS).map(([key, def]) => (
@@ -41,8 +52,8 @@ export default async function IndicatorsSettingsPage() {
           ))}
         </div>
         <p className="mt-4 text-xs text-muted">
-          Las definiciones y fórmulas de cada indicador viven en el diccionario del módulo{" "}
-          <Link href="/indicators" className="text-primary hover:underline">Indicadores</Link>.
+          {t("Las definiciones y fórmulas de cada indicador viven en el diccionario del módulo", "Each indicator's definitions and formulas live in the module dictionary", locale)}{" "}
+          <Link href="/indicators" className="text-primary hover:underline">{t("Indicadores", "Indicators", locale)}</Link>.
         </p>
       </Card>
     </div>

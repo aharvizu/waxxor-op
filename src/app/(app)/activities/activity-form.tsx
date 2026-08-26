@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { getLabels } from "@/lib/labels";
 import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import { createActivity, updateActivityDetails } from "./actions";
 
 type Option = { id: number; name: string };
@@ -27,10 +28,10 @@ export type ActivityFormDefaults = {
 };
 
 const priorities = [
-  ["low", "Low"],
-  ["medium", "Medium"],
-  ["high", "High"],
-  ["critical", "Critical"],
+  ["low", "Baja", "Low"],
+  ["medium", "Media", "Medium"],
+  ["high", "Alta", "High"],
+  ["critical", "Crítica", "Critical"],
 ] as const;
 
 /** Create form when `activity` is omitted; edit form when provided. Assignee only shows on create — editing an existing activity's assignee already happens in WorkflowCard on its detail page, so this form doesn't duplicate that control. */
@@ -59,7 +60,8 @@ export function ActivityForm({
     activity ? updateActivityDetails : createActivity,
     null,
   );
-  const { activityTypeMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { activityTypeMeta } = getLabels(locale);
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
   const value = (name: string, saved: string) => failed?.values?.[name] ?? saved;
@@ -73,7 +75,7 @@ export function ActivityForm({
       <FormAlert state={state} />
       <div>
         <label htmlFor="title" className={labelClass}>
-          Title
+          {t("Título", "Title", locale)}
         </label>
         <input
           id="title"
@@ -88,7 +90,7 @@ export function ActivityForm({
       </div>
       <div>
         <label htmlFor="description" className={labelClass}>
-          Description
+          {t("Descripción", "Description", locale)}
         </label>
         <textarea
           id="description"
@@ -101,7 +103,7 @@ export function ActivityForm({
       <div className={activity ? "grid grid-cols-1 gap-4 sm:grid-cols-3" : "grid grid-cols-1 gap-4 sm:grid-cols-4"}>
         <div>
           <label htmlFor="activityType" className={labelClass}>
-            Type
+            {t("Tipo", "Type", locale)}
           </label>
           <SearchableSelect
             id="activityType"
@@ -118,18 +120,18 @@ export function ActivityForm({
         </div>
         <div>
           <label htmlFor="priority" className={labelClass}>
-            Priority
+            {t("Prioridad", "Priority", locale)}
           </label>
           <SearchableSelect
             id="priority"
             name="priority"
             defaultValue={value("priority", activity?.priority ?? "medium")}
-            options={priorities.map(([v, label]) => ({ value: v, label }))}
+            options={priorities.map(([v, esLabel, enLabel]) => ({ value: v, label: t(esLabel, enLabel, locale) }))}
           />
         </div>
         <div>
           <label htmlFor="companyId" className={labelClass}>
-            Client
+            {t("Cliente", "Client", locale)}
           </label>
           <SearchableSelect
             id="companyId"
@@ -143,7 +145,7 @@ export function ActivityForm({
                   : "",
             )}
             options={[
-              { value: "", label: "— None —" },
+              { value: "", label: t("— Ninguno —", "— None —", locale) },
               ...companies.map((c) => ({ value: String(c.id), label: c.name })),
             ]}
           />
@@ -151,14 +153,14 @@ export function ActivityForm({
         {!activity ? (
           <div>
             <label htmlFor="assigneeId" className={labelClass}>
-              Assignee
+              {t("Responsable", "Assignee", locale)}
             </label>
             <SearchableSelect
               id="assigneeId"
               name="assigneeId"
               defaultValue={value("assigneeId", "")}
               options={[
-                { value: "", label: "Unassigned" },
+                { value: "", label: t("Sin asignar", "Unassigned", locale) },
                 ...users.map((u) => ({ value: String(u.id), label: u.name })),
               ]}
             />
@@ -168,7 +170,7 @@ export function ActivityForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="startDate" className={labelClass}>
-            Start date
+            {t("Fecha de inicio", "Start date", locale)}
           </label>
           <input
             id="startDate"
@@ -180,7 +182,7 @@ export function ActivityForm({
         </div>
         <div>
           <label htmlFor="dueDate" className={labelClass}>
-            Due date
+            {t("Fecha de vencimiento", "Due date", locale)}
           </label>
           <input
             id="dueDate"
@@ -192,7 +194,7 @@ export function ActivityForm({
         </div>
         <div>
           <label htmlFor="estimatedMinutes" className={labelClass}>
-            Estimate (minutes)
+            {t("Estimado (minutos)", "Estimate (minutes)", locale)}
           </label>
           <input
             id="estimatedMinutes"
@@ -230,24 +232,29 @@ export function NewActivityButton({
   defaultCompanyId?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const locale = useLocale();
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
         <Plus className="size-4" />
-        New activity
+        {t("Nueva actividad", "New activity", locale)}
       </button>
       <Modal
         open={open}
         onOpenChange={setOpen}
-        title="New activity"
-        description="Only the title is required — client, assignee and dates are optional."
+        title={t("Nueva actividad", "New activity", locale)}
+        description={t(
+          "Solo el título es obligatorio — cliente, responsable y fechas son opcionales.",
+          "Only the title is required — client, assignee and dates are optional.",
+          locale,
+        )}
         className="max-w-2xl"
       >
         <ActivityForm
           companies={companies}
           activityTypeOptions={activityTypeOptions}
           users={users}
-          submitLabel="Create activity"
+          submitLabel={t("Crear actividad", "Create activity", locale)}
           defaultCompanyId={defaultCompanyId}
         />
       </Modal>

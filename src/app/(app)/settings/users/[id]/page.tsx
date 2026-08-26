@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t, type Locale } from "@/lib/i18n";
 import { ROLES } from "@/lib/roles";
 import { requireRole } from "@/lib/session";
 import { AlertCircle, Trash2 } from "lucide-react";
@@ -15,12 +16,24 @@ import { deleteUser, updateUser } from "../user-detail-actions";
 
 export const metadata: Metadata = { title: "Configuración · Usuario" };
 
-const errorMessages: Record<string, string> = {
-  "email-taken": "That email is already in use by another user.",
-  "short-password": "The new password must be at least 8 characters.",
-  "self-delete": "You cannot delete your own account.",
-  "in-use": "This user has tickets, tasks, or comments assigned and cannot be deleted.",
-};
+function errorMessage(error: string, locale: Locale): string | undefined {
+  switch (error) {
+    case "email-taken":
+      return t("Ese correo ya está en uso por otro usuario.", "That email is already in use by another user.", locale);
+    case "short-password":
+      return t("La nueva contraseña debe tener al menos 8 caracteres.", "The new password must be at least 8 characters.", locale);
+    case "self-delete":
+      return t("No puedes eliminar tu propia cuenta.", "You cannot delete your own account.", locale);
+    case "in-use":
+      return t(
+        "Este usuario tiene tickets, tareas o comentarios asignados y no se puede eliminar.",
+        "This user has tickets, tasks, or comments assigned and cannot be deleted.",
+        locale,
+      );
+    default:
+      return undefined;
+  }
+}
 
 export default async function UserPage({
   params,
@@ -42,27 +55,32 @@ export default async function UserPage({
     .where(and(eq(users.id, userId), eq(users.organizationId, me.organizationId)));
   if (!user) notFound();
 
+  const errMsg = error ? errorMessage(error, locale) : undefined;
+
   return (
     <div className="max-w-2xl">
-      <PageHeader title={user.name} subtitle="Edit user details." />
+      <PageHeader title={user.name} subtitle={t("Editar detalles del usuario.", "Edit user details.", locale)} />
 
-      {error && errorMessages[error] ? (
+      {errMsg ? (
         <div
           role="alert"
           className="mb-5 flex items-center gap-2.5 rounded-lg border border-danger/25 bg-danger/5 px-4 py-3 text-sm text-danger"
         >
           <AlertCircle className="size-4 shrink-0" />
-          {errorMessages[error]}
+          {errMsg}
         </div>
       ) : null}
 
       <Card className="overflow-hidden">
-        <CardHeader title="Profile" description="General information and access." />
+        <CardHeader
+          title={t("Perfil", "Profile", locale)}
+          description={t("Información general y acceso.", "General information and access.", locale)}
+        />
         <form action={updateUser} className="space-y-4 p-6">
           <input type="hidden" name="id" value={user.id} />
           <div>
             <label htmlFor="name" className={labelClass}>
-              Full name
+              {t("Nombre completo", "Full name", locale)}
             </label>
             <input
               id="name"
@@ -75,7 +93,7 @@ export default async function UserPage({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="email" className={labelClass}>
-                Email
+                {t("Correo", "Email", locale)}
               </label>
               <input
                 id="email"
@@ -88,7 +106,7 @@ export default async function UserPage({
             </div>
             <div>
               <label htmlFor="role" className={labelClass}>
-                Role
+                {t("Rol", "Role", locale)}
               </label>
               <SearchableSelect
                 id="role"
@@ -99,7 +117,7 @@ export default async function UserPage({
             </div>
             <div>
               <label htmlFor="title" className={labelClass}>
-                Job title
+                {t("Puesto", "Job title", locale)}
               </label>
               <input
                 id="title"
@@ -110,7 +128,7 @@ export default async function UserPage({
             </div>
             <div>
               <label htmlFor="phone" className={labelClass}>
-                Phone
+                {t("Teléfono", "Phone", locale)}
               </label>
               <input
                 id="phone"
@@ -122,7 +140,7 @@ export default async function UserPage({
           </div>
           <div>
             <label htmlFor="password" className={labelClass}>
-              New password (leave blank to keep current)
+              {t("Nueva contraseña (déjalo en blanco para conservar la actual)", "New password (leave blank to keep current)", locale)}
             </label>
             <input
               id="password"
@@ -133,21 +151,25 @@ export default async function UserPage({
               className={inputClass}
             />
           </div>
-          <SubmitButton>Save changes</SubmitButton>
+          <SubmitButton>{t("Guardar cambios", "Save changes", locale)}</SubmitButton>
         </form>
       </Card>
 
       <Card className="mt-6 flex flex-wrap items-center justify-between gap-4 border-danger/20 p-6">
         <div>
-          <h2 className="text-sm font-semibold text-fg">Delete user</h2>
+          <h2 className="text-sm font-semibold text-fg">{t("Eliminar usuario", "Delete user", locale)}</h2>
           <p className="mt-1 text-sm text-muted">
-            Removes this account permanently. They will no longer be able to sign in.
+            {t(
+              "Elimina esta cuenta de forma permanente. Ya no podrá iniciar sesión.",
+              "Removes this account permanently. They will no longer be able to sign in.",
+              locale,
+            )}
           </p>
         </div>
         <form action={deleteUser}>
           <input type="hidden" name="id" value={user.id} />
           <button type="submit" className={buttonDangerClass}>
-            <Trash2 /> Delete
+            <Trash2 /> {t("Eliminar", "Delete", locale)}
           </button>
         </form>
       </Card>

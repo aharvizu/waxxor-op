@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +12,8 @@ import { buttonSecondaryClass, cx, inputClass, labelClass } from "@/components/u
 import type { ActionState } from "@/lib/action-result";
 import { FILTER_OPERATORS } from "@/lib/filters";
 import type { ViewSettings } from "@/lib/settings";
+import { useLocale } from "@/components/locale-provider";
+import { t, type Locale } from "@/lib/i18n";
 import { saveOrganizationSetting } from "../actions";
 
 /**
@@ -24,15 +26,23 @@ import { saveOrganizationSetting } from "../actions";
  * nullable `{field,direction}` object only at submit time — simpler than
  * modeling a nullable nested object as one reactive RHF field.
  */
-const clientViewSettingsSchema = z.object({
-  defaultColumns: z.array(z.string()),
-  sortField: z.string(),
-  sortDirection: z.enum(["asc", "desc"]),
-  initialViewType: z.enum(["list", "table", "kanban", "calendar", "timeline"]),
-  defaultGroupBy: z.string(),
-  globalFilters: z.array(z.object({ field: z.string().min(1, "Requerido"), operator: z.string().min(1, "Requerido"), value: z.string() })),
-});
-type FormValues = z.infer<typeof clientViewSettingsSchema>;
+function makeClientViewSettingsSchema(locale: Locale) {
+  return z.object({
+    defaultColumns: z.array(z.string()),
+    sortField: z.string(),
+    sortDirection: z.enum(["asc", "desc"]),
+    initialViewType: z.enum(["list", "table", "kanban", "calendar", "timeline"]),
+    defaultGroupBy: z.string(),
+    globalFilters: z.array(
+      z.object({
+        field: z.string().min(1, t("Requerido", "Required", locale)),
+        operator: z.string().min(1, t("Requerido", "Required", locale)),
+        value: z.string(),
+      }),
+    ),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof makeClientViewSettingsSchema>>;
 
 /** Part 6: org-wide view defaults new users start from (still personalizable per user afterward). Migrated to React Hook Form (`useFieldArray` for the global filter rows) — the submit path is unchanged: `onValid` builds the same FormData shape and calls the existing `saveOrganizationSetting` Server Action through the same `useActionState` (settingKey "tickets.viewSettings"). */
 export function ViewSettingsEditor({
@@ -42,6 +52,8 @@ export function ViewSettingsEditor({
   initial: ViewSettings;
   fieldOptions: { key: string; label: string }[];
 }) {
+  const locale = useLocale();
+  const clientViewSettingsSchema = useMemo(() => makeClientViewSettingsSchema(locale), [locale]);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(saveOrganizationSetting, null);
   const { control, register, handleSubmit } = useForm<FormValues>({
     resolver: zodResolver(clientViewSettingsSchema),
@@ -72,7 +84,7 @@ export function ViewSettingsEditor({
       <FormAlert state={state} />
 
       <div>
-        <label className={labelClass}>Columnas por defecto</label>
+        <label className={labelClass}>{t("Columnas por defecto", "Default columns", locale)}</label>
         <Controller
           control={control}
           name="defaultColumns"
@@ -95,7 +107,7 @@ export function ViewSettingsEditor({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Orden por defecto</label>
+          <label className={labelClass}>{t("Orden por defecto", "Default sort", locale)}</label>
           <div className="flex gap-2">
             <Controller
               control={control}
@@ -104,7 +116,7 @@ export function ViewSettingsEditor({
                 <SearchableSelect
                   value={field.value}
                   onValueChange={field.onChange}
-                  options={[{ value: "", label: "Sin ordenamiento" }, ...fieldOptions.map((f) => ({ value: f.key, label: f.label }))]}
+                  options={[{ value: "", label: t("Sin ordenamiento", "No sorting", locale) }, ...fieldOptions.map((f) => ({ value: f.key, label: f.label }))]}
                 />
               )}
             />
@@ -117,8 +129,8 @@ export function ViewSettingsEditor({
                   onValueChange={(v) => field.onChange(v)}
                   className="w-auto"
                   options={[
-                    { value: "asc", label: "Ascendente" },
-                    { value: "desc", label: "Descendente" },
+                    { value: "asc", label: t("Ascendente", "Ascending", locale) },
+                    { value: "desc", label: t("Descendente", "Descending", locale) },
                   ]}
                 />
               )}
@@ -126,7 +138,7 @@ export function ViewSettingsEditor({
           </div>
         </div>
         <div>
-          <label className={labelClass}>Vista inicial</label>
+          <label className={labelClass}>{t("Vista inicial", "Initial view", locale)}</label>
           <Controller
             control={control}
             name="initialViewType"
@@ -135,10 +147,10 @@ export function ViewSettingsEditor({
                 value={field.value}
                 onValueChange={(v) => field.onChange(v)}
                 options={[
-                  { value: "list", label: "Lista" },
-                  { value: "table", label: "Tabla" },
+                  { value: "list", label: t("Lista", "List", locale) },
+                  { value: "table", label: t("Tabla", "Table", locale) },
                   { value: "kanban", label: "Kanban" },
-                  { value: "calendar", label: "Calendario" },
+                  { value: "calendar", label: t("Calendario", "Calendar", locale) },
                   { value: "timeline", label: "Timeline" },
                 ]}
               />
@@ -148,7 +160,7 @@ export function ViewSettingsEditor({
       </div>
 
       <div>
-        <label className={labelClass}>Agrupación por defecto</label>
+        <label className={labelClass}>{t("Agrupación por defecto", "Default grouping", locale)}</label>
         <Controller
           control={control}
           name="defaultGroupBy"
@@ -156,14 +168,16 @@ export function ViewSettingsEditor({
             <SearchableSelect
               value={field.value}
               onValueChange={field.onChange}
-              options={[{ value: "", label: "Sin agrupar" }, ...fieldOptions.map((f) => ({ value: f.key, label: f.label }))]}
+              options={[{ value: "", label: t("Sin agrupar", "No grouping", locale) }, ...fieldOptions.map((f) => ({ value: f.key, label: f.label }))]}
             />
           )}
         />
       </div>
 
       <div>
-        <label className={labelClass}>Filtros globales (se aplican como base a todas las vistas nuevas)</label>
+        <label className={labelClass}>
+          {t("Filtros globales (se aplican como base a todas las vistas nuevas)", "Global filters (applied as a base to all new views)", locale)}
+        </label>
         <div className="space-y-2">
           {filterFields.map((f, i) => (
             <div key={f.id} className="flex flex-wrap items-center gap-2">
@@ -181,7 +195,7 @@ export function ViewSettingsEditor({
                   <SearchableSelect value={field.value} onValueChange={field.onChange} className="w-auto" options={FILTER_OPERATORS.map((op) => ({ value: op, label: op }))} />
                 )}
               />
-              <input {...register(`globalFilters.${i}.value`)} placeholder="Valor" className={cx(inputClass, "w-auto")} />
+              <input {...register(`globalFilters.${i}.value`)} placeholder={t("Valor", "Value", locale)} className={cx(inputClass, "w-auto")} />
               <button type="button" onClick={() => remove(i)} className="text-muted hover:text-danger">
                 <Trash2 className="size-4" />
               </button>
@@ -193,11 +207,11 @@ export function ViewSettingsEditor({
           onClick={() => append({ field: fieldOptions[0]?.key ?? "", operator: "eq", value: "" })}
           className={cx(buttonSecondaryClass, "mt-2 inline-flex items-center gap-1.5 h-8 text-xs")}
         >
-          <Plus className="size-3.5" /> Agregar filtro
+          <Plus className="size-3.5" /> {t("Agregar filtro", "Add filter", locale)}
         </button>
       </div>
 
-      <SubmitButton pending={pending}>Guardar vistas</SubmitButton>
+      <SubmitButton pending={pending}>{t("Guardar vistas", "Save views", locale)}</SubmitButton>
     </form>
   );
 }

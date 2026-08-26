@@ -7,6 +7,7 @@ import { companies, projects, reports, users } from "@/db/schema";
 import { fmtDate } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { t, type Locale } from "@/lib/i18n";
 import { REPORT_STATUSES, REPORT_TYPES } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import {
@@ -27,19 +28,21 @@ import { RowAction } from "./report-forms";
 
 export const metadata: Metadata = { title: "Reports" };
 
-const VIEWS = [
-  ["", "Todos"],
-  ["mine", "Mis reportes"],
-  ["draft", "Borradores"],
-  ["pending_review", "Pendientes de revisión"],
-  ["changes", "Cambios solicitados"],
-  ["approved", "Aprobados"],
-  ["pending_send", "Pendientes de envío"],
-  ["sent", "Enviados"],
-  ["failed", "Fallidos"],
-  ["recurrent", "Recurrentes"],
-  ["archived", "Archivados"],
-] as const;
+function getViews(locale: Locale) {
+  return [
+    ["", t("Todos", "All", locale)],
+    ["mine", t("Mis reportes", "My reports", locale)],
+    ["draft", t("Borradores", "Drafts", locale)],
+    ["pending_review", t("Pendientes de revisión", "Pending review", locale)],
+    ["changes", t("Cambios solicitados", "Changes requested", locale)],
+    ["approved", t("Aprobados", "Approved", locale)],
+    ["pending_send", t("Pendientes de envío", "Pending send", locale)],
+    ["sent", t("Enviados", "Sent", locale)],
+    ["failed", t("Fallidos", "Failed", locale)],
+    ["recurrent", t("Recurrentes", "Recurring", locale)],
+    ["archived", t("Archivados", "Archived", locale)],
+  ] as const;
+}
 
 export default async function ReportsPage({
   searchParams,
@@ -56,6 +59,7 @@ export default async function ReportsPage({
   const user = await requireUser();
   const locale = await getOrgLocale(user.organizationId);
   const { reportStatusMeta, reportTypeMeta } = getLabels(locale);
+  const VIEWS = getViews(locale);
   const params = await searchParams;
 
   const conditions = [eq(reports.organizationId, user.organizationId)];
@@ -139,14 +143,18 @@ export default async function ReportsPage({
   return (
     <div>
       <PageHeader
-        title="Reportes"
-        subtitle="Reportes operativos por cliente y periodo — revisión, aprobación y envío."
+        title={t("Reportes", "Reports", locale)}
+        subtitle={t(
+          "Reportes operativos por cliente y periodo — revisión, aprobación y envío.",
+          "Operational reports by client and period — review, approval, and sending.",
+          locale,
+        )}
         action={
           <>
-            <Link href="/reports/billing" className={buttonSecondaryClass}>Cobros y facturación</Link>
-            <Link href="/reports/templates" className={buttonSecondaryClass}>Plantillas</Link>
+            <Link href="/reports/billing" className={buttonSecondaryClass}>{t("Cobros y facturación", "Billing", locale)}</Link>
+            <Link href="/reports/templates" className={buttonSecondaryClass}>{t("Plantillas", "Templates", locale)}</Link>
             <Link href="/reports/new" className={buttonClass}>
-              <Plus className="size-4" /> Nuevo reporte
+              <Plus className="size-4" /> {t("Nuevo reporte", "New report", locale)}
             </Link>
           </>
         }

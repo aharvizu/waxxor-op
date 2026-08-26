@@ -18,6 +18,7 @@ import type { ActionState } from "@/lib/action-result";
 import { ACTIVITY_WORKFLOW_STATUSES } from "@/lib/activities";
 import { getLabels } from "@/lib/labels";
 import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import {
   archiveActivity,
   completeActivity,
@@ -57,7 +58,8 @@ export function WorkflowCard({
     updateActivityWorkflow,
     null,
   );
-  const { activityStatusMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { activityStatusMeta } = getLabels(locale);
 
   return (
     <div>
@@ -68,7 +70,7 @@ export function WorkflowCard({
           key={status}
           defaultValue={status}
           disabled={archived}
-          aria-label="Status"
+          aria-label={t("Estado", "Status", locale)}
           submitOnChange
           className="h-9 w-auto disabled:opacity-50"
           options={ACTIVITY_WORKFLOW_STATUSES.map((s) => ({ value: s, label: activityStatusMeta[s]?.label ?? s }))}
@@ -78,10 +80,10 @@ export function WorkflowCard({
           key={assigneeId ?? "none"}
           defaultValue={assigneeId ? String(assigneeId) : ""}
           disabled={archived}
-          aria-label="Assignee"
+          aria-label={t("Responsable", "Assignee", locale)}
           submitOnChange
           className="h-9 w-auto disabled:opacity-50"
-          options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+          options={[{ value: "", label: t("Sin asignar", "Unassigned", locale) }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
         />
       </form>
       {state && !state.ok ? <FormAlert state={state} className="mt-2" /> : null}
@@ -122,6 +124,7 @@ export function TransitionButtons({
   completed: boolean;
   archived: boolean;
 }) {
+  const locale = useLocale();
   return (
     <div className="flex flex-wrap gap-2">
       {archived ? (
@@ -130,7 +133,7 @@ export function TransitionButtons({
           activityId={activityId}
           className={buttonClass}
         >
-          <ArchiveRestore /> Restore
+          <ArchiveRestore /> {t("Restaurar", "Restore", locale)}
         </TransitionButton>
       ) : (
         <>
@@ -140,7 +143,7 @@ export function TransitionButtons({
               activityId={activityId}
               className={buttonSecondaryClass}
             >
-              <RotateCcw /> Reopen
+              <RotateCcw /> {t("Reabrir", "Reopen", locale)}
             </TransitionButton>
           ) : (
             <TransitionButton
@@ -148,7 +151,7 @@ export function TransitionButtons({
               activityId={activityId}
               className={buttonSuccessClass}
             >
-              <CheckCircle2 /> Complete
+              <CheckCircle2 /> {t("Completar", "Complete", locale)}
             </TransitionButton>
           )}
           <TransitionButton
@@ -156,7 +159,7 @@ export function TransitionButtons({
             activityId={activityId}
             className={buttonSecondaryClass}
           >
-            <Archive /> Archive
+            <Archive /> {t("Archivar", "Archive", locale)}
           </TransitionButton>
         </>
       )}
@@ -168,6 +171,7 @@ export function TransitionButtons({
 export function DeleteActivityButton({ activityId }: { activityId: number }) {
   const router = useRouter();
   const [state, formAction] = useActionState<ActionState, FormData>(deleteActivity, null);
+  const locale = useLocale();
 
   useEffect(() => {
     if (state?.ok) router.push("/activities");
@@ -177,12 +181,21 @@ export function DeleteActivityButton({ activityId }: { activityId: number }) {
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (!window.confirm("¿Eliminar esta actividad permanentemente? Esta acción no se puede deshacer.")) e.preventDefault();
+        if (
+          !window.confirm(
+            t(
+              "¿Eliminar esta actividad permanentemente? Esta acción no se puede deshacer.",
+              "Permanently delete this activity? This action cannot be undone.",
+              locale,
+            ),
+          )
+        )
+          e.preventDefault();
       }}
     >
       <input type="hidden" name="id" value={activityId} />
       <button type="submit" className={buttonDangerClass}>
-        <Trash2 /> Delete
+        <Trash2 /> {t("Eliminar", "Delete", locale)}
       </button>
       {state && !state.ok ? <FormAlert state={state} className="mt-2 w-full" /> : null}
     </form>

@@ -9,26 +9,32 @@ import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
 import { formatMinutes } from "@/lib/time-entries";
 import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
+import { getOrgLocale } from "@/lib/get-org-locale";
+import { t, type Locale } from "@/lib/i18n";
 import { PrintButton } from "@/components/print-button";
 
 export const metadata: Metadata = { title: "Cobros y facturación — PDF" };
 
-const MODALITY_LABELS: Record<string, string> = {
-  remote: "Remoto",
-  onsite: "Sitio",
-  fixed_price: "Precio fijo",
-  not_applicable: "—",
-};
+function getModalityLabels(locale: Locale): Record<string, string> {
+  return {
+    remote: t("Remoto", "Remote", locale),
+    onsite: t("Sitio", "On-site", locale),
+    fixed_price: t("Precio fijo", "Fixed price", locale),
+    not_applicable: "—",
+  };
+}
 
-const PERIOD_LABELS: Record<string, string> = {
-  current_week: "Semana actual",
-  previous_week: "Semana anterior",
-  current_month: "Mes actual",
-  previous_month: "Mes anterior",
-  current_quarter: "Trimestre actual",
-  previous_quarter: "Trimestre anterior",
-  current_year: "Año actual",
-};
+function getPeriodLabels(locale: Locale): Record<string, string> {
+  return {
+    current_week: t("Semana actual", "Current week", locale),
+    previous_week: t("Semana anterior", "Previous week", locale),
+    current_month: t("Mes actual", "Current month", locale),
+    previous_month: t("Mes anterior", "Previous month", locale),
+    current_quarter: t("Trimestre actual", "Current quarter", locale),
+    previous_quarter: t("Trimestre anterior", "Previous quarter", locale),
+    current_year: t("Año actual", "Current year", locale),
+  };
+}
 
 /**
  * Printable billing-support statement (Reportes → Cobros y facturación →
@@ -44,6 +50,9 @@ export default async function BillingSupportPrintPage({
   searchParams: Promise<{ period?: string; companyId?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const MODALITY_LABELS = getModalityLabels(locale);
+  const PERIOD_LABELS = getPeriodLabels(locale);
   const params = await searchParams;
   const periodRule = (
     PERIOD_RULES.includes(params.period as PeriodRule) && params.period !== "custom" ? params.period : "current_month"
@@ -78,7 +87,9 @@ export default async function BillingSupportPrintPage({
       </div>
 
       {clients.length === 0 ? (
-        <p className="text-sm text-slate-600">Sin tickets cobrables en el periodo seleccionado.</p>
+        <p className="text-sm text-slate-600">
+          {t("Sin tickets cobrables en el periodo seleccionado.", "No billable tickets in the selected period.", locale)}
+        </p>
       ) : (
         clients.map((client, i) => (
           <section key={client.companyId ?? "none"} style={i < clients.length - 1 ? { pageBreakAfter: "always" } : undefined}>
@@ -88,19 +99,19 @@ export default async function BillingSupportPrintPage({
                 <img src={logo} alt={orgName} className="mb-3 h-10 w-auto" />
               ) : null}
               <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">
-                {branding.coverSubtitle || "Seguridad Informática"}
+                {branding.coverSubtitle || t("Seguridad Informática", "IT Security", locale)}
               </p>
-              <h1 className="mt-2 text-2xl font-bold">Soporte de facturación</h1>
+              <h1 className="mt-2 text-2xl font-bold">{t("Soporte de facturación", "Billing statement", locale)}</h1>
               <div className="mt-3 flex items-end justify-between">
                 <div className="text-sm text-slate-700">
-                  <p>Cliente: <strong>{client.companyName}</strong></p>
-                  <p>Periodo: <strong>{periodLabel}</strong></p>
+                  <p>{t("Cliente", "Client", locale)}: <strong>{client.companyName}</strong></p>
+                  <p>{t("Periodo", "Period", locale)}: <strong>{periodLabel}</strong></p>
                   {client.companyId && invoiceStatuses.get(client.companyId)?.invoicedAt ? (
-                    <p>Factura: <strong>{invoiceStatuses.get(client.companyId)?.invoiceNumber}</strong></p>
+                    <p>{t("Factura", "Invoice", locale)}: <strong>{invoiceStatuses.get(client.companyId)?.invoiceNumber}</strong></p>
                   ) : null}
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-slate-500 uppercase">Total a cobrar</p>
+                  <p className="text-xs text-slate-500 uppercase">{t("Total a cobrar", "Total to bill", locale)}</p>
                   <p className="text-2xl font-bold tabular-nums">{fmtMoney(client.totalCost)}</p>
                 </div>
               </div>
@@ -109,13 +120,13 @@ export default async function BillingSupportPrintPage({
             <table className="w-full border-collapse text-sm">
               <thead style={{ display: "table-header-group" }}>
                 <tr className="border-b-2 border-slate-900 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase">
-                  <th className="py-2 pr-2">Ticket</th>
-                  <th className="py-2 pr-2">Fecha</th>
-                  <th className="py-2 pr-2">Servicio</th>
-                  <th className="py-2 pr-2">Técnico</th>
-                  <th className="py-2 pr-2">Tipo</th>
-                  <th className="py-2 pr-2 text-right">Horas</th>
-                  <th className="py-2 text-right">Costo</th>
+                  <th className="py-2 pr-2">{t("Ticket", "Ticket", locale)}</th>
+                  <th className="py-2 pr-2">{t("Fecha", "Date", locale)}</th>
+                  <th className="py-2 pr-2">{t("Servicio", "Service", locale)}</th>
+                  <th className="py-2 pr-2">{t("Técnico", "Technician", locale)}</th>
+                  <th className="py-2 pr-2">{t("Tipo", "Type", locale)}</th>
+                  <th className="py-2 pr-2 text-right">{t("Horas", "Hours", locale)}</th>
+                  <th className="py-2 text-right">{t("Costo", "Cost", locale)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,27 +145,34 @@ export default async function BillingSupportPrintPage({
             </table>
 
             <div className="mt-6">
-              <h2 className="mb-2 text-xs font-semibold tracking-wide text-slate-600 uppercase">Detalle del servicio</h2>
+              <h2 className="mb-2 text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                {t("Detalle del servicio", "Service detail", locale)}
+              </h2>
               <ul className="space-y-1.5 text-xs leading-relaxed text-slate-700">
-                {client.tickets.map((t) => (
-                  <li key={t.ticketId}>
-                    <span className="font-mono font-medium">{t.folio}</span> — {t.comment?.trim() || "Sin descripción registrada."}
+                {client.tickets.map((ticket) => (
+                  <li key={ticket.ticketId}>
+                    <span className="font-mono font-medium">{ticket.folio}</span> —{" "}
+                    {ticket.comment?.trim() || t("Sin descripción registrada.", "No description recorded.", locale)}
                   </li>
                 ))}
               </ul>
             </div>
 
             <div className="mt-8 flex items-center justify-between border-t border-slate-300 pt-3 text-sm text-slate-700">
-              <span>{client.tickets.length} servicio(s) · {formatMinutes(client.totalMinutes)}</span>
+              <span>
+                {client.tickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(client.totalMinutes)}
+              </span>
               <span className="font-semibold">{fmtMoney(client.totalCost)}</span>
             </div>
 
             <div className="mt-16 grid grid-cols-2 gap-12 text-center text-xs text-slate-600">
               <div>
-                <div className="border-t border-slate-400 pt-2">Firma del cliente</div>
+                <div className="border-t border-slate-400 pt-2">{t("Firma del cliente", "Client signature", locale)}</div>
               </div>
               <div>
-                <div className="border-t border-slate-400 pt-2">Firma / sello {orgName}</div>
+                <div className="border-t border-slate-400 pt-2">
+                  {t("Firma / sello", "Signature / stamp", locale)} {orgName}
+                </div>
               </div>
             </div>
           </section>
@@ -163,10 +181,12 @@ export default async function BillingSupportPrintPage({
 
       {clients.length > 1 ? (
         <footer className="mt-12 border-t-2 border-slate-900 pt-4 text-sm text-slate-700">
-          <p className="font-semibold">Total general del periodo ({periodLabel})</p>
+          <p className="font-semibold">
+            {t("Total general del periodo", "Grand total for the period", locale)} ({periodLabel})
+          </p>
           <p className="mt-1 tabular-nums">
-            {clients.length} cliente(s) · {totals.tickets} ticket(s) cobrable(s) · {formatMinutes(totals.minutes)} ·{" "}
-            <span className="font-bold">{fmtMoney(totals.cost)}</span>
+            {clients.length} {t("cliente(s)", "client(s)", locale)} · {totals.tickets} {t("ticket(s) cobrable(s)", "billable ticket(s)", locale)} ·{" "}
+            {formatMinutes(totals.minutes)} · <span className="font-bold">{fmtMoney(totals.cost)}</span>
           </p>
         </footer>
       ) : null}

@@ -12,6 +12,8 @@ import {
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
+import { useLocale } from "@/components/locale-provider";
+import { t, type Locale } from "@/lib/i18n";
 import type { ActionState } from "@/lib/action-result";
 import type { TicketPriorityRow } from "@/lib/ticket-catalogs";
 import { formatMinutes } from "@/lib/time-entries";
@@ -26,6 +28,7 @@ function DefinitionFields({
   errors,
   defaults,
   priorities,
+  locale,
 }: {
   errors: Record<string, string[]>;
   defaults?: {
@@ -38,16 +41,17 @@ function DefinitionFields({
     isDefault: boolean;
   };
   priorities: TicketPriorityRow[];
+  locale: Locale;
 }) {
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Name</label>
+          <label className={labelClass}>{t("Nombre", "Name", locale)}</label>
           <input
             name="name"
             required
-            placeholder="e.g. Critical 24/7"
+            placeholder={t("ej. Crítico 24/7", "e.g. Critical 24/7", locale)}
             defaultValue={defaults?.name ?? ""}
             aria-invalid={errors.name ? true : undefined}
             className={inputClass}
@@ -55,7 +59,7 @@ function DefinitionFields({
           <FieldError errors={errors.name} />
         </div>
         <div>
-          <label className={labelClass}>Priority it applies to</label>
+          <label className={labelClass}>{t("Prioridad a la que aplica", "Priority it applies to", locale)}</label>
           <SearchableSelect
             name="priorityId"
             defaultValue={String(defaults?.priorityId ?? priorities[0]?.id ?? "")}
@@ -65,7 +69,7 @@ function DefinitionFields({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>First response (minutes)</label>
+          <label className={labelClass}>{t("Primera respuesta (minutos)", "First response (minutes)", locale)}</label>
           <input
             name="firstResponseMinutes"
             type="number"
@@ -78,7 +82,7 @@ function DefinitionFields({
           <FieldError errors={errors.firstResponseMinutes} />
         </div>
         <div>
-          <label className={labelClass}>Resolution (minutes)</label>
+          <label className={labelClass}>{t("Resolución (minutos)", "Resolution (minutes)", locale)}</label>
           <input
             name="resolutionMinutes"
             type="number"
@@ -92,7 +96,7 @@ function DefinitionFields({
         </div>
       </div>
       <div>
-        <label className={labelClass}>Description (optional)</label>
+        <label className={labelClass}>{t("Descripción (opcional)", "Description (optional)", locale)}</label>
         <input name="description" defaultValue={defaults?.description ?? ""} className={inputClass} />
       </div>
       <div className="flex flex-wrap gap-5 text-sm">
@@ -102,11 +106,11 @@ function DefinitionFields({
             name="businessHoursOnly"
             defaultChecked={defaults?.businessHoursOnly ?? false}
           />
-          Business hours only (uses the work calendar below)
+          {t("Solo horario laboral (usa el calendario de abajo)", "Business hours only (uses the work calendar below)", locale)}
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="isDefault" defaultChecked={defaults?.isDefault ?? false} />
-          Default for this priority
+          {t("Predeterminado para esta prioridad", "Default for this priority", locale)}
         </label>
       </div>
     </>
@@ -114,6 +118,7 @@ function DefinitionFields({
 }
 
 export function CreateDefinitionForm({ priorities }: { priorities: TicketPriorityRow[] }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(
     createSlaDefinition,
     null,
@@ -122,8 +127,8 @@ export function CreateDefinitionForm({ priorities }: { priorities: TicketPriorit
   return (
     <form action={formAction} className="space-y-4">
       <FormAlert state={state} />
-      <DefinitionFields errors={errors} priorities={priorities} />
-      <SubmitButton>Create SLA</SubmitButton>
+      <DefinitionFields errors={errors} priorities={priorities} locale={locale} />
+      <SubmitButton>{t("Crear SLA", "Create SLA", locale)}</SubmitButton>
     </form>
   );
 }
@@ -147,6 +152,7 @@ export function DefinitionRow({
   priority: TicketPriorityRow | undefined;
   priorities: TicketPriorityRow[];
 }) {
+  const locale = useLocale();
   const [editing, setEditing] = useState(false);
   const [editState, editAction] = useActionState<ActionState, FormData>(
     updateSlaDefinition,
@@ -182,14 +188,14 @@ export function DefinitionRow({
           <span className="text-muted tabular-nums">
             FR {formatMinutes(d.firstResponseMinutes)} · Res {formatMinutes(d.resolutionMinutes)}
           </span>
-          <Badge tone="slate">{d.businessHoursOnly ? "Business hours" : "24/7"}</Badge>
-          {d.isDefault ? <Badge tone="purple">Default</Badge> : null}
-          {d.status === "inactive" ? <Badge tone="red">Inactive</Badge> : null}
+          <Badge tone="slate">{d.businessHoursOnly ? t("Horario laboral", "Business hours", locale) : "24/7"}</Badge>
+          {d.isDefault ? <Badge tone="purple">{t("Predeterminado", "Default", locale)}</Badge> : null}
+          {d.status === "inactive" ? <Badge tone="red">{t("Inactivo", "Inactive", locale)}</Badge> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
-            aria-label="Edit definition"
+            aria-label={t("Editar definición", "Edit definition", locale)}
             onClick={() => setEditing((v) => !v)}
             className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-primary-soft hover:text-primary"
           >
@@ -199,8 +205,8 @@ export function DefinitionRow({
             <input type="hidden" name="id" value={d.id} />
             <button
               type="submit"
-              aria-label={d.status === "active" ? "Deactivate" : "Activate"}
-              title={d.status === "active" ? "Deactivate" : "Activate"}
+              aria-label={d.status === "active" ? t("Desactivar", "Deactivate", locale) : t("Activar", "Activate", locale)}
+              title={d.status === "active" ? t("Desactivar", "Deactivate", locale) : t("Activar", "Activate", locale)}
               className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-subtle hover:text-fg"
             >
               <Power className="size-3.5" />
@@ -217,15 +223,15 @@ export function DefinitionRow({
         <form action={editAction} className="mt-3 space-y-3 border-t border-edge pt-3">
           <input type="hidden" name="id" value={d.id} />
           <FormAlert state={editState} />
-          <DefinitionFields errors={errors} defaults={d} priorities={priorities} />
+          <DefinitionFields errors={errors} defaults={d} priorities={priorities} locale={locale} />
           <div className="flex items-center gap-2">
-            <SubmitButton>Save</SubmitButton>
+            <SubmitButton>{t("Guardar", "Save", locale)}</SubmitButton>
             <button
               type="button"
               onClick={() => setEditing(false)}
               className={buttonSecondaryClass}
             >
-              Cancel
+              {t("Cancelar", "Cancel", locale)}
             </button>
           </div>
         </form>
@@ -234,8 +240,8 @@ export function DefinitionRow({
   );
 }
 
-const DAY_LABELS: [number, string][] = [
-  [1, "Mon"], [2, "Tue"], [3, "Wed"], [4, "Thu"], [5, "Fri"], [6, "Sat"], [7, "Sun"],
+const DAY_LABELS: [number, string, string][] = [
+  [1, "Lun", "Mon"], [2, "Mar", "Tue"], [3, "Mié", "Wed"], [4, "Jue", "Thu"], [5, "Vie", "Fri"], [6, "Sáb", "Sat"], [7, "Dom", "Sun"],
 ];
 
 function toTime(minute: number): string {
@@ -255,6 +261,7 @@ export function CalendarForm({
   /** Full IANA list — computed server-side (page.tsx) and passed down so client hydration always agrees with the server render (see doc comment there). */
   timezones: string[];
 }) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(saveCalendar, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
 
@@ -262,7 +269,7 @@ export function CalendarForm({
     <form action={formAction} className="space-y-4">
       <FormAlert state={state} />
       <div>
-        <label className={labelClass}>Timezone (IANA)</label>
+        <label className={labelClass}>{t("Zona horaria (IANA)", "Timezone (IANA)", locale)}</label>
         <SearchableSelect
           name="timezone"
           required
@@ -276,9 +283,9 @@ export function CalendarForm({
         <FieldError errors={errors.timezone} />
       </div>
       <div>
-        <span className={labelClass}>Working days</span>
+        <span className={labelClass}>{t("Días laborales", "Working days", locale)}</span>
         <div className="flex flex-wrap gap-3 text-sm">
-          {DAY_LABELS.map(([n, label]) => (
+          {DAY_LABELS.map(([n, es, en]) => (
             <label key={n} className="flex items-center gap-1.5">
               <input
                 type="checkbox"
@@ -286,7 +293,7 @@ export function CalendarForm({
                 value={n}
                 defaultChecked={calendar.workDays.includes(n)}
               />
-              {label}
+              {t(es, en, locale)}
             </label>
           ))}
         </div>
@@ -294,7 +301,7 @@ export function CalendarForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Day starts</label>
+          <label className={labelClass}>{t("Inicio del día", "Day starts", locale)}</label>
           <input
             name="workStartTime"
             type="time"
@@ -313,7 +320,7 @@ export function CalendarForm({
           <input type="hidden" name="workStartMinute" defaultValue={calendar.workStartMinute} />
         </div>
         <div>
-          <label className={labelClass}>Day ends</label>
+          <label className={labelClass}>{t("Fin del día", "Day ends", locale)}</label>
           <input
             name="workEndTime"
             type="time"
@@ -333,7 +340,7 @@ export function CalendarForm({
           <FieldError errors={errors.workEndMinute} />
         </div>
       </div>
-      <SubmitButton>Save calendar</SubmitButton>
+      <SubmitButton>{t("Guardar calendario", "Save calendar", locale)}</SubmitButton>
     </form>
   );
 }

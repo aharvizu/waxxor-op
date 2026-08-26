@@ -10,6 +10,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { CustomFieldsForm } from "@/components/custom-fields-form";
 import type { ActionState } from "@/lib/action-result";
 import type { CustomFieldDefinition } from "@/lib/custom-fields";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 import { createTicket } from "../actions";
 
 type Option = { id: number; name: string };
@@ -39,6 +41,7 @@ export function NewTicketForm({
   categoryOptions = [],
   customFields = [],
 }: NewTicketFormProps) {
+  const locale = useLocale();
   const [state, formAction] = useActionState<ActionState, FormData>(createTicket, null);
   const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
   const [companyId, setCompanyId] = useState(defaultCompanyId ? String(defaultCompanyId) : "");
@@ -50,7 +53,7 @@ export function NewTicketForm({
       <FormAlert state={state} />
       <div>
         <label htmlFor="subject" className={labelClass}>
-          Subject
+          {t("Asunto", "Subject", locale)}
         </label>
         <input
           id="subject"
@@ -64,19 +67,19 @@ export function NewTicketForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="companyId" className={labelClass}>
-            Client
+            {t("Cliente", "Client", locale)}
           </label>
           <SearchableSelect
             id="companyId"
             name="companyId"
             value={companyId}
             onValueChange={setCompanyId}
-            options={[{ value: "", label: "— None —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+            options={[{ value: "", label: t("— Ninguno —", "— None —", locale) }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
           />
         </div>
         <div>
           <label htmlFor="priorityId" className={labelClass}>
-            Priority
+            {t("Prioridad", "Priority", locale)}
           </label>
           <SearchableSelect
             id="priorityId"
@@ -87,19 +90,19 @@ export function NewTicketForm({
         </div>
         <div>
           <label htmlFor="assigneeId" className={labelClass}>
-            Assignee
+            {t("Responsable", "Assignee", locale)}
           </label>
           <SearchableSelect
             id="assigneeId"
             name="assigneeId"
-            options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
+            options={[{ value: "", label: t("Sin asignar", "Unassigned", locale) }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]}
           />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="category" className={labelClass}>
-            Category
+            {t("Categoría", "Category", locale)}
           </label>
           <SearchableSelect
             id="category"
@@ -108,7 +111,7 @@ export function NewTicketForm({
             defaultValue=""
             aria-invalid={errors.category ? true : undefined}
             options={[
-              { value: "", label: "— Select —", disabled: true },
+              { value: "", label: t("— Seleccionar —", "— Select —", locale), disabled: true },
               ...categoryOptions.map((c) => ({ value: c, label: c })),
             ]}
           />
@@ -116,7 +119,7 @@ export function NewTicketForm({
         </div>
         <div>
           <label htmlFor="channel" className={labelClass}>
-            Channel (optional)
+            {t("Canal (opcional)", "Channel (optional)", locale)}
           </label>
           <SearchableSelect
             id="channel"
@@ -130,25 +133,25 @@ export function NewTicketForm({
         </div>
         <div>
           <label htmlFor="contactId" className={labelClass}>
-            Contact (optional)
+            {t("Contacto (opcional)", "Contact (optional)", locale)}
           </label>
           <SearchableSelect
             key={companyId}
             id="contactId"
             name="contactId"
             defaultValue=""
-            options={[{ value: "", label: "— None —" }, ...suggestedContacts.map((c) => ({ value: String(c.id), label: c.name }))]}
+            options={[{ value: "", label: t("— Ninguno —", "— None —", locale) }, ...suggestedContacts.map((c) => ({ value: String(c.id), label: c.name }))]}
           />
         </div>
         <div>
           <label htmlFor="contact" className={labelClass}>
-            Contact note (optional)
+            {t("Nota de contacto (opcional)", "Contact note (optional)", locale)}
           </label>
           <input id="contact" name="contact" className={inputClass} />
         </div>
         <div>
           <label htmlFor="dueDate" className={labelClass}>
-            Fecha agendada (optional)
+            {t("Fecha agendada (opcional)", "Scheduled date (optional)", locale)}
           </label>
           <input id="dueDate" name="dueDate" type="date" className={inputClass} />
         </div>
@@ -156,23 +159,27 @@ export function NewTicketForm({
       {slas.length > 0 ? (
         <div>
           <label htmlFor="slaDefinitionId" className={labelClass}>
-            SLA (SuperAdmin — leave empty for the priority default)
+            {t(
+              "SLA (SuperAdmin — dejar vacío para usar el de la prioridad)",
+              "SLA (SuperAdmin — leave empty for the priority default)",
+              locale,
+            )}
           </label>
           <SearchableSelect
             id="slaDefinitionId"
             name="slaDefinitionId"
-            options={[{ value: "", label: "Automatic (default for priority)" }, ...slas.map((s) => ({ value: String(s.id), label: s.name }))]}
+            options={[{ value: "", label: t("Automático (según prioridad)", "Automatic (default for priority)", locale) }, ...slas.map((s) => ({ value: String(s.id), label: s.name }))]}
           />
         </div>
       ) : null}
       <div>
         <label htmlFor="description" className={labelClass}>
-          Description
+          {t("Descripción", "Description", locale)}
         </label>
         <textarea id="description" name="description" rows={6} className={inputClass} />
       </div>
       {customFields.length > 0 ? <CustomFieldsForm fields={customFields} errors={errors} /> : null}
-      <SubmitButton>Create ticket</SubmitButton>
+      <SubmitButton>{t("Crear ticket", "Create ticket", locale)}</SubmitButton>
     </form>
   );
 }
@@ -180,17 +187,22 @@ export function NewTicketForm({
 /** Trigger + modal for the Helpdesk list header — creation redirects to the new ticket on success, which closes this by leaving the route. */
 export function NewTicketButton(props: NewTicketFormProps) {
   const [open, setOpen] = useState(false);
+  const locale = useLocale();
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className={buttonClass}>
         <Plus className="size-4" />
-        Nuevo ticket
+        {t("Nuevo ticket", "New ticket", locale)}
       </button>
       <Modal
         open={open}
         onOpenChange={setOpen}
-        title="Nuevo ticket"
-        description="Empieza como Nuevo (o Asignado si ya tiene responsable) y toma el SLA de su prioridad automáticamente."
+        title={t("Nuevo ticket", "New ticket", locale)}
+        description={t(
+          "Empieza como Nuevo (o Asignado si ya tiene responsable) y toma el SLA de su prioridad automáticamente.",
+          "It starts as New (or Assigned when it already has an owner) and gets the SLA for its priority automatically.",
+          locale,
+        )}
         className="max-w-2xl"
       >
         <NewTicketForm {...props} />
