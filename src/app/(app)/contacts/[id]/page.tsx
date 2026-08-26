@@ -16,13 +16,8 @@ import {
 } from "@/lib/contact360-data";
 import { describeClientAuditEvent } from "@/lib/company360";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import {
-  activityStatusMeta,
-  companyStatusMeta,
-  contactTypeMeta,
-  ticketPriorityMeta,
-  ticketStatusMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { requireUser } from "@/lib/session";
 import {
   Avatar,
@@ -55,6 +50,15 @@ export default async function Contact360Page({
   if (!summary) notFound();
   const { contact, companyId, companyName, companyStatus } = summary;
   const canDelete = user.role === "superadmin";
+
+  const locale = await getOrgLocale(user.organizationId);
+  const {
+    activityStatusMeta,
+    companyStatusMeta,
+    contactTypeMeta,
+    ticketPriorityMeta,
+    ticketStatusMeta,
+  } = getLabels(locale);
 
   const [tickets, activities, conversations, history, siblings] = await Promise.all([
     getContactWorkItems(user.organizationId, contactId, "ticket"),

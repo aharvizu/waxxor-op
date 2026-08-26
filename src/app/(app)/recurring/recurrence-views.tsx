@@ -3,12 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import {
-  recurrenceExecutionStatusMeta,
-  recurrenceFrequencyMeta,
-  recurrenceStatusMeta,
-  recurrenceTargetTypeMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 import { describeSchedule, successRate, toSchedule } from "@/lib/recurrence-data";
 import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { Repeat } from "lucide-react";
@@ -29,7 +26,10 @@ export type RecurrenceRow = {
 
 export type ColumnDef = { key: string; label: string; render: (r: RecurrenceRow) => React.ReactNode };
 
-export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
+export function buildColumnRegistry(locale: Locale): Record<string, ColumnDef> {
+  const { recurrenceExecutionStatusMeta, recurrenceFrequencyMeta, recurrenceStatusMeta, recurrenceTargetTypeMeta } =
+    getLabels(locale);
+  return {
   name: {
     key: "name",
     label: "Nombre",
@@ -88,7 +88,8 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
     label: "Errores",
     render: (r) => <span className={cx("tabular-nums", r.def.failedCount > 0 ? "text-danger" : "text-muted")}>{r.def.failedCount}</span>,
   },
-};
+  };
+}
 
 export const DEFAULT_COLUMNS = [
   "name",
@@ -104,7 +105,8 @@ export const DEFAULT_COLUMNS = [
   "occurrences",
   "failedCount",
 ];
-export const RECURRING_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: COLUMN_REGISTRY[key].label }));
+const STATIC_COLUMN_REGISTRY = buildColumnRegistry(DEFAULT_LOCALE);
+export const RECURRING_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: STATIC_COLUMN_REGISTRY[key].label }));
 
 /** Most columns read `r.def.*`; a few (companyName/projectName/assigneeName/lastResultStatus) are flat, already-joined fields on RecurrenceRow itself. */
 function recurrenceSortValue(r: RecurrenceRow, key: string): unknown {
@@ -156,18 +158,20 @@ export function TableView({
   basePath: string;
   density: "compact" | "comfortable" | "spacious";
 }) {
+  const locale = useLocale();
   const dataTableRegistry = useMemo(() => {
+    const registry = buildColumnRegistry(locale);
     const out: Record<string, DataTableColumn<RecurrenceRow>> = {};
-    for (const key of Object.keys(COLUMN_REGISTRY)) {
+    for (const key of Object.keys(registry)) {
       out[key] = {
-        label: COLUMN_REGISTRY[key].label,
-        render: COLUMN_REGISTRY[key].render,
+        label: registry[key].label,
+        render: registry[key].render,
         sortValue: (r) => recurrenceSortValue(r, key),
         align: key === "occurrences" || key === "failedCount" ? "right" : undefined,
       };
     }
     return out;
-  }, []);
+  }, [locale]);
 
   return (
     <DataTable
@@ -189,6 +193,7 @@ export function TableView({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({ rows, basePath }: { rows: RecurrenceRow[]; basePath: string }) {
+  const { recurrenceStatusMeta, recurrenceTargetTypeMeta } = getLabels(useLocale());
   if (rows.length === 0) return <EmptyRecurring />;
   return (
     <Card className="overflow-hidden">

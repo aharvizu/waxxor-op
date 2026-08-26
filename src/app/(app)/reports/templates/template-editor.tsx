@@ -6,7 +6,8 @@ import { FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { reportTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { REPORT_TYPES } from "@/lib/reports";
 import { saveReportTemplate } from "../actions";
 
@@ -28,6 +29,7 @@ export function TemplateEditor({
   defaultSectionsJson: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveReportTemplate, null);
+  const { reportTypeMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-3">
       {template ? <input type="hidden" name="id" value={template.id} /> : null}

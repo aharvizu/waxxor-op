@@ -6,7 +6,8 @@ import { Building2, Contact as ContactIcon, FileSignature, IdCard, Package, Truc
 import { db } from "@/db";
 import { services, users } from "@/db/schema";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { vendorStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { getVendor, getVendorContacts, getVendorProducts, getVendorPurchases } from "@/lib/vendor360-data";
 import { requireUser } from "@/lib/session";
 import { getCatalogNames } from "@/lib/settings-data";
@@ -63,6 +64,8 @@ export default async function VendorDetailPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { vendorStatusMeta } = getLabels(locale);
   const { id } = await params;
   const { tab: rawTab } = await searchParams;
   const vendorId = Number(id);

@@ -1,327 +1,391 @@
 import type { BadgeTone } from "@/components/ui";
+import type { Locale } from "@/lib/i18n";
 
-type Meta = { label: string; tone: BadgeTone };
+/**
+ * Shared status/priority/role label maps, bilingual (es/en) — Settings →
+ * Organización → Idioma drives which one renders (2026-08-25). Each map keeps
+ * its original key set and tones; only the label text is locale-dependent.
+ *
+ * `getLabels(locale)` is the only entry point — server pages resolve `locale`
+ * via `getOrgLocale`, client components via `useLocale()`. Every call site in
+ * the app goes through it (no more static default-locale consts here).
+ */
 
-export const ticketStatusMeta: Record<string, Meta> = {
-  new: { label: "New", tone: "blue" },
-  assigned: { label: "Assigned", tone: "violet" },
-  in_progress: { label: "In progress", tone: "purple" },
-  waiting_customer: { label: "Waiting customer", tone: "amber" },
-  waiting_third_party: { label: "Waiting third party", tone: "amber" },
-  scheduled: { label: "Scheduled", tone: "blue" },
-  resolved: { label: "Resolved", tone: "green" },
-  pending_confirmation: { label: "Pending confirmation", tone: "amber" },
-  closed: { label: "Closed", tone: "slate" },
-  reopened: { label: "Reopened", tone: "red" },
-  cancelled: { label: "Cancelled", tone: "slate" },
+type BiMeta = { es: string; en: string; tone: BadgeTone };
+export type Meta = { label: string; tone: BadgeTone };
+
+function resolveMap<K extends string>(map: Record<K, BiMeta>, locale: Locale): Record<K, Meta> {
+  const out = {} as Record<K, Meta>;
+  for (const key of Object.keys(map) as K[]) {
+    out[key] = { label: map[key][locale], tone: map[key].tone };
+  }
+  return out;
+}
+
+const ticketStatusMetaBi: Record<string, BiMeta> = {
+  new: { es: "Nuevo", en: "New", tone: "blue" },
+  assigned: { es: "Asignado", en: "Assigned", tone: "violet" },
+  in_progress: { es: "En progreso", en: "In progress", tone: "purple" },
+  waiting_customer: { es: "Esperando cliente", en: "Waiting customer", tone: "amber" },
+  waiting_third_party: { es: "Esperando tercero", en: "Waiting third party", tone: "amber" },
+  scheduled: { es: "Agendado", en: "Scheduled", tone: "blue" },
+  resolved: { es: "Resuelto", en: "Resolved", tone: "green" },
+  pending_confirmation: { es: "Pendiente de confirmación", en: "Pending confirmation", tone: "amber" },
+  closed: { es: "Cerrado", en: "Closed", tone: "slate" },
+  reopened: { es: "Reabierto", en: "Reopened", tone: "red" },
+  cancelled: { es: "Cancelado", en: "Cancelled", tone: "slate" },
 };
 
-export const ticketBillingMeta: Record<string, Meta> = {
-  pending_review: { label: "Pending review", tone: "amber" },
-  included_in_contract: { label: "In contract", tone: "blue" },
-  billable: { label: "Billable", tone: "green" },
-  contract_overage: { label: "Contract overage", tone: "violet" },
-  fixed_price: { label: "Fixed price", tone: "purple" },
-  no_charge: { label: "No charge", tone: "slate" },
-  included_in_monthly_charge: { label: "Monthly charge", tone: "blue" },
-  charged: { label: "Charged", tone: "green" },
+const ticketBillingMetaBi: Record<string, BiMeta> = {
+  pending_review: { es: "Pendiente de revisión", en: "Pending review", tone: "amber" },
+  included_in_contract: { es: "Incluido en contrato", en: "In contract", tone: "blue" },
+  billable: { es: "Facturable", en: "Billable", tone: "green" },
+  contract_overage: { es: "Excedente de contrato", en: "Contract overage", tone: "violet" },
+  fixed_price: { es: "Precio fijo", en: "Fixed price", tone: "purple" },
+  no_charge: { es: "Sin costo", en: "No charge", tone: "slate" },
+  included_in_monthly_charge: { es: "Incluido en cargo mensual", en: "Monthly charge", tone: "blue" },
+  charged: { es: "Facturado", en: "Charged", tone: "green" },
 };
 
-export const confirmationTypeMeta: Record<string, Meta> = {
-  whatsapp: { label: "WhatsApp", tone: "green" },
-  phone: { label: "Phone", tone: "blue" },
-  email: { label: "Email", tone: "blue" },
-  verbal: { label: "Verbal", tone: "slate" },
-  no_response: { label: "No response", tone: "amber" },
-  not_required: { label: "Not required", tone: "slate" },
+const confirmationTypeMetaBi: Record<string, BiMeta> = {
+  whatsapp: { es: "WhatsApp", en: "WhatsApp", tone: "green" },
+  phone: { es: "Teléfono", en: "Phone", tone: "blue" },
+  email: { es: "Correo", en: "Email", tone: "blue" },
+  verbal: { es: "Verbal", en: "Verbal", tone: "slate" },
+  no_response: { es: "Sin respuesta", en: "No response", tone: "amber" },
+  not_required: { es: "No requerido", en: "Not required", tone: "slate" },
 };
 
-export const ticketPriorityMeta: Record<string, Meta> = {
-  low: { label: "Low", tone: "slate" },
-  medium: { label: "Medium", tone: "blue" },
-  high: { label: "High", tone: "amber" },
-  critical: { label: "Critical", tone: "red" },
+const ticketPriorityMetaBi: Record<string, BiMeta> = {
+  low: { es: "Baja", en: "Low", tone: "slate" },
+  medium: { es: "Media", en: "Medium", tone: "blue" },
+  high: { es: "Alta", en: "High", tone: "amber" },
+  critical: { es: "Crítica", en: "Critical", tone: "red" },
 };
 
-export const projectStatusMeta: Record<string, Meta> = {
-  planning: { label: "Planning", tone: "violet" },
-  active: { label: "Active", tone: "green" },
-  on_hold: { label: "On hold", tone: "amber" },
-  at_risk: { label: "At risk", tone: "red" },
-  completed: { label: "Completed", tone: "blue" },
-  cancelled: { label: "Cancelled", tone: "slate" },
-  archived: { label: "Archived", tone: "slate" },
+const projectStatusMetaBi: Record<string, BiMeta> = {
+  planning: { es: "Planeación", en: "Planning", tone: "violet" },
+  active: { es: "Activo", en: "Active", tone: "green" },
+  on_hold: { es: "En pausa", en: "On hold", tone: "amber" },
+  at_risk: { es: "En riesgo", en: "At risk", tone: "red" },
+  completed: { es: "Completado", en: "Completed", tone: "blue" },
+  cancelled: { es: "Cancelado", en: "Cancelled", tone: "slate" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const taskStatusMeta: Record<string, Meta> = {
-  todo: { label: "To do", tone: "slate" },
-  in_progress: { label: "In progress", tone: "purple" },
-  done: { label: "Done", tone: "green" },
+const taskStatusMetaBi: Record<string, BiMeta> = {
+  todo: { es: "Por hacer", en: "To do", tone: "slate" },
+  in_progress: { es: "En progreso", en: "In progress", tone: "purple" },
+  done: { es: "Hecho", en: "Done", tone: "green" },
 };
 
-export const quoteStatusMeta: Record<string, Meta> = {
-  draft: { label: "Draft", tone: "slate" },
-  sent: { label: "Sent", tone: "blue" },
-  accepted: { label: "Accepted", tone: "green" },
-  rejected: { label: "Rejected", tone: "red" },
-  expired: { label: "Expired", tone: "amber" },
+const quoteStatusMetaBi: Record<string, BiMeta> = {
+  draft: { es: "Borrador", en: "Draft", tone: "slate" },
+  sent: { es: "Enviada", en: "Sent", tone: "blue" },
+  accepted: { es: "Aceptada", en: "Accepted", tone: "green" },
+  rejected: { es: "Rechazada", en: "Rejected", tone: "red" },
+  expired: { es: "Expirada", en: "Expired", tone: "amber" },
 };
 
-export const reportStatusMeta: Record<string, Meta> = {
-  draft: { label: "Draft", tone: "slate" },
-  generating: { label: "Generating", tone: "blue" },
-  ready_for_review: { label: "Ready for review", tone: "amber" },
-  changes_requested: { label: "Changes requested", tone: "red" },
-  approved: { label: "Approved", tone: "green" },
-  sent: { label: "Sent", tone: "green" },
-  failed: { label: "Failed", tone: "red" },
-  archived: { label: "Archived", tone: "slate" },
+const reportStatusMetaBi: Record<string, BiMeta> = {
+  draft: { es: "Borrador", en: "Draft", tone: "slate" },
+  generating: { es: "Generando", en: "Generating", tone: "blue" },
+  ready_for_review: { es: "Listo para revisión", en: "Ready for review", tone: "amber" },
+  changes_requested: { es: "Cambios solicitados", en: "Changes requested", tone: "red" },
+  approved: { es: "Aprobado", en: "Approved", tone: "green" },
+  sent: { es: "Enviado", en: "Sent", tone: "green" },
+  failed: { es: "Fallido", en: "Failed", tone: "red" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const reportTypeMeta: Record<string, Meta> = {
-  monthly_service: { label: "Servicio mensual", tone: "blue" },
-  operational_summary: { label: "Resumen operativo", tone: "blue" },
-  executive_summary: { label: "Resumen ejecutivo", tone: "purple" },
-  sla_report: { label: "SLA", tone: "violet" },
-  time_report: { label: "Tiempo", tone: "slate" },
-  project_report: { label: "Proyecto", tone: "violet" },
-  billing_support: { label: "Soporte de cobro", tone: "amber" },
-  custom_internal: { label: "Interno", tone: "slate" },
+const reportTypeMetaBi: Record<string, BiMeta> = {
+  monthly_service: { es: "Servicio mensual", en: "Monthly service", tone: "blue" },
+  operational_summary: { es: "Resumen operativo", en: "Operational summary", tone: "blue" },
+  executive_summary: { es: "Resumen ejecutivo", en: "Executive summary", tone: "purple" },
+  sla_report: { es: "SLA", en: "SLA", tone: "violet" },
+  time_report: { es: "Tiempo", en: "Time", tone: "slate" },
+  project_report: { es: "Proyecto", en: "Project", tone: "violet" },
+  billing_support: { es: "Soporte de cobro", en: "Billing support", tone: "amber" },
+  custom_internal: { es: "Interno", en: "Internal", tone: "slate" },
 };
 
-export const activityStatusMeta: Record<string, Meta> = {
-  pending: { label: "Pending", tone: "slate" },
-  in_progress: { label: "In progress", tone: "purple" },
-  waiting: { label: "Waiting", tone: "amber" },
-  blocked: { label: "Blocked", tone: "red" },
-  completed: { label: "Completed", tone: "green" },
-  cancelled: { label: "Cancelled", tone: "slate" },
-  archived: { label: "Archived", tone: "slate" },
+const activityStatusMetaBi: Record<string, BiMeta> = {
+  pending: { es: "Pendiente", en: "Pending", tone: "slate" },
+  in_progress: { es: "En progreso", en: "In progress", tone: "purple" },
+  waiting: { es: "En espera", en: "Waiting", tone: "amber" },
+  blocked: { es: "Bloqueada", en: "Blocked", tone: "red" },
+  completed: { es: "Completada", en: "Completed", tone: "green" },
+  cancelled: { es: "Cancelada", en: "Cancelled", tone: "slate" },
+  archived: { es: "Archivada", en: "Archived", tone: "slate" },
 };
 
-export const activityTypeMeta: Record<string, Meta> = {
-  general: { label: "General", tone: "slate" },
-  follow_up: { label: "Follow-up", tone: "blue" },
-  meeting: { label: "Meeting", tone: "violet" },
-  research: { label: "Research", tone: "blue" },
-  documentation: { label: "Documentation", tone: "slate" },
-  training: { label: "Training", tone: "green" },
-  review: { label: "Review", tone: "amber" },
-  implementation: { label: "Implementation", tone: "purple" },
-  preventive: { label: "Preventive", tone: "green" },
-  administrative: { label: "Administrative", tone: "slate" },
-  commercial: { label: "Commercial", tone: "amber" },
-  reminder: { label: "Reminder", tone: "red" },
+const activityTypeMetaBi: Record<string, BiMeta> = {
+  general: { es: "General", en: "General", tone: "slate" },
+  follow_up: { es: "Seguimiento", en: "Follow-up", tone: "blue" },
+  meeting: { es: "Reunión", en: "Meeting", tone: "violet" },
+  research: { es: "Investigación", en: "Research", tone: "blue" },
+  documentation: { es: "Documentación", en: "Documentation", tone: "slate" },
+  training: { es: "Capacitación", en: "Training", tone: "green" },
+  review: { es: "Revisión", en: "Review", tone: "amber" },
+  implementation: { es: "Implementación", en: "Implementation", tone: "purple" },
+  preventive: { es: "Preventivo", en: "Preventive", tone: "green" },
+  administrative: { es: "Administrativo", en: "Administrative", tone: "slate" },
+  commercial: { es: "Comercial", en: "Commercial", tone: "amber" },
+  reminder: { es: "Recordatorio", en: "Reminder", tone: "red" },
 };
 
-export const slaHealthMeta: Record<string, Meta> = {
-  normal: { label: "On track", tone: "green" },
-  at_risk: { label: "At risk", tone: "amber" },
-  critical: { label: "Critical", tone: "red" },
-  overdue: { label: "Overdue", tone: "red" },
-  met: { label: "Met", tone: "green" },
-  breached: { label: "Breached", tone: "red" },
+const slaHealthMetaBi: Record<string, BiMeta> = {
+  normal: { es: "En tiempo", en: "On track", tone: "green" },
+  at_risk: { es: "En riesgo", en: "At risk", tone: "amber" },
+  critical: { es: "Crítico", en: "Critical", tone: "red" },
+  overdue: { es: "Vencido", en: "Overdue", tone: "red" },
+  met: { es: "Cumplido", en: "Met", tone: "green" },
+  breached: { es: "Incumplido", en: "Breached", tone: "red" },
 };
 
-export const roleMeta: Record<string, Meta> = {
-  superadmin: { label: "Super Admin", tone: "purple" },
-  administrator: { label: "Administrator", tone: "violet" },
-  director: { label: "Director", tone: "blue" },
-  project_manager: { label: "Project Manager", tone: "amber" },
-  technician: { label: "Technician", tone: "slate" },
-  client: { label: "Client", tone: "green" },
+const roleMetaBi: Record<string, BiMeta> = {
+  superadmin: { es: "Super Admin", en: "Super Admin", tone: "purple" },
+  administrator: { es: "Administrador", en: "Administrator", tone: "violet" },
+  director: { es: "Director", en: "Director", tone: "blue" },
+  project_manager: { es: "Gerente de proyecto", en: "Project Manager", tone: "amber" },
+  technician: { es: "Técnico", en: "Technician", tone: "slate" },
+  client: { es: "Cliente", en: "Client", tone: "green" },
 };
 
-export const companyStatusMeta: Record<string, Meta> = {
-  active: { label: "Active", tone: "green" },
-  inactive: { label: "Inactive", tone: "slate" },
-  prospect_legacy: { label: "Prospect / legacy", tone: "amber" },
-  archived: { label: "Archived", tone: "slate" },
+const companyStatusMetaBi: Record<string, BiMeta> = {
+  active: { es: "Activo", en: "Active", tone: "green" },
+  inactive: { es: "Inactivo", en: "Inactive", tone: "slate" },
+  prospect_legacy: { es: "Prospecto / legado", en: "Prospect / legacy", tone: "amber" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const vendorStatusMeta: Record<string, Meta> = {
-  active: { label: "Active", tone: "green" },
-  inactive: { label: "Inactive", tone: "slate" },
-  archived: { label: "Archived", tone: "slate" },
+const vendorStatusMetaBi: Record<string, BiMeta> = {
+  active: { es: "Activo", en: "Active", tone: "green" },
+  inactive: { es: "Inactivo", en: "Inactive", tone: "slate" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const contactTypeMeta: Record<string, Meta> = {
-  owner: { label: "Owner", tone: "purple" },
-  primary: { label: "Primary", tone: "blue" },
-  technical: { label: "Technical", tone: "violet" },
-  administrative: { label: "Administrative", tone: "slate" },
-  billing: { label: "Billing", tone: "amber" },
-  management: { label: "Management", tone: "blue" },
-  requester: { label: "Requester", tone: "slate" },
-  other: { label: "Other", tone: "slate" },
+const contactTypeMetaBi: Record<string, BiMeta> = {
+  owner: { es: "Dueño", en: "Owner", tone: "purple" },
+  primary: { es: "Principal", en: "Primary", tone: "blue" },
+  technical: { es: "Técnico", en: "Technical", tone: "violet" },
+  administrative: { es: "Administrativo", en: "Administrative", tone: "slate" },
+  billing: { es: "Facturación", en: "Billing", tone: "amber" },
+  management: { es: "Dirección", en: "Management", tone: "blue" },
+  requester: { es: "Solicitante", en: "Requester", tone: "slate" },
+  other: { es: "Otro", en: "Other", tone: "slate" },
 };
 
-export const clientServiceTypeMeta: Record<string, Meta> = {
-  recurring_service: { label: "Recurring service", tone: "blue" },
-  license: { label: "License", tone: "violet" },
-  support_contract: { label: "Support contract", tone: "purple" },
-  one_time_service: { label: "One-time service", tone: "slate" },
-  managed_service: { label: "Managed service", tone: "blue" },
+const clientServiceTypeMetaBi: Record<string, BiMeta> = {
+  recurring_service: { es: "Servicio recurrente", en: "Recurring service", tone: "blue" },
+  license: { es: "Licencia", en: "License", tone: "violet" },
+  support_contract: { es: "Contrato de soporte", en: "Support contract", tone: "purple" },
+  one_time_service: { es: "Servicio único", en: "One-time service", tone: "slate" },
+  managed_service: { es: "Servicio administrado", en: "Managed service", tone: "blue" },
 };
 
 /** Derived statuses (expiring/expired) included — they never hit the DB. */
-export const clientServiceStatusMeta: Record<string, Meta> = {
-  active: { label: "Active", tone: "green" },
-  expiring: { label: "Expiring", tone: "amber" },
-  expired: { label: "Expired", tone: "red" },
-  cancelled: { label: "Cancelled", tone: "slate" },
-  archived: { label: "Archived", tone: "slate" },
+const clientServiceStatusMetaBi: Record<string, BiMeta> = {
+  active: { es: "Activo", en: "Active", tone: "green" },
+  expiring: { es: "Por vencer", en: "Expiring", tone: "amber" },
+  expired: { es: "Vencido", en: "Expired", tone: "red" },
+  cancelled: { es: "Cancelado", en: "Cancelled", tone: "slate" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const contractTypeMeta: Record<string, Meta> = {
-  support: { label: "Support", tone: "blue" },
-  managed_service: { label: "Managed service", tone: "violet" },
-  licensing: { label: "Licensing", tone: "purple" },
-  consulting: { label: "Consulting", tone: "amber" },
-  maintenance: { label: "Maintenance", tone: "slate" },
-  other: { label: "Other", tone: "slate" },
+const contractTypeMetaBi: Record<string, BiMeta> = {
+  support: { es: "Soporte", en: "Support", tone: "blue" },
+  managed_service: { es: "Servicio administrado", en: "Managed service", tone: "violet" },
+  licensing: { es: "Licenciamiento", en: "Licensing", tone: "purple" },
+  consulting: { es: "Consultoría", en: "Consulting", tone: "amber" },
+  maintenance: { es: "Mantenimiento", en: "Maintenance", tone: "slate" },
+  other: { es: "Otro", en: "Other", tone: "slate" },
 };
 
-export const contractStatusMeta: Record<string, Meta> = {
-  draft: { label: "Draft", tone: "slate" },
-  active: { label: "Active", tone: "green" },
-  expiring: { label: "Expiring", tone: "amber" },
-  expired: { label: "Expired", tone: "red" },
-  cancelled: { label: "Cancelled", tone: "slate" },
-  archived: { label: "Archived", tone: "slate" },
+const contractStatusMetaBi: Record<string, BiMeta> = {
+  draft: { es: "Borrador", en: "Draft", tone: "slate" },
+  active: { es: "Activo", en: "Active", tone: "green" },
+  expiring: { es: "Por vencer", en: "Expiring", tone: "amber" },
+  expired: { es: "Vencido", en: "Expired", tone: "red" },
+  cancelled: { es: "Cancelado", en: "Cancelled", tone: "slate" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const supportCoverageMeta: Record<string, Meta> = {
-  included: { label: "Included", tone: "green" },
-  incident_based: { label: "Per incident", tone: "amber" },
-  hourly_bundle: { label: "Hourly bundle", tone: "blue" },
-  fixed_price: { label: "Fixed price", tone: "violet" },
-  not_applicable: { label: "N/A", tone: "slate" },
+const supportCoverageMetaBi: Record<string, BiMeta> = {
+  included: { es: "Incluido", en: "Included", tone: "green" },
+  incident_based: { es: "Por incidente", en: "Per incident", tone: "amber" },
+  hourly_bundle: { es: "Bolsa de horas", en: "Hourly bundle", tone: "blue" },
+  fixed_price: { es: "Precio fijo", en: "Fixed price", tone: "violet" },
+  not_applicable: { es: "N/A", en: "N/A", tone: "slate" },
 };
 
-export const renewalBucketMeta: Record<string, Meta> = {
-  overdue: { label: "Vencido", tone: "red" },
-  d7: { label: "≤ 7 días", tone: "red" },
-  d15: { label: "≤ 15 días", tone: "amber" },
-  d30: { label: "≤ 30 días", tone: "amber" },
-  d60: { label: "≤ 60 días", tone: "blue" },
-  d90: { label: "≤ 90 días", tone: "slate" },
-  later: { label: "Más adelante", tone: "slate" },
+const renewalBucketMetaBi: Record<string, BiMeta> = {
+  overdue: { es: "Vencido", en: "Overdue", tone: "red" },
+  d7: { es: "≤ 7 días", en: "≤ 7 days", tone: "red" },
+  d15: { es: "≤ 15 días", en: "≤ 15 days", tone: "amber" },
+  d30: { es: "≤ 30 días", en: "≤ 30 days", tone: "amber" },
+  d60: { es: "≤ 60 días", en: "≤ 60 days", tone: "blue" },
+  d90: { es: "≤ 90 días", en: "≤ 90 days", tone: "slate" },
+  later: { es: "Más adelante", en: "Later", tone: "slate" },
 };
 
-export const projectPriorityMeta: Record<string, Meta> = {
-  low: { label: "Low", tone: "slate" },
-  normal: { label: "Normal", tone: "blue" },
-  high: { label: "High", tone: "amber" },
-  urgent: { label: "Urgent", tone: "red" },
+const projectPriorityMetaBi: Record<string, BiMeta> = {
+  low: { es: "Baja", en: "Low", tone: "slate" },
+  normal: { es: "Normal", en: "Normal", tone: "blue" },
+  high: { es: "Alta", en: "High", tone: "amber" },
+  urgent: { es: "Urgente", en: "Urgent", tone: "red" },
 };
 
-export const projectHealthMeta: Record<string, Meta> = {
-  on_track: { label: "On track", tone: "green" },
-  attention: { label: "Attention", tone: "amber" },
-  at_risk: { label: "At risk", tone: "red" },
-  blocked: { label: "Blocked", tone: "red" },
-  completed: { label: "Completed", tone: "blue" },
-  not_set: { label: "Not set", tone: "slate" },
+const projectHealthMetaBi: Record<string, BiMeta> = {
+  on_track: { es: "En curso", en: "On track", tone: "green" },
+  attention: { es: "Atención", en: "Attention", tone: "amber" },
+  at_risk: { es: "En riesgo", en: "At risk", tone: "red" },
+  blocked: { es: "Bloqueado", en: "Blocked", tone: "red" },
+  completed: { es: "Completado", en: "Completed", tone: "blue" },
+  not_set: { es: "Sin definir", en: "Not set", tone: "slate" },
 };
 
-export const projectMemberRoleMeta: Record<string, Meta> = {
-  manager: { label: "Manager", tone: "purple" },
-  coordinator: { label: "Coordinator", tone: "violet" },
-  contributor: { label: "Contributor", tone: "blue" },
-  observer: { label: "Observer", tone: "slate" },
+const projectMemberRoleMetaBi: Record<string, BiMeta> = {
+  manager: { es: "Gerente", en: "Manager", tone: "purple" },
+  coordinator: { es: "Coordinador", en: "Coordinator", tone: "violet" },
+  contributor: { es: "Colaborador", en: "Contributor", tone: "blue" },
+  observer: { es: "Observador", en: "Observer", tone: "slate" },
 };
 
-export const projectListStatusMeta: Record<string, Meta> = {
-  planned: { label: "Planned", tone: "slate" },
-  active: { label: "Active", tone: "green" },
-  completed: { label: "Completed", tone: "blue" },
-  archived: { label: "Archived", tone: "slate" },
+const projectListStatusMetaBi: Record<string, BiMeta> = {
+  planned: { es: "Planeada", en: "Planned", tone: "slate" },
+  active: { es: "Activa", en: "Active", tone: "green" },
+  completed: { es: "Completada", en: "Completed", tone: "blue" },
+  archived: { es: "Archivada", en: "Archived", tone: "slate" },
 };
 
-export const milestoneStatusMeta: Record<string, Meta> = {
-  pending: { label: "Pending", tone: "slate" },
-  in_progress: { label: "In progress", tone: "blue" },
-  completed: { label: "Completed", tone: "green" },
-  delayed: { label: "Delayed", tone: "red" },
-  cancelled: { label: "Cancelled", tone: "slate" },
+const milestoneStatusMetaBi: Record<string, BiMeta> = {
+  pending: { es: "Pendiente", en: "Pending", tone: "slate" },
+  in_progress: { es: "En progreso", en: "In progress", tone: "blue" },
+  completed: { es: "Completado", en: "Completed", tone: "green" },
+  delayed: { es: "Retrasado", en: "Delayed", tone: "red" },
+  cancelled: { es: "Cancelado", en: "Cancelled", tone: "slate" },
 };
 
-export const riskSeverityMeta: Record<string, Meta> = {
-  low: { label: "Low", tone: "slate" },
-  medium: { label: "Medium", tone: "amber" },
-  high: { label: "High", tone: "red" },
-  critical: { label: "Critical", tone: "red" },
+const riskSeverityMetaBi: Record<string, BiMeta> = {
+  low: { es: "Baja", en: "Low", tone: "slate" },
+  medium: { es: "Media", en: "Medium", tone: "amber" },
+  high: { es: "Alta", en: "High", tone: "red" },
+  critical: { es: "Crítica", en: "Critical", tone: "red" },
 };
 
-export const riskStatusMeta: Record<string, Meta> = {
-  open: { label: "Open", tone: "red" },
-  monitoring: { label: "Monitoring", tone: "amber" },
-  mitigated: { label: "Mitigated", tone: "green" },
-  occurred: { label: "Occurred", tone: "red" },
-  closed: { label: "Closed", tone: "slate" },
+const riskStatusMetaBi: Record<string, BiMeta> = {
+  open: { es: "Abierto", en: "Open", tone: "red" },
+  monitoring: { es: "Monitoreando", en: "Monitoring", tone: "amber" },
+  mitigated: { es: "Mitigado", en: "Mitigated", tone: "green" },
+  occurred: { es: "Ocurrió", en: "Occurred", tone: "red" },
+  closed: { es: "Cerrado", en: "Closed", tone: "slate" },
 };
 
-export const recurrenceStatusMeta: Record<string, Meta> = {
-  draft: { label: "Draft", tone: "slate" },
-  active: { label: "Active", tone: "green" },
-  paused: { label: "Paused", tone: "amber" },
-  completed: { label: "Completed", tone: "blue" },
-  expired: { label: "Expired", tone: "slate" },
-  error: { label: "Error", tone: "red" },
-  archived: { label: "Archived", tone: "slate" },
+const recurrenceStatusMetaBi: Record<string, BiMeta> = {
+  draft: { es: "Borrador", en: "Draft", tone: "slate" },
+  active: { es: "Activa", en: "Active", tone: "green" },
+  paused: { es: "Pausada", en: "Paused", tone: "amber" },
+  completed: { es: "Completada", en: "Completed", tone: "blue" },
+  expired: { es: "Expirada", en: "Expired", tone: "slate" },
+  error: { es: "Error", en: "Error", tone: "red" },
+  archived: { es: "Archivada", en: "Archived", tone: "slate" },
 };
 
-export const recurrenceTargetTypeMeta: Record<string, Meta> = {
-  activity: { label: "Activity", tone: "purple" },
-  ticket: { label: "Ticket", tone: "blue" },
-  project_activity: { label: "Project activity", tone: "violet" },
-  report: { label: "Report", tone: "slate" },
+const recurrenceTargetTypeMetaBi: Record<string, BiMeta> = {
+  activity: { es: "Actividad", en: "Activity", tone: "purple" },
+  ticket: { es: "Ticket", en: "Ticket", tone: "blue" },
+  project_activity: { es: "Actividad de proyecto", en: "Project activity", tone: "violet" },
+  report: { es: "Reporte", en: "Report", tone: "slate" },
 };
 
-export const recurrenceFrequencyMeta: Record<string, Meta> = {
-  daily: { label: "Daily", tone: "slate" },
-  weekly: { label: "Weekly", tone: "slate" },
-  monthly: { label: "Monthly", tone: "slate" },
-  quarterly: { label: "Quarterly", tone: "slate" },
-  semiannual: { label: "Semiannual", tone: "slate" },
-  annual: { label: "Annual", tone: "slate" },
-  weekdays: { label: "Weekdays", tone: "slate" },
-  custom: { label: "Custom", tone: "slate" },
+const recurrenceFrequencyMetaBi: Record<string, BiMeta> = {
+  daily: { es: "Diaria", en: "Daily", tone: "slate" },
+  weekly: { es: "Semanal", en: "Weekly", tone: "slate" },
+  monthly: { es: "Mensual", en: "Monthly", tone: "slate" },
+  quarterly: { es: "Trimestral", en: "Quarterly", tone: "slate" },
+  semiannual: { es: "Semestral", en: "Semiannual", tone: "slate" },
+  annual: { es: "Anual", en: "Annual", tone: "slate" },
+  weekdays: { es: "Días hábiles", en: "Weekdays", tone: "slate" },
+  custom: { es: "Personalizada", en: "Custom", tone: "slate" },
 };
 
-export const recurrenceExecutionStatusMeta: Record<string, Meta> = {
-  pending: { label: "Pending", tone: "slate" },
-  running: { label: "Running", tone: "blue" },
-  succeeded: { label: "Succeeded", tone: "green" },
-  failed: { label: "Failed", tone: "red" },
-  skipped: { label: "Skipped", tone: "slate" },
-  cancelled: { label: "Cancelled", tone: "slate" },
-  duplicate_prevented: { label: "Duplicate prevented", tone: "amber" },
+const recurrenceExecutionStatusMetaBi: Record<string, BiMeta> = {
+  pending: { es: "Pendiente", en: "Pending", tone: "slate" },
+  running: { es: "Ejecutando", en: "Running", tone: "blue" },
+  succeeded: { es: "Exitosa", en: "Succeeded", tone: "green" },
+  failed: { es: "Fallida", en: "Failed", tone: "red" },
+  skipped: { es: "Omitida", en: "Skipped", tone: "slate" },
+  cancelled: { es: "Cancelada", en: "Cancelled", tone: "slate" },
+  duplicate_prevented: { es: "Duplicado evitado", en: "Duplicate prevented", tone: "amber" },
 };
 
-export const recurrenceExecutionSourceMeta: Record<string, Meta> = {
-  scheduler: { label: "Scheduler", tone: "slate" },
-  manual: { label: "Manual", tone: "blue" },
-  retry: { label: "Retry", tone: "amber" },
-  backfill: { label: "Backfill", tone: "violet" },
+const recurrenceExecutionSourceMetaBi: Record<string, BiMeta> = {
+  scheduler: { es: "Programador", en: "Scheduler", tone: "slate" },
+  manual: { es: "Manual", en: "Manual", tone: "blue" },
+  retry: { es: "Reintento", en: "Retry", tone: "amber" },
+  backfill: { es: "Retroactivo", en: "Backfill", tone: "violet" },
 };
 
-export const knowledgeStatusMeta: Record<string, Meta> = {
-  draft: { label: "Borrador", tone: "slate" },
-  in_review: { label: "En revisión", tone: "amber" },
-  published: { label: "Publicado", tone: "green" },
-  archived: { label: "Archivado", tone: "slate" },
+const knowledgeStatusMetaBi: Record<string, BiMeta> = {
+  draft: { es: "Borrador", en: "Draft", tone: "slate" },
+  in_review: { es: "En revisión", en: "In review", tone: "amber" },
+  published: { es: "Publicado", en: "Published", tone: "green" },
+  archived: { es: "Archivado", en: "Archived", tone: "slate" },
 };
 
-export const knowledgeVisibilityMeta: Record<string, Meta> = {
-  internal: { label: "Interna", tone: "blue" },
-  client: { label: "Cliente (futuro)", tone: "violet" },
+const knowledgeVisibilityMetaBi: Record<string, BiMeta> = {
+  internal: { es: "Interna", en: "Internal", tone: "blue" },
+  client: { es: "Cliente (futuro)", en: "Client (future)", tone: "violet" },
 };
 
-export const knowledgeRelationTypeMeta: Record<string, Meta> = {
-  ticket: { label: "Ticket", tone: "blue" },
-  company: { label: "Empresa", tone: "violet" },
-  project: { label: "Proyecto", tone: "amber" },
-  activity: { label: "Actividad", tone: "slate" },
+const knowledgeRelationTypeMetaBi: Record<string, BiMeta> = {
+  ticket: { es: "Ticket", en: "Ticket", tone: "blue" },
+  company: { es: "Empresa", en: "Company", tone: "violet" },
+  project: { es: "Proyecto", en: "Project", tone: "amber" },
+  activity: { es: "Actividad", en: "Activity", tone: "slate" },
 };
+
+/** Locale-aware entry point — server pages resolve `locale` via getOrgLocale,
+ * client components via useLocale(). */
+export function getLabels(locale: Locale) {
+  return {
+    ticketStatusMeta: resolveMap(ticketStatusMetaBi, locale),
+    ticketBillingMeta: resolveMap(ticketBillingMetaBi, locale),
+    confirmationTypeMeta: resolveMap(confirmationTypeMetaBi, locale),
+    ticketPriorityMeta: resolveMap(ticketPriorityMetaBi, locale),
+    projectStatusMeta: resolveMap(projectStatusMetaBi, locale),
+    taskStatusMeta: resolveMap(taskStatusMetaBi, locale),
+    quoteStatusMeta: resolveMap(quoteStatusMetaBi, locale),
+    reportStatusMeta: resolveMap(reportStatusMetaBi, locale),
+    reportTypeMeta: resolveMap(reportTypeMetaBi, locale),
+    activityStatusMeta: resolveMap(activityStatusMetaBi, locale),
+    activityTypeMeta: resolveMap(activityTypeMetaBi, locale),
+    slaHealthMeta: resolveMap(slaHealthMetaBi, locale),
+    roleMeta: resolveMap(roleMetaBi, locale),
+    companyStatusMeta: resolveMap(companyStatusMetaBi, locale),
+    vendorStatusMeta: resolveMap(vendorStatusMetaBi, locale),
+    contactTypeMeta: resolveMap(contactTypeMetaBi, locale),
+    clientServiceTypeMeta: resolveMap(clientServiceTypeMetaBi, locale),
+    clientServiceStatusMeta: resolveMap(clientServiceStatusMetaBi, locale),
+    contractTypeMeta: resolveMap(contractTypeMetaBi, locale),
+    contractStatusMeta: resolveMap(contractStatusMetaBi, locale),
+    supportCoverageMeta: resolveMap(supportCoverageMetaBi, locale),
+    renewalBucketMeta: resolveMap(renewalBucketMetaBi, locale),
+    projectPriorityMeta: resolveMap(projectPriorityMetaBi, locale),
+    projectHealthMeta: resolveMap(projectHealthMetaBi, locale),
+    projectMemberRoleMeta: resolveMap(projectMemberRoleMetaBi, locale),
+    projectListStatusMeta: resolveMap(projectListStatusMetaBi, locale),
+    milestoneStatusMeta: resolveMap(milestoneStatusMetaBi, locale),
+    riskSeverityMeta: resolveMap(riskSeverityMetaBi, locale),
+    riskStatusMeta: resolveMap(riskStatusMetaBi, locale),
+    recurrenceStatusMeta: resolveMap(recurrenceStatusMetaBi, locale),
+    recurrenceTargetTypeMeta: resolveMap(recurrenceTargetTypeMetaBi, locale),
+    recurrenceFrequencyMeta: resolveMap(recurrenceFrequencyMetaBi, locale),
+    recurrenceExecutionStatusMeta: resolveMap(recurrenceExecutionStatusMetaBi, locale),
+    recurrenceExecutionSourceMeta: resolveMap(recurrenceExecutionSourceMetaBi, locale),
+    knowledgeStatusMeta: resolveMap(knowledgeStatusMetaBi, locale),
+    knowledgeVisibilityMeta: resolveMap(knowledgeVisibilityMetaBi, locale),
+    knowledgeRelationTypeMeta: resolveMap(knowledgeRelationTypeMetaBi, locale),
+  };
+}

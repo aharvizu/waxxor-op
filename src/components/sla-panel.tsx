@@ -1,7 +1,7 @@
 import { Badge, Card, CardHeader, buttonSecondaryClass } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDateTime } from "@/lib/format";
-import { slaHealthMeta } from "@/lib/labels";
+import type { getLabels } from "@/lib/labels";
 import { slaHealth, ticketCalendar } from "@/lib/sla";
 import { formatMinutes } from "@/lib/time-entries";
 import type { tickets } from "@/db/schema";
@@ -15,12 +15,14 @@ function HealthLine({
   totalMinutes,
   fulfilledAt,
   ticket,
+  slaHealthMeta,
 }: {
   label: string;
   targetAt: Date;
   totalMinutes: number;
   fulfilledAt: Date | null;
   ticket: Ticket;
+  slaHealthMeta: ReturnType<typeof getLabels>["slaHealthMeta"];
 }) {
   const { health, remainingMinutes } = slaHealth({
     now: new Date(),
@@ -60,7 +62,13 @@ function HealthLine({
 }
 
 /** SLA panel for the ticket detail. Server component — health computed per render. */
-export function SlaPanel({ ticket }: { ticket: Ticket }) {
+export function SlaPanel({
+  ticket,
+  slaHealthMeta,
+}: {
+  ticket: Ticket;
+  slaHealthMeta: ReturnType<typeof getLabels>["slaHealthMeta"];
+}) {
   if (!ticket.slaDefinitionId || !ticket.firstResponseTargetAt || !ticket.resolutionTargetAt) {
     return (
       <Card className="h-fit overflow-hidden">
@@ -87,6 +95,7 @@ export function SlaPanel({ ticket }: { ticket: Ticket }) {
           totalMinutes={ticket.slaFirstResponseMinutes ?? 0}
           fulfilledAt={ticket.firstResponseAt}
           ticket={ticket}
+          slaHealthMeta={slaHealthMeta}
         />
         <HealthLine
           label="Resolution"
@@ -94,6 +103,7 @@ export function SlaPanel({ ticket }: { ticket: Ticket }) {
           totalMinutes={ticket.slaResolutionMinutes ?? 0}
           fulfilledAt={ticket.resolvedAt}
           ticket={ticket}
+          slaHealthMeta={slaHealthMeta}
         />
         {ticket.slaPausedMinutes > 0 || paused ? (
           <p className="text-xs text-muted">

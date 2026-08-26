@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Check, Minus } from "lucide-react";
-import { roleMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { ROLES, canAccessInternalPortal, canManageUsers, hasRole, type Role } from "@/lib/roles";
 import { requireRole } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, THead, Table, Td, Th } from "@/components/ui";
@@ -43,7 +44,9 @@ const CAPABILITIES: { label: string; check: (role: Role) => boolean }[] = [
 ];
 
 export default async function RolesSettingsPage() {
-  await requireRole("superadmin", "administrator");
+  const user = await requireRole("superadmin", "administrator");
+  const locale = await getOrgLocale(user.organizationId);
+  const { roleMeta } = getLabels(locale);
 
   return (
     <div className="space-y-6">

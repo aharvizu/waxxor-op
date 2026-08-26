@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { companies, recurrenceDefinitions } from "@/db/schema";
-import { recurrenceStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
 import { bestRankOf, matchesAny } from "../normalize";
 import { registerSource } from "../engine";
 import type { SearchResultItem } from "../types";
@@ -32,6 +32,7 @@ registerSource({
       .orderBy(rank)
       .limit(limit);
 
+    const { recurrenceStatusMeta } = getLabels(ctx.locale);
     return rows.map(
       (r): SearchResultItem => ({
         id: `recurring:${r.id}`,

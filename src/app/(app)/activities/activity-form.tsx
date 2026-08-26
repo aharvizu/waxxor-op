@@ -8,7 +8,8 @@ import { Modal } from "@/components/modal";
 import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { activityTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { createActivity, updateActivityDetails } from "./actions";
 
 type Option = { id: number; name: string };
@@ -58,6 +59,7 @@ export function ActivityForm({
     activity ? updateActivityDetails : createActivity,
     null,
   );
+  const { activityTypeMeta } = getLabels(useLocale());
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
   const value = (name: string, saved: string) => failed?.values?.[name] ?? saved;

@@ -34,7 +34,8 @@ import {
 } from "@/components/ui";
 import { fmtMoney } from "@/lib/format";
 import { requireUser } from "@/lib/session";
-import { activityStatusMeta, activityTypeMeta, ticketPriorityMeta, ticketStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 
 /** Same "open" set as Client 360's openActivities (company360-data.ts) — not done, not cancelled, not archived. */
 const OPEN_ACTIVITY_STATUSES = ["pending", "in_progress", "waiting", "blocked"] as const;
@@ -42,6 +43,8 @@ const OPEN_ACTIVITY_STATUSES = ["pending", "in_progress", "waiting", "blocked"] 
 export default async function DashboardPage() {
   const user = await requireUser();
   const orgId = user.organizationId;
+  const locale = await getOrgLocale(orgId);
+  const { activityStatusMeta, activityTypeMeta, ticketPriorityMeta, ticketStatusMeta } = getLabels(locale);
   const [
     [openTickets],
     [totalTickets],

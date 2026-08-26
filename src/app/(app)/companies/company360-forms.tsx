@@ -34,15 +34,8 @@ import {
   SUPPORT_COVERAGES,
   type ClientAlert,
 } from "@/lib/company360";
-import {
-  clientServiceStatusMeta,
-  clientServiceTypeMeta,
-  companyStatusMeta,
-  contactTypeMeta,
-  contractStatusMeta,
-  contractTypeMeta,
-  supportCoverageMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import {
   addClientNote,
   addClientService,
@@ -336,6 +329,7 @@ export function CompanyProfileForm({
   internalUsers: Option[];
 }) {
   const { state, formAction, errors, value } = useForm(updateClientProfile, client);
+  const { companyStatusMeta } = getLabels(useLocale());
   const userOptions = internalUsers.map((u) => ({ value: String(u.id), label: u.name }));
   return (
     <form action={formAction} className="space-y-4">
@@ -424,6 +418,7 @@ export function ContactForm({
     contact,
     onSuccess,
   );
+  const { contactTypeMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="companyId" value={companyId} />
@@ -535,6 +530,7 @@ export function ClientServiceForm({
   );
   const [serviceId, setServiceId] = useState(value("serviceId"));
   const variants = servicesCatalog.find((s) => String(s.id) === serviceId)?.variants ?? [];
+  const { clientServiceTypeMeta, clientServiceStatusMeta, supportCoverageMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="companyId" value={companyId} />
@@ -688,6 +684,7 @@ export function ServicesTable({
   rows: ServiceListRow[];
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
+  const { clientServiceTypeMeta, clientServiceStatusMeta, supportCoverageMeta } = getLabels(useLocale());
   return (
     <Card className="overflow-visible">
       <Table>
@@ -798,6 +795,7 @@ export function ContractForm({
     contract ? updateContract : createContract,
     contract,
   );
+  const { contractTypeMeta, contractStatusMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="companyId" value={companyId} />

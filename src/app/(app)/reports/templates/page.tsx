@@ -3,7 +3,8 @@ import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reportTemplates } from "@/db/schema";
-import { reportTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { defaultSections } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
@@ -13,6 +14,8 @@ export const metadata: Metadata = { title: "Report templates" };
 
 export default async function ReportTemplatesPage() {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { reportTypeMeta } = getLabels(locale);
   const rows = await db
     .select()
     .from(reportTemplates)

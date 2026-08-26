@@ -5,7 +5,8 @@ import { ClipboardList, Plus } from "lucide-react";
 import { db } from "@/db";
 import { companies, projects, reports, users } from "@/db/schema";
 import { fmtDate } from "@/lib/format";
-import { reportStatusMeta, reportTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { REPORT_STATUSES, REPORT_TYPES } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import {
@@ -53,6 +54,8 @@ export default async function ReportsPage({
   }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { reportStatusMeta, reportTypeMeta } = getLabels(locale);
   const params = await searchParams;
 
   const conditions = [eq(reports.organizationId, user.organizationId)];

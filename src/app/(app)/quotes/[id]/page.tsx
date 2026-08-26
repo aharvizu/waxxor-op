@@ -20,7 +20,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { SearchableSelect } from "@/components/searchable-select";
 import { PrintButton } from "@/components/print-button";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { quoteStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { addQuoteItem, deleteQuoteItem, updateQuoteStatus } from "../actions";
 
 export const metadata: Metadata = { title: "Quote" };
@@ -31,6 +32,8 @@ export default async function QuotePage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { quoteStatusMeta } = getLabels(locale);
   const { id } = await params;
   const quoteId = Number(id);
   if (!Number.isInteger(quoteId)) notFound();

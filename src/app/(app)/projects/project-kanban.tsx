@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
 import { Badge } from "@/components/ui";
-import { projectHealthMeta, projectStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { PROJECT_HEALTHS, PROJECT_STATUSES } from "@/lib/projects";
 import { setProjectHealth, setProjectStatus } from "./actions";
 import type { ProjectRow } from "./project-views";
@@ -21,6 +22,7 @@ import type { ProjectRow } from "./project-views";
  */
 export function ProjectKanban({ rows, groupField }: { rows: ProjectRow[]; groupField: "status" | "healthStatus" }) {
   const router = useRouter();
+  const { projectHealthMeta, projectStatusMeta } = getLabels(useLocale());
   const values = groupField === "healthStatus" ? PROJECT_HEALTHS : PROJECT_STATUSES;
   const meta = groupField === "healthStatus" ? projectHealthMeta : projectStatusMeta;
 

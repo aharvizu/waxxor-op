@@ -3,7 +3,8 @@ import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { services, serviceVariants, slaDefinitions, users } from "@/db/schema";
-import { ticketPriorityMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
@@ -16,6 +17,8 @@ export const metadata: Metadata = { title: "Configuración · Empresas" };
 
 export default async function CompaniesSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
+  const locale = await getOrgLocale(user.organizationId);
+  const { ticketPriorityMeta } = getLabels(locale);
   const [defaults, internalUsers, defaultSlas, categories, tags, vendorCategories, serviceRows, variantRows] = await Promise.all([
     getSetting(user.organizationId, "companies.defaults"),
     db

@@ -9,7 +9,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { CONTACT_TYPES } from "@/lib/company360";
-import { contactTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { createContact } from "../companies/company360-actions";
 
 /** Standalone contact creation form for /contacts — unlike the Company 360
@@ -23,6 +24,7 @@ export function ContactCreateForm({
   onSuccess?: () => void;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createContact, null);
+  const { contactTypeMeta } = getLabels(useLocale());
 
   useEffect(() => {
     if (state?.ok) onSuccess?.();

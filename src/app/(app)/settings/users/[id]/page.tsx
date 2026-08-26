@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { roleMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { ROLES } from "@/lib/roles";
 import { requireRole } from "@/lib/session";
 import { AlertCircle, Trash2 } from "lucide-react";
@@ -29,6 +30,8 @@ export default async function UserPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const me = await requireRole("superadmin");
+  const locale = await getOrgLocale(me.organizationId);
+  const { roleMeta } = getLabels(locale);
   const [{ id }, { error }] = await Promise.all([params, searchParams]);
   const userId = Number(id);
   if (!Number.isInteger(userId)) notFound();

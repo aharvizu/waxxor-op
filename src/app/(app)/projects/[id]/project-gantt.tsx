@@ -3,7 +3,7 @@ import { GanttChartSquare } from "lucide-react";
 import { addDays, daysBetween, MONTH_LABELS_ES } from "@/lib/calendar";
 import type { LocalDate } from "@/lib/recurrence";
 import { fmtDate } from "@/lib/format";
-import { activityStatusMeta, projectListStatusMeta } from "@/lib/labels";
+import type { getLabels } from "@/lib/labels";
 import type { ProjectTreeActivity, getProjectDependencies, getProjectMilestones, getProjectWorkTree } from "@/lib/project-data";
 import { Badge, Card, EmptyState, cx } from "@/components/ui";
 
@@ -28,7 +28,7 @@ const BAR_TONE_CLASS: Record<string, string> = {
   purple: "bg-purple-500",
 };
 
-function barClass(status: string) {
+function barClass(status: string, activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"]) {
   const tone = activityStatusMeta[status]?.tone ?? "slate";
   return BAR_TONE_CLASS[tone] ?? BAR_TONE_CLASS.slate;
 }
@@ -77,11 +77,15 @@ export function ProjectGantt({
   dependencies,
   milestones,
   now,
+  activityStatusMeta,
+  projectListStatusMeta,
 }: {
   tree: WorkTree;
   dependencies: Dependencies;
   milestones: Milestones;
   now: Date;
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
+  projectListStatusMeta: ReturnType<typeof getLabels>["projectListStatusMeta"];
 }) {
   const today = now.toISOString().slice(0, 10);
 
@@ -292,7 +296,7 @@ export function ProjectGantt({
                         return (
                           <div
                             title={`${r.title} · ${r.start ? fmtDate(r.start) : "?"} – ${r.end ? fmtDate(r.end) : "?"} · ${activityStatusMeta[r.status]?.label ?? r.status}`}
-                            className={cx("absolute top-1/2 h-3.5 -translate-y-1/2 rounded-full", barClass(r.status))}
+                            className={cx("absolute top-1/2 h-3.5 -translate-y-1/2 rounded-full", barClass(r.status, activityStatusMeta))}
                             style={{ left: bar.x1 + 2, width: bar.x2 - bar.x1 - 4 }}
                           />
                         );
@@ -309,7 +313,7 @@ export function ProjectGantt({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted">
         {statusesUsed.map((s) => (
           <span key={s} className="flex items-center gap-1.5">
-            <span className={cx("size-2.5 rounded-full", barClass(s))} aria-hidden />
+            <span className={cx("size-2.5 rounded-full", barClass(s, activityStatusMeta))} aria-hidden />
             {activityStatusMeta[s]?.label ?? s}
           </span>
         ))}

@@ -17,7 +17,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { CONFIRMATION_TYPES, TICKET_BILLING_MODALITIES } from "@/lib/tickets";
-import { activityTypeMeta, confirmationTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import {
   assignTicket,
   changeTicketStatus,
@@ -425,6 +426,7 @@ function CloseFields({
   billingStatuses: Option[];
   errors: Record<string, string[]>;
 }) {
+  const { confirmationTypeMeta } = getLabels(useLocale());
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -767,6 +769,7 @@ export function RelatedActivityForms({
   const [createState, createAction] = useForm(createRelatedActivity);
   const [linkState, linkAction] = useForm(linkActivity);
   const createErrors = createState && !createState.ok ? (createState.fieldErrors ?? {}) : {};
+  const { activityTypeMeta } = getLabels(useLocale());
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <form

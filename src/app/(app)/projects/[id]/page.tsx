@@ -17,20 +17,8 @@ import {
 import { db } from "@/db";
 import { companies, users } from "@/db/schema";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import {
-  activityStatusMeta,
-  knowledgeStatusMeta,
-  milestoneStatusMeta,
-  projectHealthMeta,
-  projectListStatusMeta,
-  projectMemberRoleMeta,
-  projectPriorityMeta,
-  projectStatusMeta,
-  recurrenceStatusMeta,
-  riskSeverityMeta,
-  riskStatusMeta,
-  ticketPriorityMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import {
   getMilestoneLinks,
   getProjectAttachments,
@@ -107,6 +95,7 @@ const TABS = [
   ["configuracion", "Configuración"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
+type Labels = ReturnType<typeof getLabels>;
 
 function TabLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
@@ -149,6 +138,10 @@ export default async function ProjectDetailPage({
   const suggested = suggestedHealth(progressInput);
   const isMgmt = MGMT_ROLES.includes(user.role);
   const archived = project.status === "archived";
+
+  const locale = await getOrgLocale(user.organizationId);
+  const labels = getLabels(locale);
+  const { projectStatusMeta, projectHealthMeta, projectPriorityMeta } = labels;
 
   const internalUsers = await db
     .select({ id: users.id, name: users.name })
@@ -262,6 +255,7 @@ export default async function ProjectDetailPage({
           progress={progress}
           suggested={suggested}
           now={now}
+          labels={labels}
         />
       ) : null}
       {tab === "trabajo" ? (
@@ -272,6 +266,7 @@ export default async function ProjectDetailPage({
           archived={archived}
           workMode={mode === "table" ? "table" : mode === "gantt" ? "gantt" : "list"}
           now={now}
+          labels={labels}
         />
       ) : null}
       {tab === "hitos" ? (
@@ -282,6 +277,7 @@ export default async function ProjectDetailPage({
           isMgmt={isMgmt}
           archived={archived}
           now={now}
+          labels={labels}
         />
       ) : null}
       {tab === "riesgos" ? (
@@ -291,6 +287,7 @@ export default async function ProjectDetailPage({
           internalUsers={internalUsers}
           isMgmt={isMgmt}
           archived={archived}
+          labels={labels}
         />
       ) : null}
       {tab === "tiempo" ? <TiempoTab orgId={user.organizationId} projectId={projectId} project={project} /> : null}
@@ -321,6 +318,7 @@ export default async function ProjectDetailPage({
           isMgmt={isMgmt}
           isSuperAdmin={user.role === "superadmin"}
           archived={archived}
+          labels={labels}
         />
       ) : null}
     </div>
@@ -336,6 +334,7 @@ async function ResumenTab({
   progress,
   suggested,
   now,
+  labels,
 }: {
   orgId: number;
   projectId: number;
@@ -343,7 +342,9 @@ async function ResumenTab({
   progress: ReturnType<typeof computeProgress>;
   suggested: string;
   now: Date;
+  labels: Labels;
 }) {
+  const { projectHealthMeta, riskSeverityMeta, projectMemberRoleMeta, knowledgeStatusMeta, recurrenceStatusMeta } = labels;
   const [milestones, risks, tree, members, audit, recurrences, kbArticles] = await Promise.all([
     getProjectMilestones(orgId, projectId),
     getProjectRisks(orgId, projectId),
@@ -638,6 +639,7 @@ async function TrabajoTab({
   archived,
   workMode,
   now,
+  labels,
 }: {
   orgId: number;
   projectId: number;
@@ -645,7 +647,9 @@ async function TrabajoTab({
   archived: boolean;
   workMode: "list" | "table" | "gantt";
   now: Date;
+  labels: Labels;
 }) {
+  const { activityStatusMeta, ticketPriorityMeta, projectListStatusMeta } = labels;
   const [tree, dependencies, milestones, activityTypeOptions] = await Promise.all([
     getProjectWorkTree(orgId, projectId),
     getProjectDependencies(orgId, projectId),
@@ -863,7 +867,14 @@ async function TrabajoTab({
       </div>
 
       {workMode === "gantt" ? (
-        <ProjectGantt tree={tree} dependencies={dependencies} milestones={milestones} now={now} />
+        <ProjectGantt
+          tree={tree}
+          dependencies={dependencies}
+          milestones={milestones}
+          now={now}
+          activityStatusMeta={activityStatusMeta}
+          projectListStatusMeta={projectListStatusMeta}
+        />
       ) : workMode === "table" ? (
         <Card className="overflow-visible">
           <Table>
@@ -1023,6 +1034,7 @@ async function HitosTab({
   isMgmt,
   archived,
   now,
+  labels,
 }: {
   orgId: number;
   projectId: number;
@@ -1030,7 +1042,9 @@ async function HitosTab({
   isMgmt: boolean;
   archived: boolean;
   now: Date;
+  labels: Labels;
 }) {
+  const { milestoneStatusMeta } = labels;
   const [milestones, tree] = await Promise.all([
     getProjectMilestones(orgId, projectId),
     getProjectWorkTree(orgId, projectId),
@@ -1125,13 +1139,16 @@ async function RiesgosTab({
   internalUsers,
   isMgmt,
   archived,
+  labels,
 }: {
   orgId: number;
   projectId: number;
   internalUsers: { id: number; name: string }[];
   isMgmt: boolean;
   archived: boolean;
+  labels: Labels;
 }) {
+  const { riskSeverityMeta, riskStatusMeta } = labels;
   const risks = await getProjectRisks(orgId, projectId);
   return (
     <div className="space-y-6">
@@ -1485,6 +1502,7 @@ async function ConfiguracionTab({
   isMgmt,
   isSuperAdmin,
   archived,
+  labels,
 }: {
   project: NonNullable<Awaited<ReturnType<typeof getProjectDetail>>>["project"];
   detail: NonNullable<Awaited<ReturnType<typeof getProjectDetail>>>;
@@ -1493,7 +1511,9 @@ async function ConfiguracionTab({
   isMgmt: boolean;
   isSuperAdmin: boolean;
   archived: boolean;
+  labels: Labels;
 }) {
+  const { projectMemberRoleMeta } = labels;
   const [members, companyRows] = await Promise.all([
     getProjectMembers(project.organizationId, project.id),
     db

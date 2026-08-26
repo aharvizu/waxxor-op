@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { companies, projects, users } from "@/db/schema";
-import { projectStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
 import { bestRankOf, matchesAny } from "../normalize";
 import { registerSource } from "../engine";
 import type { SearchResultItem } from "../types";
@@ -30,6 +30,7 @@ registerSource({
       .orderBy(rank)
       .limit(limit);
 
+    const { projectStatusMeta } = getLabels(ctx.locale);
     return rows.map(
       (r): SearchResultItem => ({
         id: `projects:${r.id}`,

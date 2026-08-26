@@ -53,7 +53,8 @@ type NavItem = {
 type NavSection = { name: string | null; items: NavItem[] };
 
 import type { Role } from "@/lib/roles";
-import { roleMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 
 export type ShellUser = { name: string; email: string; role: Role };
 
@@ -551,6 +552,7 @@ function Topbar({
   tutorials: TutorialSummary[];
   onOpenMobileNav: () => void;
 }) {
+  const { roleMeta } = getLabels(useLocale());
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-edge bg-canvas/85 px-4 backdrop-blur-md sm:px-6 print:hidden">
       <button

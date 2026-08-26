@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, type ReactNode } from "react";
+import { useActionState, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown, Copy, Download, Lock, LayoutGrid, List, Plus, Star, Table2, Trash2, UserCog, Users } from "lucide-react";
@@ -454,11 +454,53 @@ export function ViewSwitcher({
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [navTarget, setNavTarget] = useState<SavedView | null>(null);
   const [, reorderAction] = useActionState<ActionState, FormData>(reorderSharedViews, null);
   const canOrgScope = hasRole(currentUserRole, ["administrator"]);
   const activeView = views.find((v) => v.id === activeViewId) ?? views[0];
   const ActiveIcon = activeView ? VIEW_ICONS[activeView.viewType] ?? Table2 : Table2;
+
+  // Desktop overflow ("Más"): how many tabs fit in one row is measured
+  // against an invisible clone of the same tabs (below) instead of guessed,
+  // so it stays correct across icons/badges/locale without hardcoded widths.
+  const [visibleCount, setVisibleCount] = useState(views.length);
+  const overflowContainerRef = useRef<HTMLDivElement>(null);
+  const createMeasureRef = useRef<HTMLButtonElement>(null);
+  const moreMeasureRef = useRef<HTMLButtonElement>(null);
+  const tabMeasureRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (!container) return;
+    const GAP = 4; // Tailwind gap-1
+
+    function recompute() {
+      const available = container!.clientWidth;
+      const createWidth = (createMeasureRef.current?.offsetWidth ?? 0) + GAP;
+      const moreWidth = (moreMeasureRef.current?.offsetWidth ?? 0) + GAP;
+      const tabWidths = tabMeasureRefs.current.map((el) => (el?.offsetWidth ?? 0) + GAP);
+
+      const fitCount = (reserved: number) => {
+        let used = createWidth + reserved;
+        let count = 0;
+        for (const w of tabWidths) {
+          used += w;
+          if (used > available) break;
+          count++;
+        }
+        return count;
+      };
+
+      const withoutMore = fitCount(0);
+      setVisibleCount(withoutMore >= views.length ? views.length : fitCount(moreWidth));
+    }
+
+    recompute();
+    const observer = new ResizeObserver(recompute);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [views]);
 
   function goTo(view: SavedView) {
     rememberLastView(module, view.id);
@@ -488,14 +530,17 @@ export function ViewSwitcher({
 
   return (
     <div className="mb-4">
-      {/* Desktop / tablet: full tab bar, unchanged. */}
-      <div className="group hidden flex-wrap items-center gap-1 overflow-x-auto rounded-lg border border-edge bg-surface p-1 shadow-card md:flex">
-        <DragList
-          className="flex flex-row flex-wrap gap-1 space-y-0"
-          items={views.map((v) => ({ ...v, id: v.id }))}
-          onReorder={handleReorder}
-          renderItem={(view) => (
+      {/* Desktop / tablet: ClickUp-style single row — tabs that fit are
+          shown directly; the rest (plus a reorder handle for all of them)
+          live behind "Más" instead of wrapping the bar onto several rows. */}
+      <div className="relative hidden md:block">
+        <div
+          ref={overflowContainerRef}
+          className="group flex flex-nowrap items-center gap-1 overflow-hidden rounded-lg border border-edge bg-surface p-1 shadow-card"
+        >
+          {views.slice(0, visibleCount).map((view) => (
             <ViewTab
+              key={view.id}
               view={view}
               active={view.id === activeViewId}
               currentUserId={currentUserId}
@@ -505,15 +550,99 @@ export function ViewSwitcher({
               isLastView={views.length <= 1}
               onRequestNavigate={requestNavigate}
             />
+          ))}
+
+          {visibleCount < views.length ? (
+            <Popover.Root open={moreOpen} onOpenChange={setMoreOpen}>
+              <Popover.Trigger asChild>
+                <button
+                  type="button"
+                  className="flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-sm text-muted hover:bg-subtle hover:text-fg"
+                >
+                  Más
+                  <span className="tabular-nums text-faint">{views.length - visibleCount}</span>
+                  <ChevronDown className="size-3.5" />
+                </button>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  collisionPadding={8}
+                  avoidCollisions
+                  className="z-[70] max-h-[min(28rem,70vh)] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-edge bg-surface p-1.5 shadow-overlay outline-none"
+                >
+                  <p className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-wide text-faint uppercase">
+                    Todas las vistas — arrastra para reordenar
+                  </p>
+                  <DragList
+                    items={views.map((v) => ({ ...v, id: v.id }))}
+                    onReorder={handleReorder}
+                    renderItem={(view) => (
+                      <ViewTab
+                        view={view}
+                        active={view.id === activeViewId}
+                        currentUserId={currentUserId}
+                        currentUserRole={currentUserRole}
+                        basePath={basePath}
+                        orgUsers={orgUsers}
+                        isLastView={views.length <= 1}
+                        onRequestNavigate={(v) => {
+                          setMoreOpen(false);
+                          requestNavigate(v);
+                        }}
+                      />
+                    )}
+                  />
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+          ) : null}
+
+          {creating ? (
+            <ViewCreateForm module={module} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setCreating(false)} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted hover:bg-subtle hover:text-fg"
+            >
+              <Plus className="size-4" /> Vista
+            </button>
           )}
-        />
-        {creating ? (
-          <ViewCreateForm module={module} basePath={basePath} canOrgScope={canOrgScope} onClose={() => setCreating(false)} />
-        ) : (
-          <button type="button" onClick={() => setCreating(true)} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted hover:bg-subtle hover:text-fg">
+        </div>
+
+        {/* Invisible clones used only to measure natural tab/button widths
+            for the overflow calc above — out of flow (absolute) and hidden
+            from layout/a11y (visibility:hidden), never interactive. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex flex-nowrap items-center gap-1 p-1"
+          style={{ visibility: "hidden" }}
+        >
+          <button ref={createMeasureRef} type="button" tabIndex={-1} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-sm">
             <Plus className="size-4" /> Vista
           </button>
-        )}
+          <button ref={moreMeasureRef} type="button" tabIndex={-1} className="flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-sm">
+            Más <span className="tabular-nums">{views.length}</span>
+            <ChevronDown className="size-3.5" />
+          </button>
+          {views.map((view, i) => (
+            <div key={view.id} ref={(el) => { tabMeasureRefs.current[i] = el; }}>
+              <ViewTab
+                view={view}
+                active={false}
+                currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
+                basePath={basePath}
+                orgUsers={orgUsers}
+                isLastView={views.length <= 1}
+                onRequestNavigate={() => {}}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Mobile: current view as a single compact chip that opens a

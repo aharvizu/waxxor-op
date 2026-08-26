@@ -51,25 +51,8 @@ import {
   getContractConsumedMinutes,
 } from "@/lib/company360-data";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
-import {
-  activityStatusMeta,
-  companyStatusMeta,
-  contactTypeMeta,
-  contractStatusMeta,
-  contractTypeMeta,
-  knowledgeStatusMeta,
-  projectHealthMeta,
-  projectStatusMeta,
-  recurrenceFrequencyMeta,
-  recurrenceStatusMeta,
-  recurrenceTargetTypeMeta,
-  renewalBucketMeta,
-  reportStatusMeta,
-  reportTypeMeta,
-  ticketBillingMeta,
-  ticketPriorityMeta,
-  ticketStatusMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { getRelatedArticles } from "@/lib/knowledge-data";
 import { describeSchedule, getClientRecurrences, toSchedule } from "@/lib/recurrence-data";
 import { requireUser } from "@/lib/session";
@@ -133,6 +116,7 @@ const TABS = [
   ["historial", "Historial", History],
 ] as const;
 type Tab = (typeof TABS)[number][0];
+type Labels = ReturnType<typeof getLabels>;
 
 function TabLink({
   href,
@@ -178,6 +162,10 @@ export default async function ClientDetailPage({
     .from(companies)
     .where(and(eq(companies.id, companyId), eq(companies.organizationId, user.organizationId)));
   if (!client) notFound();
+
+  const locale = await getOrgLocale(user.organizationId);
+  const labels = getLabels(locale);
+  const { companyStatusMeta } = labels;
 
   const tab: Tab = TABS.some(([t]) => t === rawTab) ? (rawTab as Tab) : "resumen";
   const now = new Date();
@@ -320,11 +308,17 @@ export default async function ClientDetailPage({
               renewalItems={renewalItems}
               now={now}
               canDelete={user.role === "superadmin"}
+              renewalBucketMeta={labels.renewalBucketMeta}
             />
           ) : null}
 
           {tab === "contactos" ? (
-            <ContactosTab companyId={companyId} orgId={user.organizationId} canDelete={user.role === "superadmin"} />
+            <ContactosTab
+              companyId={companyId}
+              orgId={user.organizationId}
+              canDelete={user.role === "superadmin"}
+              contactTypeMeta={labels.contactTypeMeta}
+            />
           ) : null}
 
           {tab === "servicios" ? (
@@ -338,34 +332,84 @@ export default async function ClientDetailPage({
               contractsList={contractsList}
               now={now}
               canDelete={user.role === "superadmin"}
+              contractTypeMeta={labels.contractTypeMeta}
+              contractStatusMeta={labels.contractStatusMeta}
             />
           ) : null}
 
           {tab === "renovaciones" ? (
-            <RenovacionesTab companyId={companyId} renewalItems={renewalItems} now={now} />
+            <RenovacionesTab
+              companyId={companyId}
+              renewalItems={renewalItems}
+              now={now}
+              renewalBucketMeta={labels.renewalBucketMeta}
+            />
           ) : null}
 
-          {tab === "tickets" ? <TicketsTab companyId={companyId} orgId={user.organizationId} /> : null}
+          {tab === "tickets" ? (
+            <TicketsTab
+              companyId={companyId}
+              orgId={user.organizationId}
+              ticketStatusMeta={labels.ticketStatusMeta}
+              ticketPriorityMeta={labels.ticketPriorityMeta}
+            />
+          ) : null}
 
-          {tab === "actividades" ? <ActividadesTab companyId={companyId} orgId={user.organizationId} /> : null}
+          {tab === "actividades" ? (
+            <ActividadesTab
+              companyId={companyId}
+              orgId={user.organizationId}
+              activityStatusMeta={labels.activityStatusMeta}
+              ticketPriorityMeta={labels.ticketPriorityMeta}
+            />
+          ) : null}
 
-          {tab === "proyectos" ? <ProyectosTab companyId={companyId} orgId={user.organizationId} /> : null}
+          {tab === "proyectos" ? (
+            <ProyectosTab
+              companyId={companyId}
+              orgId={user.organizationId}
+              projectStatusMeta={labels.projectStatusMeta}
+              projectHealthMeta={labels.projectHealthMeta}
+            />
+          ) : null}
 
           {tab === "recurrentes" ? (
-            <RecurrentesTab companyId={companyId} rows={clientRecurrences} now={now} />
+            <RecurrentesTab
+              companyId={companyId}
+              rows={clientRecurrences}
+              now={now}
+              recurrenceTargetTypeMeta={labels.recurrenceTargetTypeMeta}
+              recurrenceFrequencyMeta={labels.recurrenceFrequencyMeta}
+              recurrenceStatusMeta={labels.recurrenceStatusMeta}
+            />
           ) : null}
 
           {tab === "conversaciones" ? (
             <ConversacionesTab companyId={companyId} orgId={user.organizationId} />
           ) : null}
 
-          {tab === "conocimiento" ? <ConocimientoTab companyId={companyId} orgId={user.organizationId} /> : null}
+          {tab === "conocimiento" ? (
+            <ConocimientoTab
+              companyId={companyId}
+              orgId={user.organizationId}
+              knowledgeStatusMeta={labels.knowledgeStatusMeta}
+            />
+          ) : null}
 
           {tab === "tiempo" ? <TiempoTab companyId={companyId} orgId={user.organizationId} /> : null}
 
-          {tab === "cobros" ? <CobrosTab companyId={companyId} orgId={user.organizationId} /> : null}
+          {tab === "cobros" ? (
+            <CobrosTab companyId={companyId} orgId={user.organizationId} ticketBillingMeta={labels.ticketBillingMeta} />
+          ) : null}
 
-          {tab === "reportes" ? <ReportesTab companyId={companyId} rows={clientReports} /> : null}
+          {tab === "reportes" ? (
+            <ReportesTab
+              companyId={companyId}
+              rows={clientReports}
+              reportTypeMeta={labels.reportTypeMeta}
+              reportStatusMeta={labels.reportStatusMeta}
+            />
+          ) : null}
 
           {tab === "notas" ? (
             <NotasTab companyId={companyId} orgId={user.organizationId} currentUserId={Number(user.id)} />
@@ -388,12 +432,14 @@ async function ResumenTab({
   renewalItems,
   now,
   canDelete,
+  renewalBucketMeta,
 }: {
   client: typeof companies.$inferSelect;
   internalUsers: { id: number; name: string }[];
   renewalItems: { source: "client_service" | "contract"; sourceId: number; concept: string; date: string }[];
   now: Date;
   canDelete: boolean;
+  renewalBucketMeta: Labels["renewalBucketMeta"];
 }) {
   const nextRenewals = renewalItems.slice(0, 5);
   return (
@@ -469,7 +515,17 @@ async function ResumenTab({
 
 /* -------------------------------------------------------------- Contacts */
 
-async function ContactosTab({ companyId, orgId, canDelete }: { companyId: number; orgId: number; canDelete: boolean }) {
+async function ContactosTab({
+  companyId,
+  orgId,
+  canDelete,
+  contactTypeMeta,
+}: {
+  companyId: number;
+  orgId: number;
+  canDelete: boolean;
+  contactTypeMeta: Labels["contactTypeMeta"];
+}) {
   const contactsList = await getClientContacts(orgId, companyId);
   return (
     <div className="space-y-6">
@@ -642,12 +698,16 @@ async function ContratosTab({
   contractsList,
   now,
   canDelete,
+  contractTypeMeta,
+  contractStatusMeta,
 }: {
   companyId: number;
   orgId: number;
   contractsList: Awaited<ReturnType<typeof getClientContracts>>;
   now: Date;
   canDelete: boolean;
+  contractTypeMeta: Labels["contractTypeMeta"];
+  contractStatusMeta: Labels["contractStatusMeta"];
 }) {
   const consumed = await Promise.all(
     contractsList
@@ -759,10 +819,12 @@ async function RenovacionesTab({
   companyId,
   renewalItems,
   now,
+  renewalBucketMeta,
 }: {
   companyId: number;
   renewalItems: { source: "client_service" | "contract"; sourceId: number; concept: string; kind: string; date: string; amount: string | null }[];
   now: Date;
+  renewalBucketMeta: Labels["renewalBucketMeta"];
 }) {
   if (renewalItems.length === 0) {
     return (
@@ -818,7 +880,17 @@ async function RenovacionesTab({
 
 /* ----------------------------------------------------------------- Tickets */
 
-async function TicketsTab({ companyId, orgId }: { companyId: number; orgId: number }) {
+async function TicketsTab({
+  companyId,
+  orgId,
+  ticketStatusMeta,
+  ticketPriorityMeta,
+}: {
+  companyId: number;
+  orgId: number;
+  ticketStatusMeta: Labels["ticketStatusMeta"];
+  ticketPriorityMeta: Labels["ticketPriorityMeta"];
+}) {
   const rows = await getClientWorkItems(orgId, companyId, "ticket");
   if (rows.length === 0) {
     return (
@@ -871,7 +943,17 @@ async function TicketsTab({ companyId, orgId }: { companyId: number; orgId: numb
 
 /* -------------------------------------------------------------- Activities */
 
-async function ActividadesTab({ companyId, orgId }: { companyId: number; orgId: number }) {
+async function ActividadesTab({
+  companyId,
+  orgId,
+  activityStatusMeta,
+  ticketPriorityMeta,
+}: {
+  companyId: number;
+  orgId: number;
+  activityStatusMeta: Labels["activityStatusMeta"];
+  ticketPriorityMeta: Labels["ticketPriorityMeta"];
+}) {
   const rows = await getClientWorkItems(orgId, companyId, "activity");
   if (rows.length === 0) {
     return (
@@ -923,7 +1005,17 @@ async function ActividadesTab({ companyId, orgId }: { companyId: number; orgId: 
 
 /* ----------------------------------------------------------------- Projects */
 
-async function ProyectosTab({ companyId, orgId }: { companyId: number; orgId: number }) {
+async function ProyectosTab({
+  companyId,
+  orgId,
+  projectStatusMeta,
+  projectHealthMeta,
+}: {
+  companyId: number;
+  orgId: number;
+  projectStatusMeta: Labels["projectStatusMeta"];
+  projectHealthMeta: Labels["projectHealthMeta"];
+}) {
   const rows = await getClientProjects(orgId, companyId);
   if (rows.length === 0) {
     return (
@@ -1012,10 +1104,16 @@ async function RecurrentesTab({
   companyId,
   rows,
   now,
+  recurrenceTargetTypeMeta,
+  recurrenceFrequencyMeta,
+  recurrenceStatusMeta,
 }: {
   companyId: number;
   rows: Awaited<ReturnType<typeof getClientRecurrences>>;
   now: Date;
+  recurrenceTargetTypeMeta: Labels["recurrenceTargetTypeMeta"];
+  recurrenceFrequencyMeta: Labels["recurrenceFrequencyMeta"];
+  recurrenceStatusMeta: Labels["recurrenceStatusMeta"];
 }) {
   if (rows.length === 0) {
     return (
@@ -1152,7 +1250,15 @@ async function ConversacionesTab({ companyId, orgId }: { companyId: number; orgI
 
 /* --------------------------------------------------------------- Knowledge */
 
-async function ConocimientoTab({ companyId, orgId }: { companyId: number; orgId: number }) {
+async function ConocimientoTab({
+  companyId,
+  orgId,
+  knowledgeStatusMeta,
+}: {
+  companyId: number;
+  orgId: number;
+  knowledgeStatusMeta: Labels["knowledgeStatusMeta"];
+}) {
   const articles = await getRelatedArticles(orgId, "company", companyId);
   if (articles.length === 0) {
     return (
@@ -1231,7 +1337,15 @@ async function TiempoTab({ companyId, orgId }: { companyId: number; orgId: numbe
 
 /* ------------------------------------------------------------------ Billing */
 
-async function CobrosTab({ companyId, orgId }: { companyId: number; orgId: number }) {
+async function CobrosTab({
+  companyId,
+  orgId,
+  ticketBillingMeta,
+}: {
+  companyId: number;
+  orgId: number;
+  ticketBillingMeta: Labels["ticketBillingMeta"];
+}) {
   const rows = (await getClientWorkItems(orgId, companyId, "ticket")).filter((t) => t.billingStatus);
   if (rows.length === 0) {
     return (
@@ -1281,9 +1395,13 @@ async function CobrosTab({ companyId, orgId }: { companyId: number; orgId: numbe
 async function ReportesTab({
   companyId,
   rows,
+  reportTypeMeta,
+  reportStatusMeta,
 }: {
   companyId: number;
   rows: Awaited<ReturnType<typeof getClientReports>>;
+  reportTypeMeta: Labels["reportTypeMeta"];
+  reportStatusMeta: Labels["reportStatusMeta"];
 }) {
   if (rows.length === 0) {
     return (

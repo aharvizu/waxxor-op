@@ -16,7 +16,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { ACTIVITY_WORKFLOW_STATUSES } from "@/lib/activities";
-import { activityStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import {
   archiveActivity,
   completeActivity,
@@ -56,6 +57,7 @@ export function WorkflowCard({
     updateActivityWorkflow,
     null,
   );
+  const { activityStatusMeta } = getLabels(useLocale());
 
   return (
     <div>

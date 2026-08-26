@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
-import { knowledgeStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import type { KnowledgeStatus } from "@/lib/knowledge";
 import { getCategories, listArticles } from "@/lib/knowledge-data";
 import { requireUser } from "@/lib/session";
@@ -34,6 +35,8 @@ type Search = {
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const params = await searchParams;
+  const locale = await getOrgLocale(user.organizationId);
+  const { knowledgeStatusMeta } = getLabels(locale);
   // Every internal role that reaches this page can create/review/publish
   // something in the workflow (client is blocked earlier by requireUser),
   // so all statuses are visible — there is no "outside contributor" role here.

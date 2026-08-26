@@ -6,9 +6,9 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/ui";
 import { ACTIVITY_STATUSES, type ActivityStatus } from "@/lib/activities";
 import {
-  ACTIVITY_FIELDS,
   ACTIVITY_QUICK_FILTERS,
   activityQuickFilterSql,
+  buildActivityFields,
   buildFieldRegistry,
   buildFilterSql,
   filterGroupSchema,
@@ -16,6 +16,7 @@ import {
   type ActivityQuickFilterKey,
   type FilterGroup,
 } from "@/lib/filters";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { getLastViewId } from "@/lib/last-view";
 import { getCatalogNames } from "@/lib/settings-data";
 import { ensureInitialViews, listViews, savedViewConfigSchema } from "@/lib/views";
@@ -58,7 +59,8 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     if (parsed.success) filters = parsed.data;
   }
 
-  const fieldRegistry = await buildFieldRegistry(ACTIVITY_FIELDS, []);
+  const locale = await getOrgLocale(user.organizationId);
+  const fieldRegistry = await buildFieldRegistry(buildActivityFields(locale), []);
 
   // Structural baseline (not a view/filter concern): converted activities
   // live in Helpdesk now, and archived ones are hidden unless restored.

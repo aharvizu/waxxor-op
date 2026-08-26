@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { knowledgeRelationTypeMeta, knowledgeStatusMeta, knowledgeVisibilityMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { canCreateDraft, canEditArticle, canPublish, canReview } from "@/lib/knowledge";
 import { getArticleDetail, getCategories } from "@/lib/knowledge-data";
 import { requireUser } from "@/lib/session";
@@ -35,6 +36,9 @@ export default async function KnowledgeArticlePage({
   const categories = await getCategories(user.organizationId);
   const a = detail.article;
   const editable = canEditArticle(user.role, a, Number(user.id));
+
+  const locale = await getOrgLocale(user.organizationId);
+  const { knowledgeRelationTypeMeta, knowledgeStatusMeta, knowledgeVisibilityMeta } = getLabels(locale);
 
   return (
     <div>

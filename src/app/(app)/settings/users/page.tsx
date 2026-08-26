@@ -3,7 +3,8 @@ import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { roleMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { ROLES } from "@/lib/roles";
 import { requireRole } from "@/lib/session";
 import {
@@ -28,6 +29,8 @@ export const metadata: Metadata = { title: "Configuración · Usuarios" };
 
 export default async function UsersSettingsPage() {
   const me = await requireRole("superadmin");
+  const locale = await getOrgLocale(me.organizationId);
+  const { roleMeta } = getLabels(locale);
   const rows = await db
     .select()
     .from(users)

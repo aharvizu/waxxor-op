@@ -8,7 +8,8 @@ import { activities, attachments, companies, conversations, messages, users, wor
 import { requireUser } from "@/lib/session";
 import { Badge, Card, CardHeader, PageHeader, buttonSecondaryClass } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import { activityStatusMeta, activityTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { getCatalogNames } from "@/lib/settings-data";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { ActivityForm } from "../activity-form";
@@ -50,6 +51,9 @@ export default async function ActivityPage({
   if (row.activity.convertedAt && row.activity.convertedTicketId) {
     redirect(`/helpdesk/${row.activity.convertedTicketId}`);
   }
+
+  const locale = await getOrgLocale(user.organizationId);
+  const { activityStatusMeta, activityTypeMeta } = getLabels(locale);
 
   const [companyRows, userRows, activityTypeOptions, fileRows, messageRows] = await Promise.all([
     db

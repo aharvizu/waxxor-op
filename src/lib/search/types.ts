@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/roles";
+import type { Locale } from "@/lib/i18n";
 
 /**
  * The Command Center's Search Engine — shared types (2026-07-24). A module
@@ -47,6 +48,7 @@ export type SearchContext = {
   orgId: number;
   userId: number;
   role: Role;
+  locale: Locale;
 };
 
 /** 1=exact match, 2=starts with, 3=contains, 4=fuzzy (trigram similarity). Lower sorts first. */

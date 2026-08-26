@@ -4,7 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { companies, organizations, projects, reports, users } from "@/db/schema";
 import { fmtMoney } from "@/lib/format";
-import { reportTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import type { PeriodMetrics } from "@/lib/report-metrics";
 import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
@@ -30,6 +31,8 @@ function Row({ label, value }: { label: string; value: string | number }) {
  */
 export default async function ReportPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { reportTypeMeta } = getLabels(locale);
   const { id } = await params;
   const reportId = Number(id);
   if (!Number.isInteger(reportId)) notFound();

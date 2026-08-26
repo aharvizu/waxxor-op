@@ -29,7 +29,8 @@ import {
 import { requireUser } from "@/lib/session";
 import { getCatalog, getCatalogNames } from "@/lib/settings-data";
 import { getArticleForTicket } from "@/lib/knowledge-data";
-import { knowledgeStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { canCreateDraft } from "@/lib/knowledge";
 import { isWorkflowDropdownCategory } from "@/lib/tickets";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
@@ -38,7 +39,6 @@ import { Badge, Card, CardHeader, buttonSecondaryClass } from "@/components/ui";
 import { SlaPanel } from "@/components/sla-panel";
 import { TimeEntriesCard } from "@/components/time/time-entries-card";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
-import { activityStatusMeta, confirmationTypeMeta } from "@/lib/labels";
 import { formatMinutes } from "@/lib/time-entries";
 import {
   BillingForm,
@@ -85,6 +85,9 @@ export default async function TicketPage({
   const ticketId = Number(id);
   if (!Number.isInteger(ticketId)) notFound();
   const tab = TABS.some(([t]) => t === rawTab) ? rawTab! : "details";
+
+  const locale = await getOrgLocale(user.organizationId);
+  const { activityStatusMeta, confirmationTypeMeta, knowledgeStatusMeta, slaHealthMeta } = getLabels(locale);
 
   const [row] = await db
     .select({
@@ -778,7 +781,7 @@ export default async function TicketPage({
 
         {/* right panel */}
         <div className="space-y-6">
-          <SlaPanel ticket={t} />
+          <SlaPanel ticket={t} slaHealthMeta={slaHealthMeta} />
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { listTutorials } from "@/lib/help-data";
 import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
 import { AppShell } from "@/components/shell/app-shell";
+import { LocaleProvider } from "@/components/locale-provider";
 
 export default async function AppLayout({
   children,
@@ -30,22 +31,24 @@ export default async function AppLayout({
   ]);
 
   return (
-    <AppShell
-      user={{
-        name: user.name ?? "User",
-        email: user.email ?? "",
-        role: user.role,
-      }}
-      openTickets={openTickets.value}
-      tutorials={tutorials.map((t) => ({ slug: t.slug, title: t.title, module: t.module }))}
-      orgName={profile.displayName || org?.name || "Watson"}
-      orgLogo={profile.logo ?? null}
-      signOut={async () => {
-        "use server";
-        await signOut({ redirectTo: "/login" });
-      }}
-    >
-      {children}
-    </AppShell>
+    <LocaleProvider locale={profile.language}>
+      <AppShell
+        user={{
+          name: user.name ?? "User",
+          email: user.email ?? "",
+          role: user.role,
+        }}
+        openTickets={openTickets.value}
+        tutorials={tutorials.map((t) => ({ slug: t.slug, title: t.title, module: t.module }))}
+        orgName={profile.displayName || org?.name || "Watson"}
+        orgLogo={profile.logo ?? null}
+        signOut={async () => {
+          "use server";
+          await signOut({ redirectTo: "/login" });
+        }}
+      >
+        {children}
+      </AppShell>
+    </LocaleProvider>
   );
 }

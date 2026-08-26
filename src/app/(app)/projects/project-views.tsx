@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
-import { projectHealthMeta, projectPriorityMeta, projectStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 import { formatMinutes } from "@/lib/time-entries";
 import { Badge, Card, EmptyState, Progress, cx } from "@/components/ui";
 import { FolderKanban, Plus } from "lucide-react";
@@ -33,7 +35,9 @@ export type ProjectRow = {
 
 export type ColumnDef = { key: string; label: string; render: (r: ProjectRow) => React.ReactNode };
 
-export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
+export function buildColumnRegistry(locale: Locale): Record<string, ColumnDef> {
+  const { projectHealthMeta, projectPriorityMeta, projectStatusMeta } = getLabels(locale);
+  return {
   folio: { key: "folio", label: "Folio", render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span> },
   name: {
     key: "name",
@@ -84,7 +88,8 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
   nextMilestone: { key: "nextMilestone", label: "Próximo hito", render: (r) => <span className="max-w-40 truncate text-xs text-muted">{r.nextMilestone ?? "—"}</span> },
   targetDate: { key: "targetDate", label: "Objetivo", render: (r) => <span className="text-muted">{r.targetDate ? fmtDate(r.targetDate) : "—"}</span> },
   loggedMinutes: { key: "loggedMinutes", label: "Tiempo", render: (r) => <span className="tabular-nums text-muted">{formatMinutes(r.loggedMinutes)}</span> },
-};
+  };
+}
 
 export const DEFAULT_COLUMNS = [
   "folio",
@@ -100,7 +105,8 @@ export const DEFAULT_COLUMNS = [
   "targetDate",
   "loggedMinutes",
 ];
-export const PROJECT_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: COLUMN_REGISTRY[key]?.label ?? key }));
+const STATIC_COLUMN_REGISTRY = buildColumnRegistry(DEFAULT_LOCALE);
+export const PROJECT_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: STATIC_COLUMN_REGISTRY[key]?.label ?? key }));
 export const PROJECT_KANBAN_GROUP_OPTIONS = [
   { key: "status", label: "Estado" },
   { key: "healthStatus", label: "Salud" },
@@ -138,18 +144,20 @@ export function TableView({
   basePath: string;
   density: "compact" | "comfortable" | "spacious";
 }) {
+  const locale = useLocale();
   const dataTableRegistry = useMemo(() => {
+    const registry = buildColumnRegistry(locale);
     const out: Record<string, DataTableColumn<ProjectRow>> = {};
-    for (const key of Object.keys(COLUMN_REGISTRY)) {
+    for (const key of Object.keys(registry)) {
       out[key] = {
-        label: COLUMN_REGISTRY[key].label,
-        render: COLUMN_REGISTRY[key].render,
+        label: registry[key].label,
+        render: registry[key].render,
         sortValue: key === "pendingOverdue" ? (r) => r.pending : (r) => r[key as keyof ProjectRow],
         align: key === "pendingOverdue" || key === "loggedMinutes" ? "right" : undefined,
       };
     }
     return out;
-  }, []);
+  }, [locale]);
 
   return (
     <DataTable
@@ -169,6 +177,7 @@ export function TableView({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({ rows, basePath }: { rows: ProjectRow[]; basePath: string }) {
+  const { projectStatusMeta, projectHealthMeta } = getLabels(useLocale());
   if (rows.length === 0) return <EmptyProjects />;
   return (
     <Card className="overflow-hidden">

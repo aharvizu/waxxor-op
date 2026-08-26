@@ -17,7 +17,8 @@ import {
   users,
 } from "@/db/schema";
 import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
-import { reportStatusMeta, reportTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import type { PeriodMetrics } from "@/lib/report-metrics";
 import { requireUser } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
@@ -65,6 +66,8 @@ export default async function ReportDetailPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { reportStatusMeta, reportTypeMeta } = getLabels(locale);
   const { id } = await params;
   const { tab: rawTab } = await searchParams;
   const reportId = Number(id);
@@ -167,7 +170,9 @@ export default async function ReportDetailPage({
         ))}
       </div>
 
-      {tab === "preview" ? <PreviewTab report={report} metrics={metrics} companyName={row.companyName} /> : null}
+      {tab === "preview" ? (
+        <PreviewTab report={report} metrics={metrics} companyName={row.companyName} reportTypeMeta={reportTypeMeta} />
+      ) : null}
       {tab === "content" ? (
         ["sent", "archived"].includes(report.status) ? (
           <p className="text-sm text-muted">
@@ -211,10 +216,12 @@ function PreviewTab({
   report,
   metrics,
   companyName,
+  reportTypeMeta,
 }: {
   report: typeof reports.$inferSelect;
   metrics: PeriodMetrics | null;
   companyName: string | null;
+  reportTypeMeta: ReturnType<typeof getLabels>["reportTypeMeta"];
 }) {
   if (!metrics) {
     return (

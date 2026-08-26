@@ -6,7 +6,8 @@ import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { reportTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { PERIOD_RULES, REPORT_TYPES } from "@/lib/reports";
 import {
   approveReport,
@@ -115,6 +116,7 @@ export function CreateReportForm({
   const [reportType, setReportType] = useState(defaults?.reportType ?? "monthly_service");
   const [periodRule, setPeriodRule] = useState("previous_month");
   const clientRequired = ["monthly_service", "operational_summary", "executive_summary", "sla_report", "billing_support"].includes(reportType);
+  const { reportTypeMeta } = getLabels(useLocale());
 
   return (
     <form action={formAction} className="space-y-4">

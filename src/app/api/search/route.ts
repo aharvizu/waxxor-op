@@ -5,6 +5,7 @@ import { getFavoriteItems, getFavoriteViews } from "@/lib/search/favorites";
 import { allQuickActions } from "@/lib/search/sources/actions";
 import "@/lib/search/sources"; // registers every source as a side effect — see sources/index.ts
 import type { SearchCategory } from "@/lib/search/types";
+import { getOrgLocale } from "@/lib/get-org-locale";
 
 /**
  * The Command Center's single backend endpoint. All ranking/grouping logic
@@ -24,7 +25,8 @@ export async function GET(req: Request) {
   const limitParam = Number(url.searchParams.get("limit"));
   const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 20) : undefined;
 
-  const ctx = { orgId: user.organizationId, userId: Number(user.id), role: user.role };
+  const locale = await getOrgLocale(user.organizationId);
+  const ctx = { orgId: user.organizationId, userId: Number(user.id), role: user.role, locale };
 
   if (!q) {
     // Empty query: recent/favorites/quick-actions state, not a live search

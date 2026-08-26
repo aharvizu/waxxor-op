@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
-import { activityStatusMeta, activityTypeMeta, ticketPriorityMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { ClipboardCheck, Plus } from "lucide-react";
 import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
@@ -25,46 +27,53 @@ export type ActivityRow = {
 
 export type ColumnDef = { key: string; label: string; render: (r: ActivityRow) => React.ReactNode };
 
-export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
-  folio: {
-    key: "folio",
-    label: "Folio",
-    render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span>,
-  },
-  title: {
-    key: "title",
-    label: "Actividad",
-    render: (r) => (
-      <Link href={`/activities/${r.id}`} className="font-medium text-fg transition-colors hover:text-primary">
-        {r.title}
-      </Link>
-    ),
-  },
-  activityType: { key: "activityType", label: "Tipo", render: (r) => <span className="text-muted">{activityTypeMeta[r.activityType]?.label ?? r.activityType}</span> },
-  companyName: { key: "companyName", label: "Cliente", render: (r) => <span className="text-muted">{r.companyName ?? "—"}</span> },
-  assigneeName: { key: "assigneeName", label: "Responsable", render: (r) => <span className="text-muted">{r.assigneeName ?? "Sin asignar"}</span> },
-  priority: {
-    key: "priority",
-    label: "Prioridad",
-    render: (r) => <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>,
-  },
-  status: {
-    key: "status",
-    label: "Estado",
-    render: (r) => <Badge tone={activityStatusMeta[r.status]?.tone ?? "slate"}>{activityStatusMeta[r.status]?.label ?? r.status}</Badge>,
-  },
-  dueDate: {
-    key: "dueDate",
-    label: "Vence",
-    render: (r) => {
-      const overdue = r.dueDate && r.dueDate < new Date().toISOString().slice(0, 10) && r.status !== "completed" && r.status !== "cancelled";
-      return <span className={cx("tabular-nums", overdue ? "font-medium text-danger" : "text-muted")}>{r.dueDate ? fmtDate(r.dueDate) : "—"}</span>;
+/** Locale-aware — column header labels are static UI chrome (unrelated to the
+ * es/en meta toggle), only each column's `render` depends on locale-resolved
+ * status/type/priority labels. */
+export function buildColumnRegistry(locale: Locale): Record<string, ColumnDef> {
+  const { activityStatusMeta, activityTypeMeta, ticketPriorityMeta } = getLabels(locale);
+  return {
+    folio: {
+      key: "folio",
+      label: "Folio",
+      render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span>,
     },
-  },
-};
+    title: {
+      key: "title",
+      label: "Actividad",
+      render: (r) => (
+        <Link href={`/activities/${r.id}`} className="font-medium text-fg transition-colors hover:text-primary">
+          {r.title}
+        </Link>
+      ),
+    },
+    activityType: { key: "activityType", label: "Tipo", render: (r) => <span className="text-muted">{activityTypeMeta[r.activityType]?.label ?? r.activityType}</span> },
+    companyName: { key: "companyName", label: "Cliente", render: (r) => <span className="text-muted">{r.companyName ?? "—"}</span> },
+    assigneeName: { key: "assigneeName", label: "Responsable", render: (r) => <span className="text-muted">{r.assigneeName ?? "Sin asignar"}</span> },
+    priority: {
+      key: "priority",
+      label: "Prioridad",
+      render: (r) => <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>{ticketPriorityMeta[r.priority]?.label ?? r.priority}</Badge>,
+    },
+    status: {
+      key: "status",
+      label: "Estado",
+      render: (r) => <Badge tone={activityStatusMeta[r.status]?.tone ?? "slate"}>{activityStatusMeta[r.status]?.label ?? r.status}</Badge>,
+    },
+    dueDate: {
+      key: "dueDate",
+      label: "Vence",
+      render: (r) => {
+        const overdue = r.dueDate && r.dueDate < new Date().toISOString().slice(0, 10) && r.status !== "completed" && r.status !== "cancelled";
+        return <span className={cx("tabular-nums", overdue ? "font-medium text-danger" : "text-muted")}>{r.dueDate ? fmtDate(r.dueDate) : "—"}</span>;
+      },
+    },
+  };
+}
 
 export const DEFAULT_COLUMNS = ["folio", "title", "activityType", "companyName", "assigneeName", "priority", "status", "dueDate"];
-export const ACTIVITY_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: COLUMN_REGISTRY[key]?.label ?? key }));
+const STATIC_COLUMN_REGISTRY = buildColumnRegistry(DEFAULT_LOCALE);
+export const ACTIVITY_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: STATIC_COLUMN_REGISTRY[key]?.label ?? key }));
 export const ACTIVITY_KANBAN_GROUP_OPTIONS = [{ key: "status", label: "Estado" }];
 
 function EmptyActivities() {
@@ -97,17 +106,19 @@ export function TableView({
   onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
   density: "compact" | "comfortable" | "spacious";
 }) {
+  const locale = useLocale();
   const dataTableRegistry = useMemo(() => {
+    const registry = buildColumnRegistry(locale);
     const out: Record<string, DataTableColumn<ActivityRow>> = {};
-    for (const key of Object.keys(COLUMN_REGISTRY)) {
+    for (const key of Object.keys(registry)) {
       out[key] = {
-        label: COLUMN_REGISTRY[key].label,
-        render: COLUMN_REGISTRY[key].render,
+        label: registry[key].label,
+        render: registry[key].render,
         sortValue: (r) => r[key as keyof ActivityRow],
       };
     }
     return out;
-  }, []);
+  }, [locale]);
 
   return (
     <DataTable
@@ -126,6 +137,7 @@ export function TableView({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({ rows }: { rows: ActivityRow[] }) {
+  const { activityStatusMeta, ticketPriorityMeta } = getLabels(useLocale());
   if (rows.length === 0) return <EmptyActivities />;
   return (
     <Card className="overflow-hidden">

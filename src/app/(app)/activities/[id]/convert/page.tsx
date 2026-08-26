@@ -7,7 +7,8 @@ import { db } from "@/db";
 import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { Card, CardHeader, PageHeader, buttonGhostClass } from "@/components/ui";
-import { activityStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { getCatalogNames } from "@/lib/settings-data";
 import { ConvertForm } from "./convert-form";
 
@@ -39,6 +40,9 @@ export default async function ConvertActivityPage({
   }
   // Archived activities cannot be converted — send the user back to restore first.
   if (row.activity.archivedAt) redirect(`/activities/${activityId}`);
+
+  const locale = await getOrgLocale(user.organizationId);
+  const { activityStatusMeta } = getLabels(locale);
 
   const [companyRows, userRows, categoryOptions] = await Promise.all([
     db

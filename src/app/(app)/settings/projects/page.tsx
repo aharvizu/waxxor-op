@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { projectStatus } from "@/db/schema";
-import { projectHealthMeta, projectPriorityMeta, projectStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog, getSetting } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
@@ -16,6 +17,8 @@ const PRIORITY_OPTIONS = ["low", "normal", "high", "urgent"] as const;
 
 export default async function ProjectsSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
+  const locale = await getOrgLocale(user.organizationId);
+  const { projectHealthMeta, projectPriorityMeta, projectStatusMeta } = getLabels(locale);
   const [defaults, colors, templates] = await Promise.all([
     getSetting(user.organizationId, "projects.defaults"),
     getCatalog(user.organizationId, "project_color", { includeInactive: true }),

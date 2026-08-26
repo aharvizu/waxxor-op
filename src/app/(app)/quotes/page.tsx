@@ -17,12 +17,15 @@ import {
   buttonClass,
 } from "@/components/ui";
 import { fmtDate, fmtMoney } from "@/lib/format";
-import { quoteStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 
 export const metadata: Metadata = { title: "Quotes" };
 
 export default async function QuotesPage() {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { quoteStatusMeta } = getLabels(locale);
   const rows = await db
     .select({
       id: quotes.id,

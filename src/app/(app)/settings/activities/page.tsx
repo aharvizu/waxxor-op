@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { workItemPriority } from "@/db/schema";
-import { activityStatusMeta, ticketPriorityMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { CATALOG_KINDS } from "@/lib/settings";
 import { getCatalog } from "@/lib/settings-data";
 import { requireRole } from "@/lib/session";
@@ -22,6 +23,8 @@ const ACTIVITY_STATUSES = [
 
 export default async function ActivitiesSettingsPage() {
   const user = await requireRole("superadmin", "administrator");
+  const locale = await getOrgLocale(user.organizationId);
+  const { activityStatusMeta, ticketPriorityMeta } = getLabels(locale);
   const timeEntryTypes = await getCatalog(user.organizationId, "time_entry_type", { includeInactive: true });
   const canDelete = user.role === "superadmin";
 

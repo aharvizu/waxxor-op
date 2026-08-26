@@ -6,7 +6,8 @@ import { CalendarClock } from "lucide-react";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
 import { Badge, cx } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
-import { activityStatusMeta, ticketPriorityMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { ACTIVITY_STATUSES } from "@/lib/activities";
 import { ACTIVE_ACTIVITY_STATUSES } from "@/lib/today-rules";
 import { updateActivityWorkflow } from "./actions";
@@ -23,6 +24,7 @@ import type { ActivityRow } from "./activity-views";
  */
 export function ActivityKanban({ rows }: { rows: ActivityRow[] }) {
   const router = useRouter();
+  const { activityStatusMeta, ticketPriorityMeta } = getLabels(useLocale());
   const todayStr = new Date().toISOString().slice(0, 10);
   const columns: KanbanColumn<ActivityRow>[] = ACTIVITY_STATUSES.map((value) => ({
     key: value,

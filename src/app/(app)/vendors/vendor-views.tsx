@@ -3,7 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import { vendorStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 import { Avatar, Badge, Card, EmptyState, cx } from "@/components/ui";
 import { Truck } from "lucide-react";
 import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
@@ -26,7 +28,9 @@ export type VendorRow = {
 
 export type ColumnDef = { key: string; label: string; render: (r: VendorRow) => React.ReactNode };
 
-export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
+export function buildColumnRegistry(locale: Locale): Record<string, ColumnDef> {
+  const { vendorStatusMeta } = getLabels(locale);
+  return {
   name: {
     key: "name",
     label: "Proveedor",
@@ -67,11 +71,13 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef> = {
   },
   createdAt: { key: "createdAt", label: "Creado", render: (r) => <span className="tabular-nums text-muted">{fmtDate(r.createdAt)}</span> },
   updatedAt: { key: "updatedAt", label: "Actualizado", render: (r) => <span className="tabular-nums text-muted">{fmtDateTime(r.updatedAt)}</span> },
-};
+  };
+}
 
 export const DEFAULT_COLUMNS = ["name", "status", "category", "accountOwnerName", "activePurchases", "email", "phone"];
+const STATIC_COLUMN_REGISTRY = buildColumnRegistry(DEFAULT_LOCALE);
 /** Superset of DEFAULT_COLUMNS — extra columns show up unchecked in the picker until opted in. */
-export const VENDOR_COLUMN_OPTIONS = Object.keys(COLUMN_REGISTRY).map((key) => ({ key, label: COLUMN_REGISTRY[key].label }));
+export const VENDOR_COLUMN_OPTIONS = Object.keys(STATIC_COLUMN_REGISTRY).map((key) => ({ key, label: STATIC_COLUMN_REGISTRY[key].label }));
 
 function EmptyVendors() {
   return (
@@ -93,18 +99,20 @@ export function TableView({
   onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
   density: "compact" | "comfortable" | "spacious";
 }) {
+  const locale = useLocale();
   const dataTableRegistry = useMemo(() => {
+    const registry = buildColumnRegistry(locale);
     const out: Record<string, DataTableColumn<VendorRow>> = {};
-    for (const key of Object.keys(COLUMN_REGISTRY)) {
+    for (const key of Object.keys(registry)) {
       out[key] = {
-        label: COLUMN_REGISTRY[key].label,
-        render: COLUMN_REGISTRY[key].render,
+        label: registry[key].label,
+        render: registry[key].render,
         sortValue: (r) => r[key as keyof VendorRow],
         align: key === "activePurchases" ? "right" : undefined,
       };
     }
     return out;
-  }, []);
+  }, [locale]);
 
   return (
     <DataTable
@@ -123,6 +131,7 @@ export function TableView({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({ rows }: { rows: VendorRow[] }) {
+  const { vendorStatusMeta } = getLabels(useLocale());
   if (rows.length === 0) return <EmptyVendors />;
   return (
     <Card className="overflow-hidden">
@@ -149,6 +158,7 @@ export function ListView({ rows }: { rows: VendorRow[] }) {
 const KANBAN_STATUSES = ["active", "inactive", "archived"] as const;
 
 export function KanbanView({ rows }: { rows: VendorRow[] }) {
+  const { vendorStatusMeta } = getLabels(useLocale());
   if (rows.length === 0) return <EmptyVendors />;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

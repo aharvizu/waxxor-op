@@ -23,16 +23,8 @@ import {
   RISK_PROBABILITIES,
   RISK_STATUSES,
 } from "@/lib/projects";
-import {
-  activityTypeMeta,
-  milestoneStatusMeta,
-  projectHealthMeta,
-  projectListStatusMeta,
-  projectMemberRoleMeta,
-  projectPriorityMeta,
-  projectStatusMeta,
-  riskStatusMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import {
   addDependency,
   addProjectComment,
@@ -265,6 +257,7 @@ export function ProjectForm({
     },
   );
   const userOptions = internalUsers.map((u) => ({ value: String(u.id), label: u.name }));
+  const { projectPriorityMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-4">
       {project ? <input type="hidden" name="id" value={project.id} /> : null}
@@ -373,6 +366,7 @@ export function ProjectForm({
 
 export function StatusSelect({ projectId, current }: { projectId: number; current: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(setProjectStatus, null);
+  const { projectStatusMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={projectId} />
@@ -406,6 +400,7 @@ export function HealthSelect({
   suggested: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(setProjectHealth, null);
+  const { projectHealthMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={projectId} />
@@ -481,6 +476,7 @@ export function ListForm({
     list ? updateProjectList : createProjectList,
     list,
   );
+  const { projectListStatusMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="projectId" value={projectId} />
@@ -542,6 +538,7 @@ export function ProjectActivityForm({
   const { state, formAction, errors, value } = useForm(createProjectActivity, {
     listId: defaultListId,
   });
+  const { activityTypeMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="projectId" value={projectId} />
@@ -681,6 +678,7 @@ export function MemberForm({
   internalUsers: Option[];
 }) {
   const { state, formAction, errors, value } = useForm(addProjectMember);
+  const { projectMemberRoleMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="projectId" value={projectId} />
@@ -734,6 +732,7 @@ export function MilestoneForm({
     milestone ? updateMilestone : createMilestone,
     milestone,
   );
+  const { milestoneStatusMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="projectId" value={projectId} />
@@ -855,6 +854,7 @@ export function RiskForm({
   };
 }) {
   const { state, formAction, errors, value } = useForm(risk ? updateRisk : createRisk, risk);
+  const { riskStatusMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="projectId" value={projectId} />

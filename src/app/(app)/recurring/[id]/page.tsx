@@ -6,12 +6,8 @@ import { Archive, CheckCircle2, Clock, History, ListChecks, Repeat } from "lucid
 import { db } from "@/db";
 import { auditLogs, companies, projectLists, projects, users } from "@/db/schema";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import {
-  recurrenceExecutionSourceMeta,
-  recurrenceExecutionStatusMeta,
-  recurrenceStatusMeta,
-  recurrenceTargetTypeMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import {
   describeSchedule,
   getRecurrenceDetail,
@@ -86,6 +82,9 @@ export default async function RecurrenceDetailPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { recurrenceStatusMeta, recurrenceTargetTypeMeta, recurrenceExecutionStatusMeta, recurrenceExecutionSourceMeta } =
+    getLabels(locale);
   const { id } = await params;
   const { tab: rawTab } = await searchParams;
   const recurrenceId = Number(id);
@@ -172,7 +171,14 @@ export default async function RecurrenceDetailPage({
       {tab === "resumen" ? <ResumenTab detail={detail} isMgmt={isMgmt} canBackfill={canBackfill} /> : null}
       {tab === "configuracion" ? <ConfiguracionTab orgId={user.organizationId} def={def} isSuperAdmin={user.role === "superadmin"} /> : null}
       {tab === "proximas" ? <ProximasTab upcoming={upcoming} status={def.status} /> : null}
-      {tab === "historial" ? <HistorialTab orgId={user.organizationId} definitionId={def.id} /> : null}
+      {tab === "historial" ? (
+        <HistorialTab
+          orgId={user.organizationId}
+          definitionId={def.id}
+          recurrenceExecutionStatusMeta={recurrenceExecutionStatusMeta}
+          recurrenceExecutionSourceMeta={recurrenceExecutionSourceMeta}
+        />
+      ) : null}
       {tab === "auditoria" ? <AuditoriaTab orgId={user.organizationId} definitionId={def.id} canSeeTechnical={user.role === "superadmin" || user.role === "administrator"} /> : null}
     </div>
   );
@@ -422,7 +428,17 @@ function ProximasTab({
 
 /* ----------------------------------------------------------------- Historial */
 
-async function HistorialTab({ orgId, definitionId }: { orgId: number; definitionId: number }) {
+async function HistorialTab({
+  orgId,
+  definitionId,
+  recurrenceExecutionStatusMeta,
+  recurrenceExecutionSourceMeta,
+}: {
+  orgId: number;
+  definitionId: number;
+  recurrenceExecutionStatusMeta: ReturnType<typeof getLabels>["recurrenceExecutionStatusMeta"];
+  recurrenceExecutionSourceMeta: ReturnType<typeof getLabels>["recurrenceExecutionSourceMeta"];
+}) {
   const rows = await getRecurrenceExecutions(orgId, definitionId, { limit: 100 });
   if (rows.length === 0) {
     return (

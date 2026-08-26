@@ -16,7 +16,8 @@ import {
   workItems,
 } from "@/db/schema";
 import { ACTIVITY_STATUSES } from "@/lib/activities";
-import { activityStatusMeta, ticketPriorityMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import type { Locale } from "@/lib/i18n";
 
 /**
  * Generic AND/OR filter engine (Part 2, dynamic config 2026-07-20). Field
@@ -118,29 +119,32 @@ export const PROJECT_FIELDS: Record<string, FieldDefinition> = {
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: projects.updatedAt },
 };
 
-/** Activities field registry — shares the workItems columns with Tickets (same underlying work item). */
-export const ACTIVITY_FIELDS: Record<string, FieldDefinition> = {
-  status: {
-    key: "status",
-    label: "Estado",
-    type: "select",
-    column: workItems.status,
-    options: ACTIVITY_STATUSES.map((s) => ({ value: s, label: activityStatusMeta[s]?.label ?? s })),
-  },
-  priority: {
-    key: "priority",
-    label: "Prioridad",
-    type: "select",
-    column: workItems.priority,
-    options: Object.entries(ticketPriorityMeta).map(([value, m]) => ({ value, label: m.label })),
-  },
-  activityType: { key: "activityType", label: "Tipo", type: "select", column: activities.activityType },
-  companyId: { key: "companyId", label: "Cliente", type: "company", column: workItems.companyId },
-  assigneeId: { key: "assigneeId", label: "Responsable", type: "user", column: workItems.assigneeId },
-  dueDate: { key: "dueDate", label: "Vence", type: "date", column: workItems.dueDate },
-  createdAt: { key: "createdAt", label: "Creado", type: "date", column: workItems.createdAt },
-  updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
-};
+/** Activities field registry — shares the workItems columns with Tickets (same underlying work item). Locale-aware: status/priority option labels come from lib/labels.ts. */
+export function buildActivityFields(locale: Locale): Record<string, FieldDefinition> {
+  const { activityStatusMeta, ticketPriorityMeta } = getLabels(locale);
+  return {
+    status: {
+      key: "status",
+      label: "Estado",
+      type: "select",
+      column: workItems.status,
+      options: ACTIVITY_STATUSES.map((s) => ({ value: s, label: activityStatusMeta[s]?.label ?? s })),
+    },
+    priority: {
+      key: "priority",
+      label: "Prioridad",
+      type: "select",
+      column: workItems.priority,
+      options: Object.entries(ticketPriorityMeta).map(([value, m]) => ({ value, label: m.label })),
+    },
+    activityType: { key: "activityType", label: "Tipo", type: "select", column: activities.activityType },
+    companyId: { key: "companyId", label: "Cliente", type: "company", column: workItems.companyId },
+    assigneeId: { key: "assigneeId", label: "Responsable", type: "user", column: workItems.assigneeId },
+    dueDate: { key: "dueDate", label: "Vence", type: "date", column: workItems.dueDate },
+    createdAt: { key: "createdAt", label: "Creado", type: "date", column: workItems.createdAt },
+    updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
+  };
+}
 
 /** Recurring field registry — "configuración por entidad" over the same engine, no new machinery. */
 export const RECURRENCE_FIELDS: Record<string, FieldDefinition> = {

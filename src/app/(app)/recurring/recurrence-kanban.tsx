@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { KanbanBoard, type KanbanColumn } from "@/components/views/kanban-board";
 import { Badge } from "@/components/ui";
-import { recurrenceStatusMeta, recurrenceTargetTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import { RECURRENCE_STATUSES } from "@/lib/recurrence";
 import type { ActionState } from "@/lib/action-result";
 import { activateRecurrence, archiveRecurrence, finishRecurrence, pauseRecurrence, reactivateRecurrence } from "./actions";
@@ -30,6 +31,7 @@ function pickAction(from: string, to: string): MoveAction | null {
 }
 
 export function RecurrenceKanban({ rows }: { rows: RecurrenceRow[] }) {
+  const { recurrenceStatusMeta, recurrenceTargetTypeMeta } = getLabels(useLocale());
   const columns: KanbanColumn<RecurrenceRow & { id: number }>[] = RECURRENCE_STATUSES.map((value) => ({
     key: value,
     label: recurrenceStatusMeta[value]?.label ?? value,

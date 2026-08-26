@@ -6,7 +6,8 @@ import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { activityTypeMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import {
   computeNextRun,
   describeSchedule,
@@ -312,6 +313,7 @@ export function RecurrenceWizard({
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
+  const { activityTypeMeta } = getLabels(useLocale());
 
   const [targetType, setTargetType] = useState<TargetType>(
     (defaults?.targetType ?? (initialTargetType as TargetType) ?? "activity") as TargetType,

@@ -11,7 +11,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { VENDOR_CONTACT_TYPES, VENDOR_STATUSES } from "@/lib/vendors";
-import { contactTypeMeta, vendorStatusMeta } from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { useLocale } from "@/components/locale-provider";
 import {
   createVendorContact,
   deleteVendor,
@@ -191,6 +192,7 @@ export function VendorProfileForm({
 }) {
   const { state, formAction, errors, value } = useForm(updateVendorProfile, vendor);
   const userOptions = internalUsers.map((u) => ({ value: String(u.id), label: u.name }));
+  const { vendorStatusMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="id" value={vendor.id} />
@@ -293,6 +295,7 @@ export function VendorContactForm({
   onSuccess?: () => void;
 }) {
   const { state, formAction, errors, value } = useForm(contact ? updateVendorContact : createVendorContact, contact, onSuccess);
+  const { contactTypeMeta } = getLabels(useLocale());
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="vendorId" value={vendorId} />
@@ -356,6 +359,7 @@ export function AddVendorContactButton({ vendorId }: { vendorId: number }) {
 
 export function VendorContactsTable({ vendorId, contacts }: { vendorId: number; contacts: VendorContactDefaults[] }) {
   const [editingId, setEditingId] = useState<number | null>(null);
+  const { contactTypeMeta } = getLabels(useLocale());
   return (
     <Card className="overflow-visible">
       <Table>

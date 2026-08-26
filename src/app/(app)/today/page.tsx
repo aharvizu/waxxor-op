@@ -18,11 +18,8 @@ import {
 import { requireUser, type SessionUser } from "@/lib/session";
 import { Badge, Card, CardHeader, EmptyState, Skeleton, StatCard, buttonClass, buttonSecondaryClass, cx, type BadgeTone } from "@/components/ui";
 import { fmtDate, fmtDateTime } from "@/lib/format";
-import {
-  activityStatusMeta,
-  activityTypeMeta,
-  ticketPriorityMeta,
-} from "@/lib/labels";
+import { getLabels } from "@/lib/labels";
+import { getOrgLocale } from "@/lib/get-org-locale";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { toCatalogMap } from "@/lib/catalog-map";
 import {
@@ -125,6 +122,8 @@ export default async function TodayPage({
   searchParams: Promise<Search>;
 }) {
   const user = await requireUser();
+  const locale = await getOrgLocale(user.organizationId);
+  const { activityStatusMeta, activityTypeMeta, ticketPriorityMeta } = getLabels(locale);
   const params = await searchParams;
   const prefs = await getTodayPreferences(Number(user.id));
 
@@ -197,6 +196,8 @@ export default async function TodayPage({
             date={date}
             now={now}
             qs={qs}
+            activityStatusMeta={activityStatusMeta}
+            ticketPriorityMeta={ticketPriorityMeta}
           />
         </Suspense>
 
@@ -216,7 +217,14 @@ export default async function TodayPage({
 
       {params.peek ? (
         <Suspense fallback={null}>
-          <QuickView user={user} peek={params.peek} closeHref={qs({ peek: "" })} />
+          <QuickView
+            user={user}
+            peek={params.peek}
+            closeHref={qs({ peek: "" })}
+            activityStatusMeta={activityStatusMeta}
+            ticketPriorityMeta={ticketPriorityMeta}
+            activityTypeMeta={activityTypeMeta}
+          />
         </Suspense>
       ) : null}
     </div>
@@ -256,6 +264,8 @@ async function CoreSections({
   date,
   now,
   qs,
+  activityStatusMeta,
+  ticketPriorityMeta,
 }: {
   user: SessionUser;
   scope: TodayScope;
@@ -265,6 +275,8 @@ async function CoreSections({
   date: string;
   now: Date;
   qs: (o: Partial<Record<string, string>>) => string;
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
 }) {
   let items: TodayItem[];
   let unassigned: { tickets: number; activities: number };
@@ -506,11 +518,28 @@ async function CoreSections({
           {ordered.length === 0 ? (
             <EmptyStateNoWork qs={qs} />
           ) : view === "table" ? (
-            <CompactTable items={ordered} qs={qs} statuses={statusMap} priorities={priorityMap} />
+            <CompactTable
+              items={ordered}
+              qs={qs}
+              statuses={statusMap}
+              priorities={priorityMap}
+              activityStatusMeta={activityStatusMeta}
+              ticketPriorityMeta={ticketPriorityMeta}
+            />
           ) : view === "agenda" ? (
             <AgendaView items={ordered} date={date} qs={qs} users={userRows} statuses={statusRows} priorities={priorityRows} />
           ) : (
-            <GroupedList items={ordered} group={group} users={userRows} qs={qs} now={now} statuses={statusRows} priorities={priorityRows} />
+            <GroupedList
+              items={ordered}
+              group={group}
+              users={userRows}
+              qs={qs}
+              now={now}
+              statuses={statusRows}
+              priorities={priorityRows}
+              activityStatusMeta={activityStatusMeta}
+              ticketPriorityMeta={ticketPriorityMeta}
+            />
           )}
         </Card>
 
@@ -543,7 +572,7 @@ async function CoreSections({
                   <li key={`${i.kind}-${i.id}`} className="space-y-1 px-5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <ItemLink item={i} qs={qs} />
-                      <StatusBadge item={i} statuses={statusMap} fallbackTone="amber" />
+                      <StatusBadge item={i} statuses={statusMap} fallbackTone="amber" activityStatusMeta={activityStatusMeta} />
                     </div>
                     <div className="text-xs text-muted">
                       {i.companyName ? `${i.companyName} · ` : ""}
@@ -585,10 +614,12 @@ function StatusBadge({
   item,
   statuses,
   fallbackTone = "slate",
+  activityStatusMeta,
 }: {
   item: TodayItem;
   statuses: Map<number, TicketStatusOption>;
   fallbackTone?: BadgeTone;
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
 }) {
   if (item.kind === "ticket" && item.statusId !== null) {
     return <CatalogChip entry={statuses.get(item.statusId)} fallback={item.status} />;
@@ -597,7 +628,15 @@ function StatusBadge({
   return <Badge tone={meta?.tone ?? fallbackTone}>{meta?.label ?? item.status}</Badge>;
 }
 
-function PriorityBadge({ item, priorities }: { item: TodayItem; priorities: Map<number, TicketPriorityOption> }) {
+function PriorityBadge({
+  item,
+  priorities,
+  ticketPriorityMeta,
+}: {
+  item: TodayItem;
+  priorities: Map<number, TicketPriorityOption>;
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
+}) {
   if (item.kind === "ticket" && item.priorityId !== null) {
     return <CatalogChip entry={priorities.get(item.priorityId)} fallback={item.priority} />;
   }
@@ -605,14 +644,22 @@ function PriorityBadge({ item, priorities }: { item: TodayItem; priorities: Map<
   return <Badge tone={meta?.tone ?? "slate"}>{meta?.label ?? item.priority}</Badge>;
 }
 
-function statusLabelFor(item: TodayItem, statuses: Map<number, TicketStatusOption>): string {
+function statusLabelFor(
+  item: TodayItem,
+  statuses: Map<number, TicketStatusOption>,
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"],
+): string {
   if (item.kind === "ticket" && item.statusId !== null) {
     return statuses.get(item.statusId)?.name ?? item.status;
   }
   return activityStatusMeta[item.status]?.label ?? item.status;
 }
 
-function priorityLabelFor(item: TodayItem, priorities: Map<number, TicketPriorityOption>): string {
+function priorityLabelFor(
+  item: TodayItem,
+  priorities: Map<number, TicketPriorityOption>,
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"],
+): string {
   if (item.kind === "ticket" && item.priorityId !== null) {
     return priorities.get(item.priorityId)?.name ?? item.priority;
   }
@@ -729,19 +776,23 @@ function RowMeta({
   now,
   statuses,
   priorities,
+  activityStatusMeta,
+  ticketPriorityMeta,
 }: {
   item: TodayItem;
   now: Date;
   statuses: Map<number, TicketStatusOption>;
   priorities: Map<number, TicketPriorityOption>;
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
 }) {
   const overdue = isOverdue(item, now);
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted">
       {item.companyName ? <span className="hidden lg:inline">{item.companyName}</span> : null}
       <span>{item.assigneeName ?? "Sin responsable"}</span>
-      <StatusBadge item={item} statuses={statuses} />
-      <PriorityBadge item={item} priorities={priorities} />
+      <StatusBadge item={item} statuses={statuses} activityStatusMeta={activityStatusMeta} />
+      <PriorityBadge item={item} priorities={priorities} ticketPriorityMeta={ticketPriorityMeta} />
       {item.slaName ? <Badge tone={isSlaAtRisk(item, now) ? "amber" : "blue"}>SLA</Badge> : null}
       {item.unansweredInbound ? <Badge tone="amber">Msj</Badge> : null}
       <span className={cx("tabular-nums", overdue && "font-medium text-danger")}>
@@ -764,6 +815,8 @@ function GroupedList({
   now,
   statuses,
   priorities,
+  activityStatusMeta,
+  ticketPriorityMeta,
 }: {
   items: TodayItem[];
   group: string;
@@ -772,13 +825,15 @@ function GroupedList({
   now: Date;
   statuses: TicketStatusOption[];
   priorities: TicketPriorityOption[];
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
 }) {
   const statusMap = toCatalogMap(statuses);
   const priorityMap = toCatalogMap(priorities);
   const keyFor = (i: TodayItem): string => {
     switch (group) {
       case "priority":
-        return priorityLabelFor(i, priorityMap);
+        return priorityLabelFor(i, priorityMap, ticketPriorityMeta);
       case "type":
         return KIND_LABEL[i.kind];
       case "assignee":
@@ -786,7 +841,7 @@ function GroupedList({
       case "client":
         return i.companyName ?? "Sin cliente";
       case "status":
-        return statusLabelFor(i, statusMap);
+        return statusLabelFor(i, statusMap, activityStatusMeta);
       case "date":
         return i.dueDate ?? (i.resolutionTargetAt ? i.resolutionTargetAt.toISOString().slice(0, 10) : "Sin fecha");
       default:
@@ -812,7 +867,14 @@ function GroupedList({
               <li key={`${i.kind}-${i.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5">
                 <ItemLink item={i} qs={qs} />
                 <div className="flex flex-wrap items-center gap-2">
-                  <RowMeta item={i} now={now} statuses={statusMap} priorities={priorityMap} />
+                  <RowMeta
+                    item={i}
+                    now={now}
+                    statuses={statusMap}
+                    priorities={priorityMap}
+                    activityStatusMeta={activityStatusMeta}
+                    ticketPriorityMeta={ticketPriorityMeta}
+                  />
                   <InlineActions item={i} users={users} qs={qs} statuses={statuses} priorities={priorities} />
                 </div>
               </li>
@@ -883,11 +945,15 @@ function CompactTable({
   qs,
   statuses,
   priorities,
+  activityStatusMeta,
+  ticketPriorityMeta,
 }: {
   items: TodayItem[];
   qs: (o: Record<string, string>) => string;
   statuses: Map<number, TicketStatusOption>;
   priorities: Map<number, TicketPriorityOption>;
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
 }) {
   return (
     <div className="overflow-x-auto">
@@ -911,10 +977,10 @@ function CompactTable({
               <td className="px-4 py-2 text-muted">{i.companyName ?? "—"}</td>
               <td className="px-4 py-2 text-muted">{i.assigneeName ?? "—"}</td>
               <td className="px-4 py-2">
-                <StatusBadge item={i} statuses={statuses} />
+                <StatusBadge item={i} statuses={statuses} activityStatusMeta={activityStatusMeta} />
               </td>
               <td className="px-4 py-2 text-muted">
-                <PriorityBadge item={i} priorities={priorities} />
+                <PriorityBadge item={i} priorities={priorities} ticketPriorityMeta={ticketPriorityMeta} />
               </td>
               <td className="px-4 py-2 text-muted tabular-nums">
                 {i.dueDate ? fmtDate(i.dueDate) : i.resolutionTargetAt ? fmtDate(i.resolutionTargetAt) : "—"}
@@ -1146,10 +1212,16 @@ async function QuickView({
   user,
   peek,
   closeHref,
+  activityStatusMeta,
+  ticketPriorityMeta,
+  activityTypeMeta,
 }: {
   user: SessionUser;
   peek: string;
   closeHref: string;
+  activityStatusMeta: ReturnType<typeof getLabels>["activityStatusMeta"];
+  ticketPriorityMeta: ReturnType<typeof getLabels>["ticketPriorityMeta"];
+  activityTypeMeta: ReturnType<typeof getLabels>["activityTypeMeta"];
 }) {
   const match = /^(t|a):(\d+)$/.exec(peek);
   if (!match) return null;
@@ -1204,8 +1276,8 @@ async function QuickView({
           <dl className="space-y-2 text-sm">
             <QVRow label="Empresa" value={item.companyName ?? "—"} />
             <QVRow label="Responsable" value={item.assigneeName ?? "Sin responsable"} />
-            <QVRow label="Estado" value={statusLabelFor(item, statusMap)} />
-            <QVRow label="Prioridad" value={priorityLabelFor(item, priorityMap)} />
+            <QVRow label="Estado" value={statusLabelFor(item, statusMap, activityStatusMeta)} />
+            <QVRow label="Prioridad" value={priorityLabelFor(item, priorityMap, ticketPriorityMeta)} />
             <QVRow
               label="Fecha"
               value={item.dueDate ? fmtDate(item.dueDate) : item.resolutionTargetAt ? fmtDateTime(item.resolutionTargetAt) : "Sin fecha"}
