@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { companies, projects, users } from "@/db/schema";
 import { requireUser } from "@/lib/session";
 import { PageHeader, buttonClass } from "@/components/ui";
-import { projectAggregates } from "@/lib/project-data";
+import { getActivitiesForProjects, projectAggregates, type ProjectGroupActivity } from "@/lib/project-data";
 import {
   buildFieldRegistry,
   buildFilterSql,
@@ -20,7 +20,7 @@ import {
 } from "@/lib/filters";
 import { getLastViewId } from "@/lib/last-view";
 import { ensureInitialViews, getFavoriteIds, listViews, savedViewConfigSchema } from "@/lib/views";
-import { PROJECT_COLUMN_OPTIONS, PROJECT_KANBAN_GROUP_OPTIONS, type ProjectRow } from "./project-views";
+import { PROJECT_KANBAN_GROUP_OPTIONS, type ProjectRow } from "./project-views";
 import { ProjectsViewContent } from "./projects-view-content";
 
 export const metadata: Metadata = { title: "Projects" };
@@ -135,6 +135,11 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     };
   });
 
+  // Only the Table view renders projects grouped with their activities — no
+  // need to pay for this query on Kanban/List loads.
+  const activities: ProjectGroupActivity[] =
+    activeView.viewType === "table" ? await getActivitiesForProjects(user.organizationId, rows.map((r) => r.id)) : [];
+
   const canCreate = ["superadmin", "administrator", "director", "project_manager"].includes(user.role);
 
   const orgUsers = await db
@@ -165,12 +170,12 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         orgUsers={orgUsers}
         basePath={BASE_PATH}
         rows={rows}
+        activities={activities}
         fields={toPublicFields(fieldRegistry)}
         quickFilters={PROJECT_QUICK_FILTERS}
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
-        columnOptions={PROJECT_COLUMN_OPTIONS}
         kanbanGroupOptions={PROJECT_KANBAN_GROUP_OPTIONS}
       />
     </div>

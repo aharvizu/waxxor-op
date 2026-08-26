@@ -7,7 +7,9 @@ import { useViewConfig } from "@/components/views/use-view-config";
 import type { PublicFieldDefinition, FilterGroup } from "@/lib/filters";
 import type { SavedView } from "@/lib/views";
 import type { Role } from "@/lib/roles";
-import { KanbanView, ListView, TableView, type ProjectRow } from "./project-views";
+import type { ProjectGroupActivity } from "@/lib/project-data";
+import { KanbanView, ListView, type ProjectRow } from "./project-views";
+import { GroupedProjectsTable } from "./project-grouped-table";
 
 /**
  * Client-side owner of the Views Engine experience for Projects. Mirrors
@@ -22,12 +24,12 @@ export function ProjectsViewContent({
   orgUsers,
   basePath,
   rows,
+  activities,
   fields,
   quickFilters,
   activeQuick,
   activeFilters,
   activeSearch,
-  columnOptions,
   kanbanGroupOptions,
 }: {
   views: SavedView[];
@@ -37,12 +39,12 @@ export function ProjectsViewContent({
   orgUsers: { id: number; name: string }[];
   basePath: string;
   rows: ProjectRow[];
+  activities: ProjectGroupActivity[];
   fields: Record<string, PublicFieldDefinition>;
   quickFilters: { key: string; label: string }[];
   activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
-  columnOptions: { key: string; label: string }[];
   kanbanGroupOptions: { key: string; label: string }[];
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
@@ -84,18 +86,11 @@ export function ProjectsViewContent({
         retry={retry}
         discard={discard}
         saveAsNewPersonal={saveAsNewPersonal}
-        columnOptions={view.viewType === "table" ? columnOptions : []}
         groupByOptions={view.viewType === "kanban" ? kanbanGroupOptions : []}
       />
 
       {view.viewType === "table" ? (
-        <TableView
-          rows={rows}
-          columnConfig={config.columns}
-          onColumnConfigChange={(updater) => setConfig((prev) => ({ ...prev, columns: updater(prev.columns) }))}
-          basePath={basePath}
-          density={config.density}
-        />
+        <GroupedProjectsTable projects={rows} activities={activities} basePath={basePath} />
       ) : view.viewType === "kanban" ? (
         <KanbanView rows={rows} groupField={config.kanban.groupField === "healthStatus" ? "healthStatus" : "status"} />
       ) : (

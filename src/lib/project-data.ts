@@ -202,6 +202,56 @@ export async function getProjectWorkTree(orgId: number, projectId: number) {
   return { lists, activities: rows as ProjectTreeActivity[] };
 }
 
+export type ProjectGroupActivity = {
+  activityId: number;
+  workItemId: number;
+  projectId: number;
+  parentActivityId: number | null;
+  title: string;
+  status: string;
+  priority: string;
+  assigneeId: number | null;
+  assigneeName: string | null;
+  dueDate: string | null;
+  minutes: number;
+};
+
+/** Flat activity list (with per-row time) for every project in `projectIds`,
+ * used by the Projects Table view to render each project as a collapsible
+ * group with its activities nested underneath — the org-wide counterpart to
+ * getProjectWorkTree's single-project activities query. */
+export async function getActivitiesForProjects(orgId: number, projectIds: number[]): Promise<ProjectGroupActivity[]> {
+  if (projectIds.length === 0) return [];
+  const rows = await db
+    .select({
+      activityId: activities.id,
+      workItemId: workItems.id,
+      projectId: activities.projectId,
+      parentActivityId: activities.parentActivityId,
+      title: workItems.title,
+      status: workItems.status,
+      priority: workItems.priority,
+      assigneeId: workItems.assigneeId,
+      assigneeName: users.name,
+      dueDate: workItems.dueDate,
+      minutes: sql<number>`coalesce((select sum(te.duration_minutes)::int from ${timeEntries} te
+        where te.work_item_id = ${workItems.id} and te.voided_at is null), 0)`,
+    })
+    .from(activities)
+    .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+    .leftJoin(users, eq(workItems.assigneeId, users.id))
+    .where(
+      and(
+        eq(activities.organizationId, orgId),
+        inArray(activities.projectId, projectIds),
+        isNull(activities.convertedAt),
+        ne(workItems.status, "archived"),
+      ),
+    )
+    .orderBy(asc(workItems.dueDate), asc(workItems.id));
+  return rows as ProjectGroupActivity[];
+}
+
 /** Both directions of every dependency touching this project's activities. */
 export async function getProjectDependencies(orgId: number, projectId: number) {
   const projectItems = db

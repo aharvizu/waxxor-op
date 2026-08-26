@@ -1,16 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
-import { fmtDate } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
-import { formatMinutes } from "@/lib/time-entries";
-import { Badge, Card, EmptyState, Progress, cx } from "@/components/ui";
+import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { FolderKanban, Plus } from "lucide-react";
 import { FavoriteToggle } from "@/components/views/favorite-toggle";
-import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
 import { ProjectKanban } from "./project-kanban";
 
 export type ProjectRow = {
@@ -33,86 +28,12 @@ export type ProjectRow = {
   isFavorite: boolean;
 };
 
-export type ColumnDef = { key: string; label: string; render: (r: ProjectRow) => React.ReactNode };
-
-export function buildColumnRegistry(locale: Locale): Record<string, ColumnDef> {
-  const { projectHealthMeta, projectPriorityMeta, projectStatusMeta } = getLabels(locale);
-  return {
-  folio: { key: "folio", label: "Folio", render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span> },
-  name: {
-    key: "name",
-    label: "Proyecto",
-    render: (r) => (
-      <Link href={`/projects/${r.id}`} className="font-medium text-fg transition-colors hover:text-primary">
-        {r.name}
-      </Link>
-    ),
-  },
-  companyName: { key: "companyName", label: "Empresa", render: (r) => <span className="text-muted">{r.companyName ?? "Interno"}</span> },
-  managerName: { key: "managerName", label: "PM", render: (r) => <span className="text-muted">{r.managerName ?? "—"}</span> },
-  status: {
-    key: "status",
-    label: "Estado",
-    render: (r) => <Badge tone={projectStatusMeta[r.status]?.tone ?? "slate"}>{projectStatusMeta[r.status]?.label ?? r.status}</Badge>,
-  },
-  healthStatus: {
-    key: "healthStatus",
-    label: "Salud",
-    render: (r) => <Badge tone={projectHealthMeta[r.healthStatus]?.tone ?? "slate"}>{projectHealthMeta[r.healthStatus]?.label ?? r.healthStatus}</Badge>,
-  },
-  priority: {
-    key: "priority",
-    label: "Prioridad",
-    render: (r) => <Badge tone={projectPriorityMeta[r.priority]?.tone ?? "slate"}>{projectPriorityMeta[r.priority]?.label ?? r.priority}</Badge>,
-  },
-  percent: {
-    key: "percent",
-    label: "Avance",
-    render: (r) => (
-      <div className="flex items-center gap-2">
-        <Progress value={r.percent} className="w-16" />
-        <span className="text-xs text-muted tabular-nums">{r.percent}%</span>
-      </div>
-    ),
-  },
-  pendingOverdue: {
-    key: "pendingOverdue",
-    label: "Pend. / Venc.",
-    render: (r) => (
-      <span className="tabular-nums">
-        <span className="text-muted">{r.pending}</span>
-        {r.overdue > 0 ? <span className="ml-1 text-danger">/ {r.overdue}</span> : null}
-      </span>
-    ),
-  },
-  nextMilestone: { key: "nextMilestone", label: "Próximo hito", render: (r) => <span className="max-w-40 truncate text-xs text-muted">{r.nextMilestone ?? "—"}</span> },
-  targetDate: { key: "targetDate", label: "Objetivo", render: (r) => <span className="text-muted">{r.targetDate ? fmtDate(r.targetDate) : "—"}</span> },
-  loggedMinutes: { key: "loggedMinutes", label: "Tiempo", render: (r) => <span className="tabular-nums text-muted">{formatMinutes(r.loggedMinutes)}</span> },
-  };
-}
-
-export const DEFAULT_COLUMNS = [
-  "folio",
-  "name",
-  "companyName",
-  "managerName",
-  "status",
-  "healthStatus",
-  "priority",
-  "percent",
-  "pendingOverdue",
-  "nextMilestone",
-  "targetDate",
-  "loggedMinutes",
-];
-const STATIC_COLUMN_REGISTRY = buildColumnRegistry(DEFAULT_LOCALE);
-export const PROJECT_COLUMN_OPTIONS = DEFAULT_COLUMNS.map((key) => ({ key, label: STATIC_COLUMN_REGISTRY[key]?.label ?? key }));
 export const PROJECT_KANBAN_GROUP_OPTIONS = [
   { key: "status", label: "Estado" },
   { key: "healthStatus", label: "Salud" },
 ];
 
-function EmptyProjects() {
+export function EmptyProjects() {
   return (
     <EmptyState
       icon={<FolderKanban />}
@@ -125,52 +46,6 @@ function EmptyProjects() {
     >
       Nada coincide con esta vista o filtros.
     </EmptyState>
-  );
-}
-
-/* ------------------------------------------------------------------ table */
-
-/** TanStack Table (see components/views/data-table.tsx) — Projects never had click-to-sort before this; enabling it (incl. multi-column) is this migration's job, not a business-rule change. */
-export function TableView({
-  rows,
-  columnConfig,
-  onColumnConfigChange,
-  basePath,
-  density,
-}: {
-  rows: ProjectRow[];
-  columnConfig: DataTableColumnConfig[];
-  onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
-  basePath: string;
-  density: "compact" | "comfortable" | "spacious";
-}) {
-  const locale = useLocale();
-  const dataTableRegistry = useMemo(() => {
-    const registry = buildColumnRegistry(locale);
-    const out: Record<string, DataTableColumn<ProjectRow>> = {};
-    for (const key of Object.keys(registry)) {
-      out[key] = {
-        label: registry[key].label,
-        render: registry[key].render,
-        sortValue: key === "pendingOverdue" ? (r) => r.pending : (r) => r[key as keyof ProjectRow],
-        align: key === "pendingOverdue" || key === "loggedMinutes" ? "right" : undefined,
-      };
-    }
-    return out;
-  }, [locale]);
-
-  return (
-    <DataTable
-      rows={rows}
-      registry={dataTableRegistry}
-      defaultColumnKeys={DEFAULT_COLUMNS}
-      columnConfig={columnConfig}
-      onColumnConfigChange={onColumnConfigChange}
-      density={density}
-      enableRowSelection
-      emptyState={<EmptyProjects />}
-      leadingColumn={(r) => <FavoriteToggle module="projects" entityId={r.id} isFavorite={r.isFavorite} basePath={basePath} />}
-    />
   );
 }
 
