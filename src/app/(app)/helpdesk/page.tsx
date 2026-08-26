@@ -23,7 +23,7 @@ import { ensureInitialViews, listViews, savedViewConfigSchema } from "@/lib/view
 import { getOrgLocale } from "@/lib/get-org-locale";
 import { t } from "@/lib/i18n";
 import { NewTicketButton } from "./new/new-ticket-form";
-import { buildTicketColumnOptions, buildTicketKanbanGroupOptions, type TicketRow } from "./ticket-views";
+import { buildTicketColumnOptions, buildTicketKanbanGroupOptions, type TicketRow } from "./ticket-columns";
 import { TicketsViewContent } from "./tickets-view-content";
 
 export const metadata: Metadata = { title: "Helpdesk" };
