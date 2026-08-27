@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Watson",
-    template: "%s · Watson",
+    default: "Waxxor",
+    template: "%s · Waxxor",
   },
   description: "Watson — Operations OS for technology service companies",
   // capable: true is what makes "Add to Home Screen" launch standalone
