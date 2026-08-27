@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Paperclip, Pencil, Pin, Star, Trash2 } from "lucide-react";
 import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -27,6 +28,24 @@ import {
 } from "./actions";
 
 export type Option = { id: number; name: string };
+
+/**
+ * Inbox is a master-detail view: the conversation shown lives in a query
+ * param (?c=…) alongside whatever list filters are active (?view=, ?status=,
+ * ?channel=, …), so the URL these quick-action forms need revalidated is
+ * never fixed — actions.ts's revalidatePath("/inbox?c=" + id) call only
+ * matches when no other filter param is present. In prod, where the client
+ * Router Cache actually holds stale segments (dev effectively skips it),
+ * that mismatch means the button looked like it did nothing. router.refresh()
+ * always re-fetches the *current* URL regardless of its query string, so
+ * every quick-action form here calls it once its action settles.
+ */
+function useRefreshOnSuccess(state: ActionState) {
+  const router = useRouter();
+  useEffect(() => {
+    if (state?.ok) router.refresh();
+  }, [state, router]);
+}
 
 const CHANNEL_OPTIONS = [
   { value: "internal", label: "Interno" },
@@ -222,6 +241,7 @@ function ActionIconForm({
   children: React.ReactNode;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  useRefreshOnSuccess(state);
   return (
     <form action={formAction} className="inline-flex">
       <input type="hidden" name="conversationId" value={conversationId} />
@@ -291,6 +311,7 @@ function ReadStateForm({
   label: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  useRefreshOnSuccess(state);
   return (
     <form action={formAction} className="inline-flex">
       <input type="hidden" name="conversationId" value={conversationId} />
@@ -313,6 +334,7 @@ export function StatusSelectForm({
   status: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(setConversationStatus, null);
+  useRefreshOnSuccess(state);
   const formRef = useRef<HTMLFormElement>(null);
   return (
     <form ref={formRef} action={formAction} className="inline-flex items-center gap-1.5">
@@ -336,7 +358,8 @@ export function StatusSelectForm({
 
 /** Marks the conversation read once when the chat is opened. */
 export function AutoMarkRead({ conversationId, hasUnread }: { conversationId: number; hasUnread: boolean }) {
-  const [, formAction] = useActionState<ActionState, FormData>(markConversationRead, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(markConversationRead, null);
+  useRefreshOnSuccess(state);
   const fired = useRef(false);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
