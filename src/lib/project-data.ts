@@ -5,6 +5,8 @@ import {
   attachments,
   auditLogs,
   companies,
+  conversations,
+  messages,
   milestoneActivities,
   projectComments,
   projectLists,
@@ -200,6 +202,44 @@ export async function getProjectWorkTree(orgId: number, projectId: number) {
       .orderBy(asc(workItems.dueDate), asc(workItems.id)),
   ]);
   return { lists, activities: rows as ProjectTreeActivity[] };
+}
+
+export type ProjectActivityMessage = {
+  workItemId: number;
+  body: string;
+  authorName: string | null;
+  occurredAt: Date;
+};
+
+/** Client-visible conversation messages for every activity in a project, in
+ * chronological order — feeds the printable project report's evidence
+ * section. Activities don't have a separate "comments" concept; they share
+ * tickets' conversations/messages system (see activities/[id]/page.tsx's
+ * Conversación tab for the single-activity version of this query). Excludes
+ * internal notes and soft-deleted messages since the report can go to the
+ * client for sign-off. */
+export async function getProjectActivityMessages(orgId: number, projectId: number): Promise<ProjectActivityMessage[]> {
+  const rows = await db
+    .select({
+      workItemId: conversations.workItemId,
+      body: messages.body,
+      authorName: users.name,
+      occurredAt: messages.occurredAt,
+    })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .innerJoin(activities, eq(activities.workItemId, conversations.workItemId))
+    .leftJoin(users, eq(messages.authorUserId, users.id))
+    .where(
+      and(
+        eq(messages.organizationId, orgId),
+        eq(activities.projectId, projectId),
+        ne(messages.direction, "internal"),
+        isNull(messages.deletedAt),
+      ),
+    )
+    .orderBy(asc(messages.occurredAt));
+  return rows as ProjectActivityMessage[];
 }
 
 export type ProjectGroupActivity = {

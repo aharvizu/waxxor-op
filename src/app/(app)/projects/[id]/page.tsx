@@ -196,9 +196,14 @@ export default async function ProjectDetailPage({
           </>
         }
         action={
-          <Link href="/projects" className={buttonSecondaryClass}>
-            Volver
-          </Link>
+          <span className="flex gap-2">
+            <Link href={`/projects/${projectId}/print`} target="_blank" className={buttonSecondaryClass}>
+              <FileText className="size-4" /> Reporte PDF
+            </Link>
+            <Link href="/projects" className={buttonSecondaryClass}>
+              Volver
+            </Link>
+          </span>
         }
       />
 
