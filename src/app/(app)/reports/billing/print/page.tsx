@@ -8,7 +8,6 @@ import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/li
 import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
 import { formatMinutes } from "@/lib/time-entries";
-import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
 import { getOrgLocale } from "@/lib/get-org-locale";
 import { t, type Locale } from "@/lib/i18n";
 import { PrintButton } from "@/components/print-button";
@@ -70,12 +69,6 @@ export default async function BillingSupportPrintPage({
   // otherwise fall back to the org's general profile logo (Settings → General)
   // so a logo already uploaded there doesn't need to be duplicated here.
   const logo = branding.logo ?? profile.logo;
-  const invoiceStatuses = await getBillingInvoiceStatuses(
-    user.organizationId,
-    period.start,
-    period.end,
-    clients.map((c) => c.companyId).filter((id) => id !== null),
-  );
 
   const orgName = org?.name ?? "Waxxor";
   const periodLabel = `${PERIOD_LABELS[periodRule] ?? periodRule} (${period.start} – ${period.end})`;
@@ -106,13 +99,13 @@ export default async function BillingSupportPrintPage({
                 <div className="text-sm text-slate-700">
                   <p>{t("Cliente", "Client", locale)}: <strong>{client.companyName}</strong></p>
                   <p>{t("Periodo", "Period", locale)}: <strong>{periodLabel}</strong></p>
-                  {client.companyId && invoiceStatuses.get(client.companyId)?.invoicedAt ? (
-                    <p>{t("Factura", "Invoice", locale)}: <strong>{invoiceStatuses.get(client.companyId)?.invoiceNumber}</strong></p>
+                  {client.invoiceStatus?.invoicedAt ? (
+                    <p>{t("Factura", "Invoice", locale)}: <strong>{client.invoiceStatus.invoiceNumber}</strong></p>
                   ) : null}
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-slate-500 uppercase">{t("Total a cobrar", "Total to bill", locale)}</p>
-                  <p className="text-2xl font-bold tabular-nums">{fmtMoney(client.totalCost)}</p>
+                  <p className="text-2xl font-bold tabular-nums">{fmtMoney(client.invoicedCost)}</p>
                 </div>
               </div>
             </header>
@@ -130,17 +123,7 @@ export default async function BillingSupportPrintPage({
                 </tr>
               </thead>
               <tbody>
-                {client.tickets.map((t) => (
-                  <tr key={t.ticketId} className="border-b border-slate-200 align-top">
-                    <td className="py-2 pr-2 font-mono text-xs">{t.folio}</td>
-                    <td className="py-2 pr-2 tabular-nums">{fmtDate(t.date)}</td>
-                    <td className="py-2 pr-2">{t.title}</td>
-                    <td className="py-2 pr-2">{t.technicianName}</td>
-                    <td className="py-2 pr-2">{MODALITY_LABELS[t.modality] ?? t.modality}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{formatMinutes(t.minutes)}</td>
-                    <td className="py-2 text-right tabular-nums">{fmtMoney(t.cost)}</td>
-                  </tr>
-                ))}
+                <TicketRows tickets={client.invoicedTickets} modalityLabels={MODALITY_LABELS} />
               </tbody>
             </table>
 
@@ -149,7 +132,7 @@ export default async function BillingSupportPrintPage({
                 {t("Detalle del servicio", "Service detail", locale)}
               </h2>
               <ul className="space-y-1.5 text-xs leading-relaxed text-slate-700">
-                {client.tickets.map((ticket) => (
+                {client.invoicedTickets.map((ticket) => (
                   <li key={ticket.ticketId}>
                     <span className="font-mono font-medium">{ticket.folio}</span> —{" "}
                     {ticket.comment?.trim() || t("Sin descripción registrada.", "No description recorded.", locale)}
@@ -160,9 +143,9 @@ export default async function BillingSupportPrintPage({
 
             <div className="mt-8 flex items-center justify-between border-t border-slate-300 pt-3 text-sm text-slate-700">
               <span>
-                {client.tickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(client.totalMinutes)}
+                {client.invoicedTickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(client.invoicedMinutes)}
               </span>
-              <span className="font-semibold">{fmtMoney(client.totalCost)}</span>
+              <span className="font-semibold">{fmtMoney(client.invoicedCost)}</span>
             </div>
 
             <div className="mt-16 grid grid-cols-2 gap-12 text-center text-xs text-slate-600">
@@ -175,6 +158,44 @@ export default async function BillingSupportPrintPage({
                 </div>
               </div>
             </div>
+
+            {client.pendingTickets.length > 0 ? (
+              <div className="mt-10 border-t-2 border-dashed border-amber-500 pt-6" style={{ pageBreakBefore: "always" }}>
+                <p className="text-xs font-semibold tracking-[0.2em] text-amber-600 uppercase">
+                  {t(
+                    "Actividad nueva — no incluida en la factura anterior",
+                    "New activity — not included in the prior invoice",
+                    locale,
+                  )}
+                </p>
+                <h2 className="mt-1 text-lg font-bold">{client.companyName}</h2>
+                <p className="text-xs text-slate-500">{periodLabel}</p>
+
+                <table className="mt-4 w-full border-collapse text-sm">
+                  <thead style={{ display: "table-header-group" }}>
+                    <tr className="border-b-2 border-slate-900 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <th className="py-2 pr-2">{t("Ticket", "Ticket", locale)}</th>
+                      <th className="py-2 pr-2">{t("Fecha", "Date", locale)}</th>
+                      <th className="py-2 pr-2">{t("Servicio", "Service", locale)}</th>
+                      <th className="py-2 pr-2">{t("Técnico", "Technician", locale)}</th>
+                      <th className="py-2 pr-2">{t("Tipo", "Type", locale)}</th>
+                      <th className="py-2 pr-2 text-right">{t("Horas", "Hours", locale)}</th>
+                      <th className="py-2 text-right">{t("Costo", "Cost", locale)}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <TicketRows tickets={client.pendingTickets} modalityLabels={MODALITY_LABELS} />
+                  </tbody>
+                </table>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-300 pt-3 text-sm text-slate-700">
+                  <span>
+                    {client.pendingTickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(client.pendingMinutes)}
+                  </span>
+                  <span className="font-semibold">{fmtMoney(client.pendingCost)}</span>
+                </div>
+              </div>
+            ) : null}
           </section>
         ))
       )}
@@ -191,5 +212,25 @@ export default async function BillingSupportPrintPage({
         </footer>
       ) : null}
     </div>
+  );
+}
+
+type BillingTicketRow = Awaited<ReturnType<typeof billingSupportData>>["clients"][number]["tickets"][number];
+
+function TicketRows({ tickets, modalityLabels }: { tickets: BillingTicketRow[]; modalityLabels: Record<string, string> }) {
+  return (
+    <>
+      {tickets.map((row) => (
+        <tr key={row.ticketId} className="border-b border-slate-200 align-top">
+          <td className="py-2 pr-2 font-mono text-xs">{row.folio}</td>
+          <td className="py-2 pr-2 tabular-nums">{fmtDate(row.date)}</td>
+          <td className="py-2 pr-2">{row.title}</td>
+          <td className="py-2 pr-2">{row.technicianName}</td>
+          <td className="py-2 pr-2">{modalityLabels[row.modality] ?? row.modality}</td>
+          <td className="py-2 pr-2 text-right tabular-nums">{formatMinutes(row.minutes)}</td>
+          <td className="py-2 text-right tabular-nums">{fmtMoney(row.cost)}</td>
+        </tr>
+      ))}
+    </>
   );
 }

@@ -6,7 +6,6 @@ import { billingSupportData } from "@/lib/report-metrics";
 import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import { formatMinutes } from "@/lib/time-entries";
-import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
 import { getOrgLocale } from "@/lib/get-org-locale";
 import { t, type Locale } from "@/lib/i18n";
 import { Card, CardHeader, EmptyState, PageHeader, THead, Table, TBody, Td, Th, buttonClass, buttonSecondaryClass, cx } from "@/components/ui";
@@ -50,12 +49,6 @@ export default async function BillingSupportPage({
 
   const { clients, totals } = await billingSupportData(user.organizationId, period, {});
   const canManageInvoices = user.role === "superadmin" || user.role === "administrator";
-  const invoiceStatuses = await getBillingInvoiceStatuses(
-    user.organizationId,
-    period.start,
-    period.end,
-    clients.map((c) => c.companyId).filter((id) => id !== null),
-  );
 
   return (
     <div>
@@ -123,19 +116,30 @@ export default async function BillingSupportPage({
                 {clients.map((c) => (
                   <tr key={c.companyId ?? "none"}>
                     <Td className="font-medium text-fg">{c.companyName}</Td>
-                    <Td className="tabular-nums text-muted">{c.tickets.length}</Td>
-                    <Td className="tabular-nums text-muted">{formatMinutes(c.totalMinutes)}</Td>
-                    <Td className="tabular-nums text-muted">{fmtMoney(c.totalCost)}</Td>
+                    <Td className="tabular-nums text-muted">{c.billableTicketCount}</Td>
+                    <Td className="tabular-nums text-muted">{formatMinutes(c.billableMinutes)}</Td>
+                    <Td className="tabular-nums text-muted">{fmtMoney(c.billableCost)}</Td>
                     <Td>
                       {c.companyId ? (
-                        <InvoiceStatusCell
-                          companyId={c.companyId}
-                          companyName={c.companyName}
-                          periodStart={period.start}
-                          periodEnd={period.end}
-                          status={invoiceStatuses.get(c.companyId)}
-                          canManage={canManageInvoices}
-                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <InvoiceStatusCell
+                            companyId={c.companyId}
+                            companyName={c.companyName}
+                            periodStart={period.start}
+                            periodEnd={period.end}
+                            status={c.invoiceStatus}
+                            canManage={canManageInvoices}
+                          />
+                          {c.invoiceStatus?.invoicedAt && c.pendingTickets.length > 0 ? (
+                            <span className="text-xs text-amber-700 dark:text-amber-400">
+                              {t(
+                                `+${c.pendingTickets.length} nuevo(s) sin facturar`,
+                                `+${c.pendingTickets.length} new, not yet invoiced`,
+                                locale,
+                              )}
+                            </span>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-muted">—</span>
                       )}
