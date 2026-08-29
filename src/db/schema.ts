@@ -773,6 +773,13 @@ export const ticketBillingStatuses = pgTable(
  * billingStatus — marking a statement "Facturado" never touches the tickets
  * it summarizes, same separation as Fecha agendada vs. SLA on tickets.
  */
+/**
+ * A billing "cut" (corte) for one client — an arbitrary set of tickets
+ * (billing_invoice_tickets), not a calendar period. A client can have many
+ * invoices per month (weekly cuts are the norm); which tickets belong to
+ * which invoice is the join table, not a date range, since date ranges
+ * can't tell two invoices in the same month apart.
+ */
 export const billingInvoices = pgTable(
   "billing_invoices",
   {
@@ -783,17 +790,45 @@ export const billingInvoices = pgTable(
     companyId: integer("company_id")
       .notNull()
       .references(() => companies.id),
-    periodStart: date("period_start").notNull(),
-    periodEnd: date("period_end").notNull(),
-    invoiceNumber: text("invoice_number"),
-    invoicedAt: timestamp("invoiced_at"),
-    invoicedById: integer("invoiced_by_id").references(() => users.id),
+    // Always set at creation — unlike the old period-keyed row, there's no
+    // "not yet invoiced" state at the invoice level anymore: a row only
+    // exists once a cut is actually made. Pending tickets simply have no row.
+    invoiceNumber: text("invoice_number").notNull(),
+    invoicedAt: timestamp("invoiced_at").notNull().defaultNow(),
+    invoicedById: integer("invoiced_by_id")
+      .notNull()
+      .references(() => users.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("billing_invoices_unique_idx").on(table.organizationId, table.companyId, table.periodStart, table.periodEnd),
     index("billing_invoices_org_idx").on(table.organizationId),
+    index("billing_invoices_company_idx").on(table.companyId),
+  ],
+);
+
+/** Which tickets a billing_invoices row covers — a ticket belongs to at
+ * most one invoice ever (unique on ticketId), enforced here rather than on
+ * `tickets` itself: invoicing is a Cobros y facturación report concern, not
+ * a ticket field. */
+export const billingInvoiceTickets = pgTable(
+  "billing_invoice_tickets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => billingInvoices.id, { onDelete: "cascade" }),
+    ticketId: integer("ticket_id")
+      .notNull()
+      .references(() => tickets.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("billing_invoice_tickets_ticket_idx").on(table.ticketId),
+    index("billing_invoice_tickets_invoice_idx").on(table.invoiceId),
   ],
 );
 

@@ -253,6 +253,13 @@
       "when": 1787683641784,
       "tag": "0035_even_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787970315283,
+      "tag": "0036_regular_domino",
+      "breakpoints": true
     }
   ]
 }

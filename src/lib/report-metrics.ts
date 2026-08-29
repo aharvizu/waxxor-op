@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { zonedTimeToUtc, type LocalDate } from "@/lib/recurrence";
 import { ORG_TIMEZONE, resolveMonthOffset } from "@/lib/reports";
-import { getBillingInvoiceStatuses } from "@/lib/billing-invoices";
+import { getTicketInvoiceMap } from "@/lib/billing-invoices";
 
 /**
  * THE central metrics layer: one place computes every number that Reports
@@ -883,18 +883,17 @@ export async function ticketDataQuality(orgId: number, period: Period, scope: Me
  * menos un ticket cobrable"). Sorted alphabetically (a statement, not a
  * ranking); tickets within a client sorted chronologically.
  *
- * Once a client is marked "Facturado" for this period (billing_invoices),
- * a ticket created afterward — same calendar period, e.g. still this month —
- * must NOT silently inflate the already-sent statement (real incident: a
- * new ticket kept appearing merged into an invoiced client's report). Each
- * client's tickets are split at `invoicedAt`: `invoicedTickets`/`invoicedCost`
- * is the frozen set that matches what was actually invoiced (unchanged,
- * safe to keep re-printing), `pendingTickets`/`pendingCost` is anything
- * newer — kept visibly separate for a future invoice, never merged into the
- * frozen numbers. `totals` and each client's `billableCost`/`billableMinutes`/
- * `billableTicketCount` are the "Total a cobrar" headline: pending-only once
- * invoiced (already-billed money isn't "to bill" anymore), the full period
- * total otherwise.
+ * Invoicing is per-ticket (billing_invoice_tickets), not per calendar
+ * period: a client can have several invoices in the same month (weekly
+ * cuts are the norm), each covering whichever tickets were selected when it
+ * was made. Each client's tickets carry their own `invoice` (null = not yet
+ * on any invoice) and are also pre-grouped into `invoiceGroups` (one per
+ * invoice actually present, each with its own frozen subtotal — never
+ * recomputed, safe to keep re-printing) plus `pendingTickets` for whatever
+ * hasn't been cut yet. `totals` and each client's `billableCost`/
+ * `billableMinutes`/`billableTicketCount` are the "Total a cobrar"
+ * headline: pending tickets only, since already-invoiced money isn't "to
+ * bill" anymore.
  */
 export async function billingSupportData(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
@@ -912,7 +911,6 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
       ticketId: tickets.id,
       folio: tickets.folio,
       date: sql<string>`${workItems.createdAt}::date::text`,
-      createdAt: workItems.createdAt,
       title: workItems.title,
       technicianName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
       modality: sql<string>`${tickets.billingModality}::text`,
@@ -930,6 +928,8 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
     .where(base)
     .orderBy(companies.name, workItems.createdAt);
 
+  const invoiceByTicket = await getTicketInvoiceMap(orgId, rows.map((r) => r.ticketId));
+
   const byCompany = new Map<
     number | null,
     { companyId: number | null; companyName: string; tickets: typeof rows; totalMinutes: number; totalCost: number }
@@ -946,46 +946,45 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
   }
 
   const grouped = [...byCompany.values()]
-    .map((g) => ({ ...g, tickets: g.tickets.map((t) => ({ ...t, cost: Number(t.cost) })) }))
+    .map((g) => ({
+      ...g,
+      tickets: g.tickets.map((t) => ({ ...t, cost: Number(t.cost), invoice: invoiceByTicket.get(t.ticketId) ?? null })),
+    }))
     .sort((a, b) => a.companyName.localeCompare(b.companyName, "es"));
 
-  const invoiceStatuses = await getBillingInvoiceStatuses(
-    orgId,
-    period.start,
-    period.end,
-    grouped.map((g) => g.companyId).filter((id): id is number => id !== null),
-  );
-
   const clients = grouped.map((g) => {
-    const invoiceStatus = g.companyId !== null ? invoiceStatuses.get(g.companyId) : undefined;
-    const invoicedAt = invoiceStatus?.invoicedAt ?? null;
-    const invoicedTickets = invoicedAt === null ? g.tickets : g.tickets.filter((t) => t.createdAt <= invoicedAt);
-    const pendingTickets = invoicedAt === null ? [] : g.tickets.filter((t) => t.createdAt > invoicedAt);
-    const sum = (list: typeof g.tickets) => ({
-      minutes: list.reduce((acc, t) => acc + t.minutes, 0),
-      cost: list.reduce((acc, t) => acc + t.cost, 0),
-    });
-    const invoicedSum = sum(invoicedTickets);
-    const pendingSum = sum(pendingTickets);
+    const pendingTickets = g.tickets.filter((t) => t.invoice === null);
+    const pendingMinutes = pendingTickets.reduce((acc, t) => acc + t.minutes, 0);
+    const pendingCost = pendingTickets.reduce((acc, t) => acc + t.cost, 0);
+
+    const invoiceGroupsMap = new Map<
+      number,
+      { invoiceId: number; invoiceNumber: string; invoicedAt: Date; invoicedByName: string | null; tickets: typeof g.tickets; minutes: number; cost: number }
+    >();
+    for (const t of g.tickets) {
+      if (t.invoice === null) continue;
+      let group = invoiceGroupsMap.get(t.invoice.invoiceId);
+      if (!group) {
+        group = { ...t.invoice, tickets: [], minutes: 0, cost: 0 };
+        invoiceGroupsMap.set(t.invoice.invoiceId, group);
+      }
+      group.tickets.push(t);
+      group.minutes += t.minutes;
+      group.cost += t.cost;
+    }
+    const invoiceGroups = [...invoiceGroupsMap.values()].sort((a, b) => a.invoicedAt.getTime() - b.invoicedAt.getTime());
+
     return {
       ...g,
-      // totalMinutes/totalCost/tickets keep their original meaning — every
-      // ticket in the period, invoiced or not (unchanged from before this
-      // split; still what the printable statement's frozen section wants).
-      invoiceStatus,
-      invoicedTickets,
+      invoiceGroups,
       pendingTickets,
-      invoicedMinutes: invoicedSum.minutes,
-      invoicedCost: invoicedSum.cost,
-      pendingMinutes: pendingSum.minutes,
-      pendingCost: pendingSum.cost,
-      // What's still actionable to bill — pending-only once invoiced (the
-      // already-invoiced amount is settled, not "to bill" anymore), the full
-      // period total otherwise. Only the overview page's headline numbers
-      // use these; the print statement uses invoiced*/pending* directly.
-      billableMinutes: invoicedAt === null ? g.totalMinutes : pendingSum.minutes,
-      billableCost: invoicedAt === null ? g.totalCost : pendingSum.cost,
-      billableTicketCount: invoicedAt === null ? g.tickets.length : pendingTickets.length,
+      pendingMinutes,
+      pendingCost,
+      // What's still actionable to bill — always the pending-only amount,
+      // since already-invoiced money isn't "to bill" anymore.
+      billableMinutes: pendingMinutes,
+      billableCost: pendingCost,
+      billableTicketCount: pendingTickets.length,
     };
   });
 
@@ -1000,6 +999,10 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
 
   return { clients, totals };
 }
+
+export type BillingClient = Awaited<ReturnType<typeof billingSupportData>>["clients"][number];
+export type BillingTicket = BillingClient["tickets"][number];
+export type BillingInvoiceGroup = BillingClient["invoiceGroups"][number];
 
 /* ---------------------------------------------------------------- full snapshot */
 

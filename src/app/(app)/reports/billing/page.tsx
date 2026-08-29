@@ -5,12 +5,11 @@ import { fmtMoney } from "@/lib/format";
 import { billingSupportData } from "@/lib/report-metrics";
 import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
-import { formatMinutes } from "@/lib/time-entries";
 import { getOrgLocale } from "@/lib/get-org-locale";
 import { t, type Locale } from "@/lib/i18n";
-import { Card, CardHeader, EmptyState, PageHeader, THead, Table, TBody, Td, Th, buttonClass, buttonSecondaryClass, cx } from "@/components/ui";
+import { Card, CardHeader, EmptyState, PageHeader, THead, Table, TBody, Th, buttonClass, buttonSecondaryClass } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
-import { InvoiceStatusCell } from "./billing-forms";
+import { ClientBillingRow } from "./billing-forms";
 
 export const metadata: Metadata = { title: "Cobros y facturación" };
 
@@ -105,55 +104,16 @@ export default async function BillingSupportPage({
               <THead>
                 <tr>
                   <Th>{t("Cliente", "Client", locale)}</Th>
-                  <Th>{t("Tickets", "Tickets", locale)}</Th>
+                  <Th>{t("Pendientes", "Pending", locale)}</Th>
                   <Th>{t("Horas", "Hours", locale)}</Th>
-                  <Th>{t("Total", "Total", locale)}</Th>
-                  <Th>{t("Factura", "Invoice", locale)}</Th>
+                  <Th>{t("Total pendiente", "Pending total", locale)}</Th>
+                  <Th>{t("Facturas", "Invoices", locale)}</Th>
                   <Th />
                 </tr>
               </THead>
               <TBody striped>
                 {clients.map((c) => (
-                  <tr key={c.companyId ?? "none"}>
-                    <Td className="font-medium text-fg">{c.companyName}</Td>
-                    <Td className="tabular-nums text-muted">{c.billableTicketCount}</Td>
-                    <Td className="tabular-nums text-muted">{formatMinutes(c.billableMinutes)}</Td>
-                    <Td className="tabular-nums text-muted">{fmtMoney(c.billableCost)}</Td>
-                    <Td>
-                      {c.companyId ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <InvoiceStatusCell
-                            companyId={c.companyId}
-                            companyName={c.companyName}
-                            periodStart={period.start}
-                            periodEnd={period.end}
-                            status={c.invoiceStatus}
-                            canManage={canManageInvoices}
-                          />
-                          {c.invoiceStatus?.invoicedAt && c.pendingTickets.length > 0 ? (
-                            <span className="text-xs text-amber-700 dark:text-amber-400">
-                              {t(
-                                `+${c.pendingTickets.length} nuevo(s) sin facturar`,
-                                `+${c.pendingTickets.length} new, not yet invoiced`,
-                                locale,
-                              )}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </Td>
-                    <Td className="text-right">
-                      <Link
-                        href={`/reports/billing/print?period=${periodRule}${c.companyId ? `&companyId=${c.companyId}` : ""}`}
-                        target="_blank"
-                        className={cx(buttonSecondaryClass, "h-8 px-3 text-xs")}
-                      >
-                        {t("Exportar", "Export", locale)}
-                      </Link>
-                    </Td>
-                  </tr>
+                  <ClientBillingRow key={c.companyId ?? "none"} client={c} canManage={canManageInvoices} periodRule={periodRule} />
                 ))}
               </TBody>
             </Table>

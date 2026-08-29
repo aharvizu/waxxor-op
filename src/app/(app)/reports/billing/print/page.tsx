@@ -95,78 +95,86 @@ export default async function BillingSupportPrintPage({
                 {branding.coverSubtitle || t("Seguridad Informática", "IT Security", locale)}
               </p>
               <h1 className="mt-2 text-2xl font-bold">{t("Soporte de facturación", "Billing statement", locale)}</h1>
-              <div className="mt-3 flex items-end justify-between">
-                <div className="text-sm text-slate-700">
-                  <p>{t("Cliente", "Client", locale)}: <strong>{client.companyName}</strong></p>
-                  <p>{t("Periodo", "Period", locale)}: <strong>{periodLabel}</strong></p>
-                  {client.invoiceStatus?.invoicedAt ? (
-                    <p>{t("Factura", "Invoice", locale)}: <strong>{client.invoiceStatus.invoiceNumber}</strong></p>
-                  ) : null}
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-500 uppercase">{t("Total a cobrar", "Total to bill", locale)}</p>
-                  <p className="text-2xl font-bold tabular-nums">{fmtMoney(client.invoicedCost)}</p>
-                </div>
+              <div className="mt-3 text-sm text-slate-700">
+                <p>{t("Cliente", "Client", locale)}: <strong>{client.companyName}</strong></p>
+                <p>{t("Periodo", "Period", locale)}: <strong>{periodLabel}</strong></p>
               </div>
             </header>
 
-            <table className="w-full border-collapse text-sm">
-              <thead style={{ display: "table-header-group" }}>
-                <tr className="border-b-2 border-slate-900 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase">
-                  <th className="py-2 pr-2">{t("Ticket", "Ticket", locale)}</th>
-                  <th className="py-2 pr-2">{t("Fecha", "Date", locale)}</th>
-                  <th className="py-2 pr-2">{t("Servicio", "Service", locale)}</th>
-                  <th className="py-2 pr-2">{t("Técnico", "Technician", locale)}</th>
-                  <th className="py-2 pr-2">{t("Tipo", "Type", locale)}</th>
-                  <th className="py-2 pr-2 text-right">{t("Horas", "Hours", locale)}</th>
-                  <th className="py-2 text-right">{t("Costo", "Cost", locale)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <TicketRows tickets={client.invoicedTickets} modalityLabels={MODALITY_LABELS} />
-              </tbody>
-            </table>
+            {client.invoiceGroups.length === 0 && client.pendingTickets.length === 0 ? (
+              <p className="text-sm text-slate-600">
+                {t("Sin tickets cobrables en el periodo seleccionado.", "No billable tickets in the selected period.", locale)}
+              </p>
+            ) : null}
 
-            <div className="mt-6">
-              <h2 className="mb-2 text-xs font-semibold tracking-wide text-slate-600 uppercase">
-                {t("Detalle del servicio", "Service detail", locale)}
-              </h2>
-              <ul className="space-y-1.5 text-xs leading-relaxed text-slate-700">
-                {client.invoicedTickets.map((ticket) => (
-                  <li key={ticket.ticketId}>
-                    <span className="font-mono font-medium">{ticket.folio}</span> —{" "}
-                    {ticket.comment?.trim() || t("Sin descripción registrada.", "No description recorded.", locale)}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {client.invoiceGroups.map((g) => (
+              <div key={g.invoiceId} className="mb-10">
+                <div className="mb-3 flex items-end justify-between border-b border-slate-300 pb-2">
+                  <div>
+                    <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">{t("Factura", "Invoice", locale)}</p>
+                    <p className="text-lg font-bold">{g.invoiceNumber}</p>
+                    <p className="text-xs text-slate-500">{fmtDate(g.invoicedAt.toISOString().slice(0, 10))}</p>
+                  </div>
+                  <p className="text-xl font-bold tabular-nums">{fmtMoney(g.cost)}</p>
+                </div>
 
-            <div className="mt-8 flex items-center justify-between border-t border-slate-300 pt-3 text-sm text-slate-700">
-              <span>
-                {client.invoicedTickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(client.invoicedMinutes)}
-              </span>
-              <span className="font-semibold">{fmtMoney(client.invoicedCost)}</span>
-            </div>
+                <table className="w-full border-collapse text-sm">
+                  <thead style={{ display: "table-header-group" }}>
+                    <tr className="border-b-2 border-slate-900 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <th className="py-2 pr-2">{t("Ticket", "Ticket", locale)}</th>
+                      <th className="py-2 pr-2">{t("Fecha", "Date", locale)}</th>
+                      <th className="py-2 pr-2">{t("Servicio", "Service", locale)}</th>
+                      <th className="py-2 pr-2">{t("Técnico", "Technician", locale)}</th>
+                      <th className="py-2 pr-2">{t("Tipo", "Type", locale)}</th>
+                      <th className="py-2 pr-2 text-right">{t("Horas", "Hours", locale)}</th>
+                      <th className="py-2 text-right">{t("Costo", "Cost", locale)}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <TicketRows tickets={g.tickets} modalityLabels={MODALITY_LABELS} />
+                  </tbody>
+                </table>
 
-            <div className="mt-16 grid grid-cols-2 gap-12 text-center text-xs text-slate-600">
-              <div>
-                <div className="border-t border-slate-400 pt-2">{t("Firma del cliente", "Client signature", locale)}</div>
-              </div>
-              <div>
-                <div className="border-t border-slate-400 pt-2">
-                  {t("Firma / sello", "Signature / stamp", locale)} {orgName}
+                <div className="mt-4">
+                  <h3 className="mb-1.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+                    {t("Detalle del servicio", "Service detail", locale)}
+                  </h3>
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-slate-700">
+                    {g.tickets.map((ticket) => (
+                      <li key={ticket.ticketId}>
+                        <span className="font-mono font-medium">{ticket.folio}</span> —{" "}
+                        {ticket.comment?.trim() || t("Sin descripción registrada.", "No description recorded.", locale)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 text-xs text-slate-600">
+                  <span>
+                    {g.tickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(g.minutes)}
+                  </span>
+                  <span className="font-semibold">{fmtMoney(g.cost)}</span>
                 </div>
               </div>
-            </div>
+            ))}
+
+            {client.invoiceGroups.length > 0 ? (
+              <div className="mt-10 grid grid-cols-2 gap-12 text-center text-xs text-slate-600">
+                <div>
+                  <div className="border-t border-slate-400 pt-2">{t("Firma del cliente", "Client signature", locale)}</div>
+                </div>
+                <div>
+                  <div className="border-t border-slate-400 pt-2">
+                    {t("Firma / sello", "Signature / stamp", locale)} {orgName}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {client.pendingTickets.length > 0 ? (
-              <div className="mt-10 border-t-2 border-dashed border-amber-500 pt-6" style={{ pageBreakBefore: "always" }}>
+              <div className="mt-10 border-t-2 border-dashed border-amber-500 pt-6" style={client.invoiceGroups.length > 0 ? { pageBreakBefore: "always" } : undefined}>
                 <p className="text-xs font-semibold tracking-[0.2em] text-amber-600 uppercase">
-                  {t(
-                    "Actividad nueva — no incluida en la factura anterior",
-                    "New activity — not included in the prior invoice",
-                    locale,
-                  )}
+                  {t("Actividad nueva — sin facturar", "New activity — not yet invoiced", locale)}
                 </p>
                 <h2 className="mt-1 text-lg font-bold">{client.companyName}</h2>
                 <p className="text-xs text-slate-500">{periodLabel}</p>
