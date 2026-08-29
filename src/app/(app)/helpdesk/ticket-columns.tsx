@@ -25,6 +25,7 @@ export type TicketRow = {
   priorityId: number;
   billingStatusId: number;
   category: string | null;
+  modality: string | null;
   slaName: string | null;
   resolutionTargetAt: Date | null;
   /** "Fecha agendada" — independent of the SLA target, workItems.dueDate. */
@@ -73,6 +74,13 @@ export function buildColumnRegistry(
   billingStatuses: Map<number, TicketBillingOption> = new Map(),
   locale: Locale = DEFAULT_LOCALE,
 ): Record<string, ColumnDef> {
+  // tickets.modality is free text (no enum — see schema comment), but the
+  // only options the Details form offers are these two; anything else
+  // (or legacy data) falls back to showing the raw value.
+  const modalityLabels: Record<string, string> = {
+    remote: t("Remoto", "Remote", locale),
+    onsite: t("Sitio", "On-site", locale),
+  };
   const registry: Record<string, ColumnDef> = {
     folio: { key: "folio", label: "Folio", render: (r) => <span className="font-mono text-xs text-faint">{r.folio}</span> },
     title: {
@@ -112,6 +120,11 @@ export function buildColumnRegistry(
       render: (r) => <CatalogChip entry={priorities.get(r.priorityId)} fallback={r.priority} />,
     },
     category: { key: "category", label: t("Categoría", "Category", locale), render: (r) => <span className="text-muted">{r.category ?? "—"}</span> },
+    modality: {
+      key: "modality",
+      label: t("Modalidad", "Modality", locale),
+      render: (r) => <span className="text-muted">{r.modality ? (modalityLabels[r.modality] ?? r.modality) : "—"}</span>,
+    },
     slaName: { key: "slaName", label: "SLA", render: (r) => <span className="text-muted">{r.slaName ?? "—"}</span> },
     dueAt: {
       key: "dueAt",
@@ -154,7 +167,7 @@ export function buildColumnRegistry(
   return registry;
 }
 
-export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "slaName", "dueAt", "scheduledFor", "minutes", "billingStatus", "updatedAt"];
+export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "modality", "slaName", "dueAt", "scheduledFor", "minutes", "billingStatus", "updatedAt"];
 export function buildTicketColumnOptions(locale: Locale = DEFAULT_LOCALE) {
   const registry = buildColumnRegistry([], new Map(), new Map(), new Map(), locale);
   return DEFAULT_COLUMNS.map((key) => ({ key, label: registry[key]?.label ?? key }));

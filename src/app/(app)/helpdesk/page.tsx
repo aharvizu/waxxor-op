@@ -140,6 +140,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
       priorityId: tickets.priorityId,
       billingStatusId: tickets.billingStatusId,
       category: tickets.category,
+      modality: tickets.modality,
       slaName: tickets.slaName,
       resolutionTargetAt: tickets.resolutionTargetAt,
       dueDate: workItems.dueDate,
