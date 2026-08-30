@@ -132,6 +132,21 @@ export function NewTicketForm({
           />
         </div>
         <div>
+          <label htmlFor="modality" className={labelClass}>
+            {t("Modalidad (opcional)", "Modality (optional)", locale)}
+          </label>
+          <SearchableSelect
+            id="modality"
+            name="modality"
+            defaultValue=""
+            options={[
+              { value: "", label: "—" },
+              { value: "remote", label: "remote" },
+              { value: "onsite", label: "onsite" },
+            ]}
+          />
+        </div>
+        <div>
           <label htmlFor="contactId" className={labelClass}>
             {t("Contacto (opcional)", "Contact (optional)", locale)}
           </label>
