@@ -331,6 +331,27 @@ function conditionToSql(
     return customFieldCondition(module, entityIdColumn, field.key, c.operator, c.value);
   }
 
+  // user/company/contact FK columns and plain numeric columns only ever
+  // accept numbers. A stray free-text value here (e.g. typing a company
+  // name into a condition that hasn't picked one yet, or a stale/bookmarked
+  // URL) must never reach the SQL layer — Postgres rejects text against an
+  // integer column with an unhandled query error that crashes the whole
+  // page. "contains"/"not_contains" (ilike) never apply to these either.
+  // Drop the condition silently instead of crashing.
+  if (field.type === "user" || field.type === "company" || field.type === "contact" || field.type === "number") {
+    if (c.operator === "contains" || c.operator === "not_contains") return undefined;
+    if (c.operator === "in" || c.operator === "not_in") {
+      if (!Array.isArray(c.value)) return undefined;
+      const nums = c.value.map(Number).filter((n) => Number.isFinite(n));
+      if (nums.length === 0) return undefined;
+      c = { ...c, value: nums };
+    } else if (c.operator !== "is_empty" && c.operator !== "is_not_empty") {
+      const n = Number(c.value);
+      if (!Number.isFinite(n)) return undefined;
+      c = { ...c, value: n };
+    }
+  }
+
   const col = field.column as (typeof workItems)["status"];
   switch (c.operator) {
     case "eq":

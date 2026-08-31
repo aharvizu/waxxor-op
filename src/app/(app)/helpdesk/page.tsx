@@ -204,6 +204,14 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   ]);
   const contactOptions = contactRows.map((c) => ({ id: c.id, name: `${c.name} ${c.lastName}`, companyId: c.companyId }));
   const newTicketPriorities = priorityRows.map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault }));
+  // Gives the "Empresa" filter condition a real picker (FilterBar renders any
+  // field with options as a SearchableSelect) instead of a free-text input —
+  // typing a name into a bare text box for an integer FK column crashed the
+  // page (Postgres rejects e.g. companyId = 'Notaria 1').
+  fieldRegistry.companyId = {
+    ...fieldRegistry.companyId,
+    options: companyRows.map((c) => ({ value: String(c.id), label: c.name })),
+  };
 
   return (
     <div>

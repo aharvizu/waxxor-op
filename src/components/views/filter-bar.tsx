@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
-import { Filter, Plus, Search, Trash2 } from "lucide-react";
+import { Filter, Plus, Search, Trash2, X } from "lucide-react";
 import { SearchableSelect } from "@/components/searchable-select";
 import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
 import { FILTER_OPERATORS, type PublicFieldDefinition, type FilterCondition, type FilterGroup } from "@/lib/filters";
@@ -103,6 +103,11 @@ export function FilterBar({
     setUrlParam("q", search.trim() || null);
   }
 
+  function clearSearch() {
+    setSearch("");
+    setUrlParam("q", null);
+  }
+
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <form onSubmit={handleSearchSubmit} className="flex h-9 items-center gap-1.5 rounded-lg border border-edge bg-surface px-2.5">
@@ -113,6 +118,11 @@ export function FilterBar({
           placeholder="Buscar…"
           className="w-40 bg-transparent text-sm outline-none placeholder:text-faint"
         />
+        {search ? (
+          <button type="button" onClick={clearSearch} aria-label="Limpiar búsqueda" className="shrink-0 text-faint hover:text-fg">
+            <X className="size-3.5" />
+          </button>
+        ) : null}
       </form>
 
       <Popover.Root open={builderOpen} onOpenChange={setBuilderOpen}>
@@ -191,7 +201,7 @@ export function FilterBar({
                       options={FILTER_OPERATORS.map((op) => ({ value: op, label: OPERATOR_LABELS[op] ?? op }))}
                     />
                     {c.operator !== "is_empty" && c.operator !== "is_not_empty" ? (
-                      field?.type === "select" && field.options ? (
+                      field?.options && field.options.length > 0 ? (
                         <SearchableSelect
                           value={typeof c.value === "string" ? c.value : ""}
                           onValueChange={(v) => patchCondition(i, { value: v })}
