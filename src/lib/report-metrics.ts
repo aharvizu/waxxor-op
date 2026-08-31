@@ -521,8 +521,13 @@ export async function generalKpis(orgId: number, period: Period, scope: MetricsS
           where ${ticketBillingStatuses.category} in ('approved', 'billed')
         ), 0)::text`,
         billableTickets: int(sql`count(*) filter (where ${tickets.calculatedAmount} > 0)`),
-        remoteTickets: int(sql`count(*) filter (where ${tickets.billingModality} = 'remote')`),
-        onsiteTickets: int(sql`count(*) filter (where ${tickets.billingModality} = 'onsite')`),
+        // tickets.modality (operational — set on the Details/creation form)
+        // is deliberately used here instead of tickets.billingModality
+        // (billing-only, mostly stays "not_applicable" since it's only
+        // touched via the Billing tab) — this KPI is about how the work
+        // actually happened, same field as the Helpdesk table's Modo column.
+        remoteTickets: int(sql`count(*) filter (where ${tickets.modality} = 'remote')`),
+        onsiteTickets: int(sql`count(*) filter (where ${tickets.modality} = 'onsite')`),
       })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
@@ -601,7 +606,7 @@ export async function categoryKpis(orgId: number, period: Period, scope: Metrics
   return rows.map((r) => ({ key: r.key, ticketCount: r.ticketCount, hours: r.hours, cost: Number(r.cost) }));
 }
 
-/** Ticket count + cost by billing modality (remote/onsite/fixed_price/not_applicable). Hours by modality already exist on timeMetrics(...).byModality — reused, not duplicated. */
+/** Ticket count + cost by operational modality (tickets.modality: remote/onsite/unset — same field as the Helpdesk table's Modo column, not the billing-only tickets.billingModality). Hours by modality already exist on timeMetrics(...).byModality — reused, not duplicated. */
 export async function modalityKpis(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
   const base = and(
@@ -612,7 +617,7 @@ export async function modalityKpis(orgId: number, period: Period, scope: Metrics
   );
   const rows = await db
     .select({
-      key: sql<string>`${tickets.billingModality}::text`,
+      key: sql<string | null>`${tickets.modality}`,
       ticketCount: int(sql`count(*)`),
       cost: sql<string>`coalesce(sum(${tickets.calculatedAmount}), 0)::text`,
     })
@@ -620,7 +625,7 @@ export async function modalityKpis(orgId: number, period: Period, scope: Metrics
     .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
     .where(base)
     .groupBy(sql`1`);
-  return rows.map((r) => ({ key: r.key, ticketCount: r.ticketCount, cost: Number(r.cost) }));
+  return rows.map((r) => ({ key: r.key ?? "not_set", ticketCount: r.ticketCount, cost: Number(r.cost) }));
 }
 
 /**
@@ -763,13 +768,16 @@ export async function technicianKpis(orgId: number, period: Period, scope: Metri
     db
       .select({
         assigneeId: workItems.assigneeId,
-        modality: sql<string>`${tickets.billingModality}::text`,
+        // Operational modality (tickets.modality), same field as the other
+        // remote/onsite KPIs above and the Helpdesk Modo column — not the
+        // billing-only tickets.billingModality.
+        modality: sql<string>`coalesce(${tickets.modality}, 'not_set')`,
         ticketCount: int(sql`count(*)`),
       })
       .from(tickets)
       .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
       .where(base)
-      .groupBy(workItems.assigneeId, tickets.billingModality),
+      .groupBy(workItems.assigneeId, tickets.modality),
     db
       .select({
         assigneeId: workItems.assigneeId,

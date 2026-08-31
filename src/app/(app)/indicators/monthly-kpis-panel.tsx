@@ -17,8 +17,7 @@ import { Metric, NA } from "./metric";
 const MODALITY_LABELS: Record<string, string> = {
   remote: "Remoto",
   onsite: "En sitio",
-  fixed_price: "Precio fijo",
-  not_applicable: "No aplica",
+  not_set: "Sin especificar",
 };
 
 /**
