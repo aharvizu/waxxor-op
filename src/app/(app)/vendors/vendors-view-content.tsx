@@ -23,6 +23,8 @@ export function VendorsViewContent({
   activeQuick,
   activeFilters,
   activeSearch,
+  page,
+  totalCount,
 }: {
   views: SavedView[];
   activeViewId: number;
@@ -36,6 +38,8 @@ export function VendorsViewContent({
   activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
+  page: number;
+  totalCount: number;
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
@@ -77,6 +81,8 @@ export function VendorsViewContent({
         discard={discard}
         saveAsNewPersonal={saveAsNewPersonal}
         columnOptions={view.viewType === "table" ? VENDOR_COLUMN_OPTIONS : []}
+        page={page}
+        totalCount={totalCount}
       />
 
       {view.viewType === "table" ? (

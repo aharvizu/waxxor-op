@@ -30,7 +30,7 @@ export const metadata: Metadata = { title: "Empresas" };
 
 const BASE_PATH = "/companies";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; page?: string };
 
 export default async function CompaniesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -91,34 +91,43 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const rawRows = await db
-    .select({
-      id: companies.id,
-      name: companies.name,
-      status: companies.status,
-      industry: companies.industry,
-      website: companies.website,
-      email: companies.email,
-      phone: companies.phone,
-      city: companies.city,
-      state: companies.state,
-      country: companies.country,
-      primaryContact: sql<string | null>`(select c.first_name || ' ' || c.last_name
-        from ${contacts} c where c.id = ${companies.primaryContactId})`,
-      accountOwnerName: users.name,
-      activeServices: COMPANY_ACTIVE_SERVICES_SQL,
-      openTickets: COMPANY_OPEN_TICKETS_SQL,
-      pendingBilling: COMPANY_PENDING_BILLING_SQL,
-      nextRenewal: COMPANY_NEXT_RENEWAL_SQL,
-      lastTouchAt: COMPANY_LAST_TOUCH_SQL,
-      createdAt: companies.createdAt,
-      updatedAt: companies.updatedAt,
-    })
-    .from(companies)
-    .leftJoin(users, eq(companies.accountOwnerId, users.id))
-    .where(and(...conditions))
-    .orderBy(asc(companies.name))
-    .limit(200);
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
+
+  const [[{ totalCount }], rawRows] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(companies).where(and(...conditions)),
+    db
+      .select({
+        id: companies.id,
+        name: companies.name,
+        status: companies.status,
+        industry: companies.industry,
+        website: companies.website,
+        email: companies.email,
+        phone: companies.phone,
+        city: companies.city,
+        state: companies.state,
+        country: companies.country,
+        primaryContact: sql<string | null>`(select c.first_name || ' ' || c.last_name
+          from ${contacts} c where c.id = ${companies.primaryContactId})`,
+        accountOwnerName: users.name,
+        activeServices: COMPANY_ACTIVE_SERVICES_SQL,
+        openTickets: COMPANY_OPEN_TICKETS_SQL,
+        pendingBilling: COMPANY_PENDING_BILLING_SQL,
+        nextRenewal: COMPANY_NEXT_RENEWAL_SQL,
+        lastTouchAt: COMPANY_LAST_TOUCH_SQL,
+        createdAt: companies.createdAt,
+        updatedAt: companies.updatedAt,
+      })
+      .from(companies)
+      .leftJoin(users, eq(companies.accountOwnerId, users.id))
+      .where(and(...conditions))
+      .orderBy(asc(companies.name))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const rows: CompanyRow[] = rawRows;
 
@@ -149,6 +158,8 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

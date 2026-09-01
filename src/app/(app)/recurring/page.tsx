@@ -28,7 +28,7 @@ const BASE_PATH = "/recurring";
 
 const KANBAN_GROUP_OPTIONS = [{ key: "status", label: "Estado" }];
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; page?: string };
 
 export default async function RecurringPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -83,25 +83,32 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
     conditions.push(eq(recurrenceDefinitions.status, params.status as (typeof recurrenceDefinitions.status.enumValues)[number]));
   }
 
-  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
 
-  const rawRows = await db
-    .select({
-      def: recurrenceDefinitions,
-      companyName: companies.name,
-      projectName: projects.name,
-      assigneeName: users.name,
-      lastResultStatus: sql<string | null>`(select e.status::text from recurrence_executions e
-        where e.recurrence_definition_id = ${recurrenceDefinitions.id}
-        order by e.created_at desc limit 1)`,
-    })
-    .from(recurrenceDefinitions)
-    .leftJoin(companies, eq(recurrenceDefinitions.companyId, companies.id))
-    .leftJoin(projects, eq(recurrenceDefinitions.projectId, projects.id))
-    .leftJoin(users, eq(recurrenceDefinitions.assigneeId, users.id))
-    .where(and(...conditions))
-    .orderBy(recurrenceDefinitions.updatedAt)
-    .limit(limit);
+  const [[{ totalCount }], rawRows] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(recurrenceDefinitions).where(and(...conditions)),
+    db
+      .select({
+        def: recurrenceDefinitions,
+        companyName: companies.name,
+        projectName: projects.name,
+        assigneeName: users.name,
+        lastResultStatus: sql<string | null>`(select e.status::text from recurrence_executions e
+          where e.recurrence_definition_id = ${recurrenceDefinitions.id}
+          order by e.created_at desc limit 1)`,
+      })
+      .from(recurrenceDefinitions)
+      .leftJoin(companies, eq(recurrenceDefinitions.companyId, companies.id))
+      .leftJoin(projects, eq(recurrenceDefinitions.projectId, projects.id))
+      .leftJoin(users, eq(recurrenceDefinitions.assigneeId, users.id))
+      .where(and(...conditions))
+      .orderBy(recurrenceDefinitions.updatedAt)
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const favoriteSet = new Set(favoriteIds);
   const rows: RecurrenceRow[] = rawRows.map((r) => ({
@@ -142,6 +149,8 @@ export default async function RecurringPage({ searchParams }: { searchParams: Pr
         activeSearch={search}
         columnOptions={RECURRING_COLUMN_OPTIONS}
         kanbanGroupOptions={KANBAN_GROUP_OPTIONS}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

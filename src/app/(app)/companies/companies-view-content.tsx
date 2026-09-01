@@ -28,6 +28,8 @@ export function CompaniesViewContent({
   activeQuick,
   activeFilters,
   activeSearch,
+  page,
+  totalCount,
 }: {
   views: SavedView[];
   activeViewId: number;
@@ -41,6 +43,8 @@ export function CompaniesViewContent({
   activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
+  page: number;
+  totalCount: number;
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
@@ -82,6 +86,8 @@ export function CompaniesViewContent({
         discard={discard}
         saveAsNewPersonal={saveAsNewPersonal}
         columnOptions={view.viewType === "table" ? COMPANY_COLUMN_OPTIONS : []}
+        page={page}
+        totalCount={totalCount}
       />
 
       {view.viewType === "table" ? (

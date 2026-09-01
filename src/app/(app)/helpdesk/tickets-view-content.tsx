@@ -49,6 +49,8 @@ export function TicketsViewContent({
   activeSearch,
   columnOptions,
   kanbanGroupOptions,
+  page,
+  totalCount,
 }: {
   views: SavedView[];
   activeViewId: number;
@@ -69,6 +71,8 @@ export function TicketsViewContent({
   activeSearch: string;
   columnOptions: { key: string; label: string }[];
   kanbanGroupOptions: { key: string; label: string }[];
+  page: number;
+  totalCount: number;
 }) {
   const locale = useLocale();
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
@@ -116,6 +120,8 @@ export function TicketsViewContent({
         saveAsNewPersonal={saveAsNewPersonal}
         columnOptions={view.viewType === "table" ? columnOptions : []}
         groupByOptions={view.viewType === "kanban" ? kanbanGroupOptions : []}
+        page={page}
+        totalCount={totalCount}
       />
 
       {view.viewType === "table" ? (

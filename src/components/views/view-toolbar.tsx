@@ -1,7 +1,8 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { AlertCircle, Check, Columns3, Copy, Loader2, RotateCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Columns3, Copy, Loader2, RotateCcw } from "lucide-react";
 import { SearchableSelect } from "@/components/searchable-select";
 import { buttonSecondaryClass, cx } from "@/components/ui";
 import type { SavedViewConfig, ViewType } from "@/lib/views";
@@ -31,6 +32,8 @@ export function ViewToolbar({
   saveAsNewPersonal,
   columnOptions = [],
   groupByOptions = [],
+  page = 1,
+  totalCount,
 }: {
   viewType: ViewType;
   config: SavedViewConfig;
@@ -44,10 +47,22 @@ export function ViewToolbar({
   saveAsNewPersonal: (name: string) => void;
   columnOptions?: { key: string; label: string }[];
   groupByOptions?: { key: string; label: string }[];
+  /** Current 1-indexed page — kanban ignores paging (shows the whole board), so callers of that view type can omit both. */
+  page?: number;
+  /** Total rows matching the current filters, server-counted — omit (or pass undefined) to hide the Next/Previous control entirely. */
+  totalCount?: number;
 }) {
+  const router = useRouter();
   const visibleColumnKeys = new Set(
     config.columns.length > 0 ? config.columns.filter((c) => c.visible).map((c) => c.key) : columnOptions.map((c) => c.key),
   );
+
+  function goToPage(next: number) {
+    const url = new URL(window.location.href);
+    if (next > 1) url.searchParams.set("page", String(next));
+    else url.searchParams.delete("page");
+    router.push(`${url.pathname}?${url.searchParams.toString()}`);
+  }
 
   function toggleColumn(key: string) {
     setConfig((prev) => {
@@ -123,11 +138,38 @@ export function ViewToolbar({
         <span className="text-faint">Por página:</span>
         <SearchableSelect
           value={String(config.pageSize)}
-          onValueChange={(v) => setConfig((prev) => ({ ...prev, pageSize: Number(v) }))}
+          onValueChange={(v) => {
+            setConfig((prev) => ({ ...prev, pageSize: Number(v) }));
+            goToPage(1); // the current page number may no longer exist at the new size
+          }}
           className="h-7 w-auto text-xs"
           options={[25, 50, 100, 200].map((n) => ({ value: String(n), label: String(n) }))}
         />
       </div>
+
+      {viewType !== "kanban" && totalCount !== undefined && totalCount > config.pageSize ? (
+        <div className="flex items-center gap-1.5">
+          <span className="text-faint tabular-nums">
+            {(page - 1) * config.pageSize + 1}–{Math.min(page * config.pageSize, totalCount)} de {totalCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1}
+            className={cx(buttonSecondaryClass, "h-7 gap-1 px-2 text-xs disabled:opacity-40")}
+          >
+            <ChevronLeft className="size-3.5" /> Anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => goToPage(page + 1)}
+            disabled={page * config.pageSize >= totalCount}
+            className={cx(buttonSecondaryClass, "h-7 gap-1 px-2 text-xs disabled:opacity-40")}
+          >
+            Siguiente <ChevronRight className="size-3.5" />
+          </button>
+        </div>
+      ) : null}
 
       {status !== "clean" ? (
         <div className="ml-auto flex items-center gap-2">

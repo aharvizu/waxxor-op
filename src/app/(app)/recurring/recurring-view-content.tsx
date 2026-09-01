@@ -30,6 +30,8 @@ export function RecurringViewContent({
   activeSearch,
   columnOptions,
   kanbanGroupOptions,
+  page,
+  totalCount,
 }: {
   views: SavedView[];
   activeViewId: number;
@@ -45,6 +47,8 @@ export function RecurringViewContent({
   activeSearch: string;
   columnOptions: { key: string; label: string }[];
   kanbanGroupOptions: { key: string; label: string }[];
+  page: number;
+  totalCount: number;
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
@@ -87,6 +91,8 @@ export function RecurringViewContent({
         saveAsNewPersonal={saveAsNewPersonal}
         columnOptions={view.viewType === "table" ? columnOptions : []}
         groupByOptions={view.viewType === "kanban" ? kanbanGroupOptions : []}
+        page={page}
+        totalCount={totalCount}
       />
 
       {view.viewType === "kanban" ? (

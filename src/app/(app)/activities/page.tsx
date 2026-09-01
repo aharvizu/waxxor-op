@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, ilike, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
@@ -29,7 +29,7 @@ export const metadata: Metadata = { title: "Activities" };
 
 const BASE_PATH = "/activities";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; page?: string };
 
 export default async function ActivitiesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -87,30 +87,37 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   }
 
   // Kanban shows the whole board regardless of the view's saved pageSize (a
-  // capped page would silently hide cards in later columns).
-  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
+  // capped page would silently hide cards in later columns) — no paging for it.
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
 
-  const rawRows = await db
-    .select({
-      id: activities.id,
-      folio: activities.folio,
-      title: workItems.title,
-      status: workItems.status,
-      priority: workItems.priority,
-      activityType: activities.activityType,
-      dueDate: workItems.dueDate,
-      companyId: workItems.companyId,
-      companyName: companies.name,
-      assigneeId: workItems.assigneeId,
-      assigneeName: users.name,
-    })
-    .from(activities)
-    .innerJoin(workItems, eq(activities.workItemId, workItems.id))
-    .leftJoin(companies, eq(workItems.companyId, companies.id))
-    .leftJoin(users, eq(workItems.assigneeId, users.id))
-    .where(and(...conditions))
-    .orderBy(desc(workItems.updatedAt))
-    .limit(limit);
+  const [[{ totalCount }], rawRows] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(activities).innerJoin(workItems, eq(activities.workItemId, workItems.id)).where(and(...conditions)),
+    db
+      .select({
+        id: activities.id,
+        folio: activities.folio,
+        title: workItems.title,
+        status: workItems.status,
+        priority: workItems.priority,
+        activityType: activities.activityType,
+        dueDate: workItems.dueDate,
+        companyId: workItems.companyId,
+        companyName: companies.name,
+        assigneeId: workItems.assigneeId,
+        assigneeName: users.name,
+      })
+      .from(activities)
+      .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
+      .leftJoin(users, eq(workItems.assigneeId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(workItems.updatedAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const rows: ActivityRow[] = rawRows;
 
@@ -163,6 +170,8 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
         activeSearch={search}
         columnOptions={ACTIVITY_COLUMN_OPTIONS}
         kanbanGroupOptions={ACTIVITY_KANBAN_GROUP_OPTIONS}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

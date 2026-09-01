@@ -67,6 +67,10 @@ export function FilterBar({
     const url = new URL(window.location.href);
     if (value) url.searchParams.set(key, value);
     else url.searchParams.delete(key);
+    // A new filter/quick-filter/search term can easily leave the current
+    // page number past the end of the (now smaller) result set — go back
+    // to page 1 rather than show a confusing empty page.
+    url.searchParams.delete("page");
     router.push(`${url.pathname}?${url.searchParams.toString()}`);
   }
 

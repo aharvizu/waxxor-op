@@ -26,7 +26,7 @@ export const metadata: Metadata = { title: "Contactos" };
 
 const BASE_PATH = "/contacts";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; page?: string };
 
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -81,30 +81,39 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const rows: ContactRow[] = await db
-    .select({
-      id: contacts.id,
-      firstName: contacts.firstName,
-      lastName: contacts.lastName,
-      jobTitle: contacts.jobTitle,
-      department: contacts.department,
-      email: contacts.email,
-      phone: contacts.phone,
-      mobile: contacts.mobile,
-      contactType: contacts.contactType,
-      isPrimary: contacts.isPrimary,
-      isActive: contacts.isActive,
-      companyId: contacts.companyId,
-      companyName: companies.name,
-      openTickets: CONTACT_OPEN_TICKETS_SQL,
-      createdAt: contacts.createdAt,
-      updatedAt: contacts.updatedAt,
-    })
-    .from(contacts)
-    .innerJoin(companies, eq(contacts.companyId, companies.id))
-    .where(and(...conditions))
-    .orderBy(asc(contacts.lastName))
-    .limit(200);
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
+
+  const [[{ totalCount }], rows]: [{ totalCount: number }[], ContactRow[]] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(contacts).innerJoin(companies, eq(contacts.companyId, companies.id)).where(and(...conditions)),
+    db
+      .select({
+        id: contacts.id,
+        firstName: contacts.firstName,
+        lastName: contacts.lastName,
+        jobTitle: contacts.jobTitle,
+        department: contacts.department,
+        email: contacts.email,
+        phone: contacts.phone,
+        mobile: contacts.mobile,
+        contactType: contacts.contactType,
+        isPrimary: contacts.isPrimary,
+        isActive: contacts.isActive,
+        companyId: contacts.companyId,
+        companyName: companies.name,
+        openTickets: CONTACT_OPEN_TICKETS_SQL,
+        createdAt: contacts.createdAt,
+        updatedAt: contacts.updatedAt,
+      })
+      .from(contacts)
+      .innerJoin(companies, eq(contacts.companyId, companies.id))
+      .where(and(...conditions))
+      .orderBy(asc(contacts.lastName))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const companyOptions = await db
     .select({ id: companies.id, name: companies.name })
@@ -139,6 +148,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

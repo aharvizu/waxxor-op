@@ -30,7 +30,7 @@ export const metadata: Metadata = { title: "Helpdesk" };
 
 const BASE_PATH = "/helpdesk";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; billing?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; billing?: string; page?: string };
 
 export default async function HelpdeskPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -125,10 +125,15 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   const orderFn = viewConfig.sortBy?.direction === "asc" ? asc : desc;
 
   // Kanban shows the whole board regardless of the view's saved pageSize (a
-  // capped page would silently hide cards in later columns).
-  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
+  // capped page would silently hide cards in later columns) — no paging for it.
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
 
-  const rawRows = await db
+  const [[{ totalCount }], rawRows] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(tickets).innerJoin(workItems, eq(tickets.workItemId, workItems.id)).where(and(...conditions)),
+    db
     .with(timeByItem)
     .select({
       id: tickets.id,
@@ -160,7 +165,9 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
     .leftJoin(timeByItem, eq(timeByItem.workItemId, workItems.id))
     .where(and(...conditions))
     .orderBy(orderFn(sortColumn))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset),
+  ]);
 
   const ticketIds = rawRows.map((r) => r.id);
   const cfValuesByEntity = await getValuesForEntities(user.organizationId, "tickets", ticketIds);
@@ -255,6 +262,8 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
         activeSearch={search}
         columnOptions={buildTicketColumnOptions(locale)}
         kanbanGroupOptions={buildTicketKanbanGroupOptions(locale)}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

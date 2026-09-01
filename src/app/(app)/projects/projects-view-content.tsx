@@ -31,6 +31,8 @@ export function ProjectsViewContent({
   activeFilters,
   activeSearch,
   kanbanGroupOptions,
+  page,
+  totalCount,
 }: {
   views: SavedView[];
   activeViewId: number;
@@ -46,6 +48,8 @@ export function ProjectsViewContent({
   activeFilters: FilterGroup | null;
   activeSearch: string;
   kanbanGroupOptions: { key: string; label: string }[];
+  page: number;
+  totalCount: number;
 }) {
   const view = views.find((v) => v.id === activeViewId) ?? views[0];
   const { config, setConfig, status, errorMessage, save, retry, discard, saveAsNewPersonal } = useViewConfig(view, basePath);
@@ -87,6 +91,8 @@ export function ProjectsViewContent({
         discard={discard}
         saveAsNewPersonal={saveAsNewPersonal}
         groupByOptions={view.viewType === "kanban" ? kanbanGroupOptions : []}
+        page={page}
+        totalCount={totalCount}
       />
 
       {view.viewType === "table" ? (

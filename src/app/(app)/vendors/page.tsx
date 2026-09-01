@@ -26,7 +26,7 @@ export const metadata: Metadata = { title: "Proveedores" };
 
 const BASE_PATH = "/vendors";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; page?: string };
 
 export default async function VendorsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -83,27 +83,36 @@ export default async function VendorsPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  const rawRows = await db
-    .select({
-      id: vendors.id,
-      name: vendors.name,
-      status: vendors.status,
-      category: vendors.category,
-      website: vendors.website,
-      email: vendors.email,
-      phone: vendors.phone,
-      city: vendors.city,
-      country: vendors.country,
-      accountOwnerName: users.name,
-      activePurchases: VENDOR_ACTIVE_PURCHASES_SQL,
-      createdAt: vendors.createdAt,
-      updatedAt: vendors.updatedAt,
-    })
-    .from(vendors)
-    .leftJoin(users, eq(vendors.accountOwnerId, users.id))
-    .where(and(...conditions))
-    .orderBy(asc(vendors.name))
-    .limit(200);
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
+
+  const [[{ totalCount }], rawRows] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(vendors).where(and(...conditions)),
+    db
+      .select({
+        id: vendors.id,
+        name: vendors.name,
+        status: vendors.status,
+        category: vendors.category,
+        website: vendors.website,
+        email: vendors.email,
+        phone: vendors.phone,
+        city: vendors.city,
+        country: vendors.country,
+        accountOwnerName: users.name,
+        activePurchases: VENDOR_ACTIVE_PURCHASES_SQL,
+        createdAt: vendors.createdAt,
+        updatedAt: vendors.updatedAt,
+      })
+      .from(vendors)
+      .leftJoin(users, eq(vendors.accountOwnerId, users.id))
+      .where(and(...conditions))
+      .orderBy(asc(vendors.name))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const rows: VendorRow[] = rawRows;
 
@@ -134,6 +143,8 @@ export default async function VendorsPage({ searchParams }: { searchParams: Prom
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

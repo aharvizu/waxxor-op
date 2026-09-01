@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Plus } from "lucide-react";
 import { db } from "@/db";
 import { companies, projects, users } from "@/db/schema";
@@ -27,7 +27,7 @@ export const metadata: Metadata = { title: "Projects" };
 
 const BASE_PATH = "/projects";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; page?: string };
 
 export default async function ProjectsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -82,34 +82,41 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   const agg = projectAggregates();
 
   // Kanban shows the whole board regardless of the view's saved pageSize (a
-  // capped page would silently hide cards in later columns).
-  const limit = activeView.viewType === "kanban" ? 500 : viewConfig.pageSize;
+  // capped page would silently hide cards in later columns) — no paging for it.
+  const isPaged = activeView.viewType !== "kanban";
+  const limit = isPaged ? viewConfig.pageSize : 500;
+  const page = isPaged ? Math.max(1, Number(params.page) || 1) : 1;
+  const offset = isPaged ? (page - 1) * limit : 0;
 
-  const rawRows = await db
-    .select({
-      id: projects.id,
-      folio: projects.folio,
-      name: projects.name,
-      status: projects.status,
-      healthStatus: projects.healthStatus,
-      priority: projects.priority,
-      companyId: projects.companyId,
-      companyName: companies.name,
-      managerId: projects.projectManagerId,
-      managerName: users.name,
-      targetDate: projects.targetDate,
-      total: agg.total,
-      completed: agg.completed,
-      overdue: agg.overdue,
-      nextMilestone: agg.nextMilestone,
-      loggedMinutes: agg.loggedMinutes,
-    })
-    .from(projects)
-    .leftJoin(companies, eq(projects.companyId, companies.id))
-    .leftJoin(users, eq(projects.projectManagerId, users.id))
-    .where(and(...conditions))
-    .orderBy(desc(projects.updatedAt))
-    .limit(limit);
+  const [[{ totalCount }], rawRows] = await Promise.all([
+    db.select({ totalCount: sql<number>`count(*)::int` }).from(projects).where(and(...conditions)),
+    db
+      .select({
+        id: projects.id,
+        folio: projects.folio,
+        name: projects.name,
+        status: projects.status,
+        healthStatus: projects.healthStatus,
+        priority: projects.priority,
+        companyId: projects.companyId,
+        companyName: companies.name,
+        managerId: projects.projectManagerId,
+        managerName: users.name,
+        targetDate: projects.targetDate,
+        total: agg.total,
+        completed: agg.completed,
+        overdue: agg.overdue,
+        nextMilestone: agg.nextMilestone,
+        loggedMinutes: agg.loggedMinutes,
+      })
+      .from(projects)
+      .leftJoin(companies, eq(projects.companyId, companies.id))
+      .leftJoin(users, eq(projects.projectManagerId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(projects.updatedAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const favoriteSet = new Set(favoriteIds);
   const rows: ProjectRow[] = rawRows.map((r) => {
@@ -177,6 +184,8 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         activeFilters={filters}
         activeSearch={search}
         kanbanGroupOptions={PROJECT_KANBAN_GROUP_OPTIONS}
+        page={page}
+        totalCount={totalCount}
       />
     </div>
   );

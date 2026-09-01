@@ -196,6 +196,20 @@ export default async function BillingSupportPrintPage({
                   </tbody>
                 </table>
 
+                <div className="mt-4">
+                  <h3 className="mb-1.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+                    {t("Detalle del servicio", "Service detail", locale)}
+                  </h3>
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-slate-700">
+                    {client.pendingTickets.map((ticket) => (
+                      <li key={ticket.ticketId}>
+                        <span className="font-mono font-medium">{ticket.folio}</span> —{" "}
+                        {ticket.comment?.trim() || t("Sin descripción registrada.", "No description recorded.", locale)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
                 <div className="mt-4 flex items-center justify-between border-t border-slate-300 pt-3 text-sm text-slate-700">
                   <span>
                     {client.pendingTickets.length} {t("servicio(s)", "service(s)", locale)} · {formatMinutes(client.pendingMinutes)}
