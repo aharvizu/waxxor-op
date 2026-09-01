@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db, type DbExecutor } from "@/db";
-import { billingInvoiceTickets, billingInvoices, tickets, users, workItems } from "@/db/schema";
+import { billingInvoiceTickets, billingInvoiceTimeEntries, billingInvoices, tickets, timeEntries, users, workItems } from "@/db/schema";
 import { recordAudit } from "@/lib/audit";
 import { getTicketBillingStatus, getTicketBillingStatusBySemanticKey, legacyBillingFor } from "@/lib/ticket-catalogs";
 import type { SessionUser } from "@/lib/session";
@@ -10,11 +10,13 @@ import type { SessionUser } from "@/lib/session";
  * A billing_invoices row is a "cut" (corte) — an arbitrary set of tickets
  * (billing_invoice_tickets), not tied to a calendar period. A client can
  * have many invoices per month (weekly cuts). Distinct from
- * tickets.billingStatus, but not independent of it: creating/reverting an
- * invoice cascades the ticket's billing status to/from "Charged"
- * (semanticKey CHARGED) so an invoiced ticket doesn't keep showing
- * "Billable" everywhere else in the app (Helpdesk table, Closed view) —
- * real incident 2026-08-31.
+ * tickets.billingStatus and timeEntries.billingStatus, but not independent
+ * of them: creating/reverting an invoice cascades the ticket's billing
+ * status to/from "Charged" (semanticKey CHARGED), and moves any of its time
+ * entries still "Pending review" to "Billable" (never touches entries
+ * someone already classified Non-billable/Included in contract) — so an
+ * invoiced ticket doesn't keep showing stale pending statuses elsewhere in
+ * the app. Real incidents 2026-08-31/09-01.
  */
 export type TicketInvoiceInfo = {
   invoiceId: number;
@@ -60,7 +62,7 @@ export async function createBillingInvoice(
   if (input.ticketIds.length === 0) return { ok: false, message: "Selecciona al menos un ticket." };
 
   const rows = await tx
-    .select({ id: tickets.id, companyId: workItems.companyId, billingStatusId: tickets.billingStatusId })
+    .select({ id: tickets.id, workItemId: workItems.id, companyId: workItems.companyId, billingStatusId: tickets.billingStatusId })
     .from(tickets)
     .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
     .where(and(eq(tickets.organizationId, user.organizationId), inArray(tickets.id, input.ticketIds)));
@@ -98,6 +100,25 @@ export async function createBillingInvoice(
       .update(tickets)
       .set({ billingStatusId: charged.id, billingStatus: legacyBillingFor(charged) })
       .where(inArray(tickets.id, input.ticketIds));
+  }
+
+  // Time entries carry their own billing status, separate from the ticket's
+  // — only the ones still "Pending review" move to "Billable" (an entry
+  // someone already marked Non-billable/Included in contract was a
+  // deliberate call, invoicing the ticket doesn't overrule it). Recorded in
+  // billing_invoice_time_entries so revertBillingInvoice() restores exactly
+  // these, not every billable entry under the ticket.
+  const workItemIds = rows.map((r) => r.workItemId);
+  const pendingEntries = await tx
+    .select({ id: timeEntries.id })
+    .from(timeEntries)
+    .where(and(inArray(timeEntries.workItemId, workItemIds), eq(timeEntries.billingStatus, "pending_review"), isNull(timeEntries.voidedAt)));
+  if (pendingEntries.length > 0) {
+    const entryIds = pendingEntries.map((e) => e.id);
+    await tx.insert(billingInvoiceTimeEntries).values(
+      entryIds.map((timeEntryId) => ({ organizationId: user.organizationId, invoiceId: invoice.id, timeEntryId })),
+    );
+    await tx.update(timeEntries).set({ billingStatus: "billable" }).where(inArray(timeEntries.id, entryIds));
   }
 
   await recordAudit(tx, {
@@ -143,6 +164,17 @@ export async function revertBillingInvoice(tx: DbExecutor, user: SessionUser, in
       .update(tickets)
       .set({ billingStatusId: status.id, billingStatus: legacyBillingFor(status) })
       .where(inArray(tickets.id, ticketIds));
+  }
+
+  const entryLinks = await tx
+    .select({ timeEntryId: billingInvoiceTimeEntries.timeEntryId })
+    .from(billingInvoiceTimeEntries)
+    .where(eq(billingInvoiceTimeEntries.invoiceId, invoiceId));
+  if (entryLinks.length > 0) {
+    await tx
+      .update(timeEntries)
+      .set({ billingStatus: "pending_review" })
+      .where(inArray(timeEntries.id, entryLinks.map((e) => e.timeEntryId)));
   }
 
   await tx.delete(billingInvoices).where(eq(billingInvoices.id, invoiceId));

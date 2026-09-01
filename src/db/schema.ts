@@ -768,12 +768,6 @@ export const ticketBillingStatuses = pgTable(
 );
 
 /**
- * Invoiced-state overlay for the Reportes → Cobros y facturación statement
- * (one row per organization + client + period). Independent of per-ticket
- * billingStatus — marking a statement "Facturado" never touches the tickets
- * it summarizes, same separation as Fecha agendada vs. SLA on tickets.
- */
-/**
  * A billing "cut" (corte) for one client — an arbitrary set of tickets
  * (billing_invoice_tickets), not a calendar period. A client can have many
  * invoices per month (weekly cuts are the norm); which tickets belong to
@@ -834,6 +828,32 @@ export const billingInvoiceTickets = pgTable(
   (table) => [
     uniqueIndex("billing_invoice_tickets_ticket_idx").on(table.ticketId),
     index("billing_invoice_tickets_invoice_idx").on(table.invoiceId),
+  ],
+);
+
+/** Time entries an invoice moved from "Pending review" to "Billable" (only
+ * those — entries already Non-billable/Included in contract are a
+ * deliberate manual call, never touched). Recorded so revertBillingInvoice
+ * can put back exactly "Pending review" on exactly these, not every
+ * billable entry under the ticket. */
+export const billingInvoiceTimeEntries = pgTable(
+  "billing_invoice_time_entries",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => billingInvoices.id, { onDelete: "cascade" }),
+    timeEntryId: integer("time_entry_id")
+      .notNull()
+      .references(() => timeEntries.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("billing_invoice_time_entries_invoice_idx").on(table.invoiceId),
+    index("billing_invoice_time_entries_entry_idx").on(table.timeEntryId),
   ],
 );
 

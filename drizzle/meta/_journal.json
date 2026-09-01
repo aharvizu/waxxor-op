@@ -267,6 +267,13 @@
       "when": 1788217926871,
       "tag": "0037_fair_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788226163948,
+      "tag": "0038_rainy_norrin_radd",
+      "breakpoints": true
     }
   ]
 }
