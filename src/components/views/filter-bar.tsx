@@ -6,7 +6,17 @@ import * as Popover from "@radix-ui/react-popover";
 import { Filter, Plus, Search, Trash2, X } from "lucide-react";
 import { SearchableSelect } from "@/components/searchable-select";
 import { buttonSecondaryClass, cx, inputClass } from "@/components/ui";
-import { FILTER_OPERATORS, type PublicFieldDefinition, type FilterCondition, type FilterGroup } from "@/lib/filters";
+import {
+  DATE_RANGE_PRESETS,
+  FILTER_OPERATORS,
+  type DateRangeFilter,
+  type DateRangePreset,
+  type PublicFieldDefinition,
+  type FilterCondition,
+  type FilterGroup,
+} from "@/lib/filters";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 
 const OPERATOR_LABELS: Record<string, string> = {
   eq: "es",
@@ -48,6 +58,9 @@ export function FilterBar({
   activeFilters,
   activeSearch,
   onSaveToView,
+  enableDateRange = false,
+  activeDateRange = null,
+  onSaveDateRange,
 }: {
   fields: Record<string, PublicFieldDefinition>;
   /** Module-specific quick filter chips — empty array renders none. */
@@ -56,22 +69,48 @@ export function FilterBar({
   activeFilters: FilterGroup | null;
   activeSearch: string;
   onSaveToView?: (filters: FilterGroup | null) => void | Promise<void>;
+  /** Opt-in: renders the "Fecha" range/preset picker (Tickets, Actividades
+   * for now) — off by default so modules that haven't adopted it render
+   * exactly as before. */
+  enableDateRange?: boolean;
+  activeDateRange?: DateRangeFilter | null;
+  onSaveDateRange?: (range: DateRangeFilter | null) => void | Promise<void>;
 }) {
   const router = useRouter();
+  const locale = useLocale();
   const [builderOpen, setBuilderOpen] = useState(false);
   const [draft, setDraft] = useState<FilterGroup>(activeFilters ?? emptyGroup());
+  const [dateDraft, setDateDraft] = useState<DateRangeFilter | null>(activeDateRange);
   const [search, setSearch] = useState(activeSearch);
-  const activeCount = (activeQuick ? 1 : 0) + (activeFilters?.conditions.length ?? 0);
+  const dateFields = Object.values(fields).filter((f) => f.type === "date");
+  const activeCount = (activeQuick ? 1 : 0) + (activeFilters?.conditions.length ?? 0) + (activeDateRange ? 1 : 0);
 
-  function setUrlParam(key: string, value: string | null) {
+  const DATE_PRESET_LABELS: Record<DateRangePreset, string> = {
+    current_week: t("Esta semana", "This week", locale),
+    previous_week: t("Semana pasada", "Last week", locale),
+    current_month: t("Este mes", "This month", locale),
+    previous_month: t("Mes pasado", "Last month", locale),
+    current_quarter: t("Este trimestre", "This quarter", locale),
+    previous_quarter: t("Trimestre pasado", "Last quarter", locale),
+    current_year: t("Este año", "This year", locale),
+    custom: t("Rango personalizado", "Custom range", locale),
+  };
+
+  function applyParams(entries: [string, string | null][]) {
     const url = new URL(window.location.href);
-    if (value) url.searchParams.set(key, value);
-    else url.searchParams.delete(key);
-    // A new filter/quick-filter/search term can easily leave the current
-    // page number past the end of the (now smaller) result set — go back
-    // to page 1 rather than show a confusing empty page.
+    for (const [key, value] of entries) {
+      if (value) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
+    }
+    // A new filter/quick-filter/search/date-range term can easily leave the
+    // current page number past the end of the (now smaller) result set — go
+    // back to page 1 rather than show a confusing empty page.
     url.searchParams.delete("page");
     router.push(`${url.pathname}?${url.searchParams.toString()}`);
+  }
+
+  function setUrlParam(key: string, value: string | null) {
+    applyParams([[key, value]]);
   }
 
   function selectQuick(key: string) {
@@ -79,13 +118,30 @@ export function FilterBar({
   }
 
   function applyFilters() {
-    setUrlParam("filters", draft.conditions.length > 0 ? JSON.stringify(draft) : null);
+    applyParams([
+      ["filters", draft.conditions.length > 0 ? JSON.stringify(draft) : null],
+      ...(enableDateRange ? ([["dateRange", dateDraft ? JSON.stringify(dateDraft) : null]] as [string, string | null][]) : []),
+    ]);
     setBuilderOpen(false);
   }
 
   function clearFilters() {
     setDraft(emptyGroup());
-    setUrlParam("filters", null);
+    setDateDraft(null);
+    applyParams([
+      ["filters", null],
+      ...(enableDateRange ? ([["dateRange", null]] as [string, string | null][]) : []),
+    ]);
+  }
+
+  function patchDateDraft(patch: Partial<DateRangeFilter>) {
+    setDateDraft((prev) => ({
+      field: prev?.field ?? dateFields[0]?.key ?? "",
+      preset: prev?.preset ?? "current_month",
+      from: prev?.from ?? null,
+      to: prev?.to ?? null,
+      ...patch,
+    }));
   }
 
   function addCondition() {
@@ -171,6 +227,50 @@ export function FilterBar({
               </div>
             ) : null}
 
+            {enableDateRange && dateFields.length > 0 ? (
+              <div className="mb-3 border-b border-edge pb-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <div className="text-[11px] font-medium text-faint">{t("Fecha", "Date", locale)}</div>
+                  {dateDraft ? (
+                    <button type="button" onClick={() => setDateDraft(null)} className="text-[11px] text-muted hover:text-danger">
+                      {t("Quitar", "Remove", locale)}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <SearchableSelect
+                    value={dateDraft?.field ?? dateFields[0].key}
+                    onValueChange={(v) => patchDateDraft({ field: v })}
+                    className="h-8 w-auto min-w-28 text-xs"
+                    options={dateFields.map((f) => ({ value: f.key, label: f.label }))}
+                  />
+                  <SearchableSelect
+                    value={dateDraft?.preset ?? "current_month"}
+                    onValueChange={(v) => patchDateDraft({ preset: v as DateRangePreset })}
+                    className="h-8 w-auto text-xs"
+                    options={DATE_RANGE_PRESETS.map((p) => ({ value: p, label: DATE_PRESET_LABELS[p] }))}
+                  />
+                  {dateDraft?.preset === "custom" ? (
+                    <>
+                      <input
+                        type="date"
+                        value={dateDraft.from ?? ""}
+                        onChange={(e) => patchDateDraft({ from: e.target.value || null })}
+                        className={cx(inputClass, "h-8 w-auto text-xs")}
+                      />
+                      <span className="text-xs text-faint">–</span>
+                      <input
+                        type="date"
+                        value={dateDraft.to ?? ""}
+                        onChange={(e) => patchDateDraft({ to: e.target.value || null })}
+                        className={cx(inputClass, "h-8 w-auto text-xs")}
+                      />
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-fg">
                 Coincidir
@@ -214,9 +314,10 @@ export function FilterBar({
                         />
                       ) : (
                         <input
+                          type={field?.type === "date" ? "date" : "text"}
                           value={typeof c.value === "string" || typeof c.value === "number" ? String(c.value) : ""}
                           onChange={(e) => patchCondition(i, { value: e.target.value })}
-                          className={cx(inputClass, "h-8 w-24 text-xs")}
+                          className={cx(inputClass, "h-8 text-xs", field?.type === "date" ? "w-auto" : "w-24")}
                         />
                       )
                     ) : null}
@@ -240,7 +341,10 @@ export function FilterBar({
                 {onSaveToView ? (
                   <button
                     type="button"
-                    onClick={() => onSaveToView(draft.conditions.length > 0 ? draft : null)}
+                    onClick={() => {
+                      onSaveToView(draft.conditions.length > 0 ? draft : null);
+                      if (enableDateRange) onSaveDateRange?.(dateDraft);
+                    }}
                     className={cx(buttonSecondaryClass, "h-8 text-xs")}
                   >
                     Guardar en vista

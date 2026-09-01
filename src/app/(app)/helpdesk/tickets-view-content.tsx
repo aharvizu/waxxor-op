@@ -4,7 +4,7 @@ import { FilterBar } from "@/components/views/filter-bar";
 import { ViewSwitcher, canEditViewClient } from "@/components/views/view-switcher";
 import { ViewToolbar } from "@/components/views/view-toolbar";
 import { useViewConfig } from "@/components/views/use-view-config";
-import type { PublicFieldDefinition, FilterGroup } from "@/lib/filters";
+import type { DateRangeFilter, PublicFieldDefinition, FilterGroup } from "@/lib/filters";
 import type { SavedView } from "@/lib/views";
 import type { Role } from "@/lib/roles";
 import { useLocale } from "@/components/locale-provider";
@@ -47,6 +47,7 @@ export function TicketsViewContent({
   activeQuick,
   activeFilters,
   activeSearch,
+  activeDateRange,
   columnOptions,
   kanbanGroupOptions,
   page,
@@ -69,6 +70,7 @@ export function TicketsViewContent({
   activeQuick: string | null;
   activeFilters: FilterGroup | null;
   activeSearch: string;
+  activeDateRange: DateRangeFilter | null;
   columnOptions: { key: string; label: string }[];
   kanbanGroupOptions: { key: string; label: string }[];
   page: number;
@@ -85,6 +87,10 @@ export function TicketsViewContent({
 
   async function saveFilters(nextFilters: FilterGroup | null) {
     setConfig((prev) => ({ ...prev, filters: nextFilters }));
+  }
+
+  async function saveDateRange(nextDateRange: DateRangeFilter | null) {
+    setConfig((prev) => ({ ...prev, dateRange: nextDateRange }));
   }
 
   return (
@@ -106,6 +112,9 @@ export function TicketsViewContent({
         activeFilters={activeFilters}
         activeSearch={activeSearch}
         onSaveToView={saveFilters}
+        enableDateRange
+        activeDateRange={activeDateRange}
+        onSaveDateRange={saveDateRange}
       />
       <ViewToolbar
         viewType={view.viewType}

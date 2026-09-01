@@ -2,7 +2,7 @@ import { and, asc, eq, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, type DbExecutor } from "@/db";
 import { itemFavorites, savedViewPreferences, savedViews, users } from "@/db/schema";
-import { filterGroupSchema, type FilterGroup } from "@/lib/filters";
+import { dateRangeFilterSchema, filterGroupSchema, type FilterGroup } from "@/lib/filters";
 import { hasRole, type Role } from "@/lib/roles";
 
 /**
@@ -40,6 +40,11 @@ export const savedViewConfigSchema = z.object({
   groupBy: z.string().nullable().default(null),
   sortBy: z.object({ field: z.string(), direction: z.enum(["asc", "desc"]) }).nullable().default(null),
   filters: filterGroupSchema.nullable().default(null),
+  /** Date-range picker selection (Tickets, Actividades) — a field + relative
+   * preset ("Este mes"…) or custom from/to, resolved fresh on every render
+   * (see buildDateRangeSql) so a saved "Este mes" view always means the
+   * current month, never a baked-in date. */
+  dateRange: dateRangeFilterSchema.default(null),
   /** Module-specific quick-filter key (e.g. Tickets' "mine"/"overdue") — lets
    * a seeded/saved view reuse a relative, always-current condition (like
    * "vencidos") instead of baking a stale date into `filters`. */

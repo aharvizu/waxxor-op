@@ -18,6 +18,8 @@ import {
 import { ACTIVITY_STATUSES } from "@/lib/activities";
 import { getLabels } from "@/lib/labels";
 import type { Locale } from "@/lib/i18n";
+import { zonedTimeToUtc } from "@/lib/recurrence";
+import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 
 /**
  * Generic AND/OR filter engine (Part 2, dynamic config 2026-07-20). Field
@@ -396,6 +398,53 @@ export function buildFilterSql(
     .filter((s): s is SQL => s !== undefined);
   if (parts.length === 0) return undefined;
   return group.logic === "OR" ? or(...parts) : and(...parts);
+}
+
+/**
+ * Date-range filter — a field + a relative preset (or a custom from/to),
+ * separate from the generic AND/OR condition tree because it needs the same
+ * org-timezone-aware period math as Reportes (resolvePeriod/ORG_TIMEZONE),
+ * not a raw value comparison. Reuses PERIOD_RULES verbatim so "Este mes"
+ * means the exact same date span here as it does in Reportes/Facturación.
+ */
+export const DATE_RANGE_PRESETS = PERIOD_RULES;
+export type DateRangePreset = PeriodRule;
+
+const dateRangeSchema = z.object({
+  field: z.string().trim().min(1),
+  preset: z.enum(PERIOD_RULES),
+  from: z.string().nullable().default(null),
+  to: z.string().nullable().default(null),
+});
+export const dateRangeFilterSchema = dateRangeSchema.nullable();
+export type DateRangeFilter = z.infer<typeof dateRangeSchema>;
+
+/** Resolves a date-range selection into a SQL predicate against the chosen
+ * field's column. Silently ignored (undefined) for an unknown/non-date
+ * field or an empty custom range — same defensive style as conditionToSql,
+ * a stale/bookmarked URL must never crash the page. */
+export function buildDateRangeSql(
+  range: DateRangeFilter | null | undefined,
+  registry: Record<string, FieldDefinition>,
+  now: Date = new Date(),
+): SQL | undefined {
+  if (!range) return undefined;
+  const field = registry[range.field];
+  if (!field || field.type !== "date") return undefined;
+  const col = field.column as (typeof workItems)["createdAt"];
+
+  if (range.preset === "custom") {
+    const parts: SQL[] = [];
+    if (range.from) parts.push(gte(col, zonedTimeToUtc(range.from, "00:00", ORG_TIMEZONE)));
+    if (range.to) parts.push(lte(col, new Date(zonedTimeToUtc(range.to, "23:59", ORG_TIMEZONE).getTime() + 59_999)));
+    if (parts.length === 0) return undefined;
+    return parts.length > 1 ? and(...parts) : parts[0];
+  }
+
+  const { start, end } = resolvePeriod(range.preset, ORG_TIMEZONE, now);
+  const from = zonedTimeToUtc(start, "00:00", ORG_TIMEZONE);
+  const to = new Date(zonedTimeToUtc(end, "23:59", ORG_TIMEZONE).getTime() + 59_999);
+  return and(gte(col, from), lte(col, to));
 }
 
 /**

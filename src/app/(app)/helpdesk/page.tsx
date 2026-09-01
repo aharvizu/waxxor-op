@@ -6,13 +6,16 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/ui";
 import { getValuesForEntities, getFieldDefinitions } from "@/lib/custom-fields";
 import {
+  buildDateRangeSql,
   buildFieldRegistry,
   buildFilterSql,
+  dateRangeFilterSchema,
   filterGroupSchema,
   ticketQuickFilterSql,
   toPublicFields,
   TICKET_FIELDS,
   TICKET_QUICK_FILTERS,
+  type DateRangeFilter,
   type FilterGroup,
   type TicketQuickFilterKey,
 } from "@/lib/filters";
@@ -30,7 +33,16 @@ export const metadata: Metadata = { title: "Helpdesk" };
 
 const BASE_PATH = "/helpdesk";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; billing?: string; page?: string };
+type Search = {
+  view?: string;
+  quick?: string;
+  filters?: string;
+  q?: string;
+  status?: string;
+  billing?: string;
+  page?: string;
+  dateRange?: string;
+};
 
 export default async function HelpdeskPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -60,6 +72,11 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   if (params.filters) {
     const parsed = filterGroupSchema.safeParse(JSON.parse(params.filters));
     if (parsed.success) filters = parsed.data;
+  }
+  let dateRange: DateRangeFilter | null = viewConfig.dateRange ?? null;
+  if (params.dateRange) {
+    const parsed = dateRangeFilterSchema.safeParse(JSON.parse(params.dateRange));
+    if (parsed.success) dateRange = parsed.data;
   }
 
   const customFieldDefs = await getFieldDefinitions(user.organizationId, "tickets", { activeOnly: true });
@@ -92,6 +109,8 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   const conditions = [eq(tickets.organizationId, user.organizationId)];
   const filterSql = buildFilterSql(filters, fieldRegistry, "tickets", tickets.id);
   if (filterSql) conditions.push(filterSql);
+  const dateRangeSql = buildDateRangeSql(dateRange, fieldRegistry);
+  if (dateRangeSql) conditions.push(dateRangeSql);
   if (quick) {
     const qSql = ticketQuickFilterSql(quick, userId);
     if (qSql) conditions.push(qSql);
@@ -260,6 +279,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
+        activeDateRange={dateRange}
         columnOptions={buildTicketColumnOptions(locale)}
         kanbanGroupOptions={buildTicketKanbanGroupOptions(locale)}
         page={page}

@@ -9,11 +9,14 @@ import {
   ACTIVITY_QUICK_FILTERS,
   activityQuickFilterSql,
   buildActivityFields,
+  buildDateRangeSql,
   buildFieldRegistry,
   buildFilterSql,
+  dateRangeFilterSchema,
   filterGroupSchema,
   toPublicFields,
   type ActivityQuickFilterKey,
+  type DateRangeFilter,
   type FilterGroup,
 } from "@/lib/filters";
 import { getOrgLocale } from "@/lib/get-org-locale";
@@ -29,7 +32,7 @@ export const metadata: Metadata = { title: "Activities" };
 
 const BASE_PATH = "/activities";
 
-type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; page?: string };
+type Search = { view?: string; quick?: string; filters?: string; q?: string; status?: string; page?: string; dateRange?: string };
 
 export default async function ActivitiesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
@@ -59,6 +62,11 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     const parsed = filterGroupSchema.safeParse(JSON.parse(params.filters));
     if (parsed.success) filters = parsed.data;
   }
+  let dateRange: DateRangeFilter | null = viewConfig.dateRange ?? null;
+  if (params.dateRange) {
+    const parsed = dateRangeFilterSchema.safeParse(JSON.parse(params.dateRange));
+    if (parsed.success) dateRange = parsed.data;
+  }
 
   const locale = await getOrgLocale(user.organizationId);
   const fieldRegistry = await buildFieldRegistry(buildActivityFields(locale), []);
@@ -73,6 +81,8 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   ];
   const filterSql = buildFilterSql(filters, fieldRegistry, "activities", activities.id);
   if (filterSql) conditions.push(filterSql);
+  const dateRangeSql = buildDateRangeSql(dateRange, fieldRegistry);
+  if (dateRangeSql) conditions.push(dateRangeSql);
   if (quick) {
     const qSql = activityQuickFilterSql(quick, userId);
     if (qSql) conditions.push(qSql);
@@ -168,6 +178,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
         activeQuick={quick}
         activeFilters={filters}
         activeSearch={search}
+        activeDateRange={dateRange}
         columnOptions={ACTIVITY_COLUMN_OPTIONS}
         kanbanGroupOptions={ACTIVITY_KANBAN_GROUP_OPTIONS}
         page={page}
