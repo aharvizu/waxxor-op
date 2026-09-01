@@ -254,6 +254,13 @@ export async function getTicketStatusBySemanticKey(tx: DbExecutor, orgId: number
   const [row] = await tx.select().from(ticketStatuses).where(and(eq(ticketStatuses.organizationId, orgId), eq(ticketStatuses.semanticKey, semanticKey)));
   return row ?? null;
 }
+export async function getTicketBillingStatusBySemanticKey(tx: DbExecutor, orgId: number, semanticKey: string): Promise<TicketBillingStatusRow | null> {
+  const [row] = await tx
+    .select()
+    .from(ticketBillingStatuses)
+    .where(and(eq(ticketBillingStatuses.organizationId, orgId), eq(ticketBillingStatuses.semanticKey, semanticKey)));
+  return row ?? null;
+}
 
 const LEGACY_TO_PRIORITY_SEMANTIC: Record<LegacyPriority, string> = {
   low: "LOW",

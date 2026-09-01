@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useEffect, useState, useActionState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Paperclip, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import {
   Badge,
@@ -62,8 +63,26 @@ export function CatalogChip({ option }: { option: CatalogOption | undefined }) {
   );
 }
 
+/**
+ * Every form on this page shares this one hook, so the fix lives in one
+ * place: actions.ts's refresh(id) only revalidates "/helpdesk" and
+ * "/helpdesk/{id}" (no query string), which never matches the URL a user
+ * is actually on when viewing a non-default tab (?tab=billing, ?tab=trabajo,
+ * …) — revalidatePath is an exact path+query match. The save genuinely
+ * succeeds (confirmed against real data: ticket 302/Suqiee's billing status
+ * was already "Billable" in the database while the Billing tab kept
+ * showing "Pending review"), but the client's cached view of the current
+ * tab never gets told to refetch. router.refresh() always re-fetches
+ * whatever URL is actually open, tab and all.
+ */
 function useForm(action: (p: ActionState, f: FormData) => Promise<ActionState>) {
-  return useActionState<ActionState, FormData>(action, null);
+  const router = useRouter();
+  const result = useActionState<ActionState, FormData>(action, null);
+  const [state] = result;
+  useEffect(() => {
+    if (state?.ok) router.refresh();
+  }, [state, router]);
+  return result;
 }
 
 /* ------------------------------------------------------- header controls */

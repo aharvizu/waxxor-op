@@ -116,7 +116,7 @@ export function resolveMonthOffset(offset: number, timezone: string, now: Date):
 }
 
 /** The org timezone: single-org MVP uses the recurrence default (documented). */
-export const ORG_TIMEZONE = "America/Mexico_City";
+export const ORG_TIMEZONE = "America/Phoenix";
 
 /* ---------------------------------------------------------------- sections */
 

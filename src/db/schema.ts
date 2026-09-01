@@ -824,6 +824,11 @@ export const billingInvoiceTickets = pgTable(
     ticketId: integer("ticket_id")
       .notNull()
       .references(() => tickets.id),
+    // The ticket's billing status right before invoicing flipped it to
+    // "Charged" — restored verbatim on revertBillingInvoice() instead of
+    // guessing a fallback (e.g. always "Billable"), since a ticket could
+    // have reached invoicing from any approved-ish status.
+    previousBillingStatusId: integer("previous_billing_status_id").references(() => ticketBillingStatuses.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [

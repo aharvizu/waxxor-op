@@ -1,0 +1,2 @@
+ALTER TABLE "billing_invoice_tickets" ADD COLUMN "previous_billing_status_id" integer;--> statement-breakpoint
+ALTER TABLE "billing_invoice_tickets" ADD CONSTRAINT "billing_invoice_tickets_previous_billing_status_id_ticket_billing_statuses_id_fk" FOREIGN KEY ("previous_billing_status_id") REFERENCES "public"."ticket_billing_statuses"("id") ON DELETE no action ON UPDATE no action;
