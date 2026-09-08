@@ -339,6 +339,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             </Card>
           ) : (
             <ConversationPane
+              key={detail.conversation.id}
               detail={detail}
               userId={Number(user.id)}
               companies={companyRows}

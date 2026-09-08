@@ -356,7 +356,15 @@ export function StatusSelectForm({
   );
 }
 
-/** Marks the conversation read once when the chat is opened. */
+/**
+ * Marks the conversation read once when the chat is opened. The `fired` ref
+ * only guards against re-submitting within the SAME conversation (e.g. a
+ * router.refresh() re-running this effect) — it relies on the caller
+ * rendering this with `key={conversationId}` (see page.tsx's ConversationPane)
+ * so switching to a different conversation remounts it fresh. Without that
+ * key, `fired` stays true forever after the first conversation opened in the
+ * session and every conversation after it silently never gets auto-marked.
+ */
 export function AutoMarkRead({ conversationId, hasUnread }: { conversationId: number; hasUnread: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(markConversationRead, null);
   useRefreshOnSuccess(state);
