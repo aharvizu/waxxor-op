@@ -248,7 +248,12 @@ function TicketRows({ tickets, modalityLabels }: { tickets: BillingTicketRow[]; 
           <td className="py-2 pr-2 tabular-nums">{fmtDate(row.date)}</td>
           <td className="py-2 pr-2">{row.title}</td>
           <td className="py-2 pr-2">{row.technicianName}</td>
-          <td className="py-2 pr-2">{modalityLabels[row.modality] ?? row.modality}</td>
+          <td className="py-2 pr-2">
+            {row.modality
+              .split("/")
+              .map((m) => modalityLabels[m] ?? m)
+              .join(" + ")}
+          </td>
           <td className="py-2 pr-2 text-right tabular-nums">{formatMinutes(row.minutes)}</td>
           <td className="py-2 text-right tabular-nums">{fmtMoney(row.cost)}</td>
         </tr>

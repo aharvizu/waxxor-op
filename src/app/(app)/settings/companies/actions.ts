@@ -78,6 +78,7 @@ const serviceSchema = z.object({
   defaultOnsiteRate: optionalMoney,
   defaultFixedPrice: optionalMoney,
   isRenewable: z.preprocess((v) => v === "on" || v === "true", z.boolean()).default(false),
+  defaultBillingIncluded: z.preprocess((v) => v === "on" || v === "true", z.boolean()).default(false),
 });
 
 export async function createService(_prev: ActionState, formData: FormData): Promise<ActionState> {

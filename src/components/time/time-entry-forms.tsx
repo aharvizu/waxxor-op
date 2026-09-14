@@ -10,7 +10,7 @@ import {
   labelClass,
 } from "@/components/ui";
 import { FieldError, FormAlert } from "@/components/form-feedback";
-import { SearchableSelect } from "@/components/searchable-select";
+import { SearchableSelect, type SelectOption } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
 import { fmtDate, fmtMoney } from "@/lib/format";
@@ -27,6 +27,20 @@ import {
 } from "@/app/(app)/time-entries/actions";
 
 type Option = { id: number; name: string };
+
+/**
+ * Presence of this prop puts SessionFields in Ticket mode (2026-09-14 Billing
+ * redesign — Activities keeps the original, unrestricted fields): Modality
+ * drops "N/A" (only Remote/On-Site), Billing drops "Pending review" (only
+ * Billable/Non-billable/In contract), Billing defaults to "In contract" for
+ * clients on a policy service, and the hourly rate auto-suggests from the
+ * client's contracted rate for whichever modality gets picked.
+ */
+export type TicketBillingDefaults = {
+  isGlobalPolicyIncluded: boolean;
+  remoteRate: string | null;
+  onsiteRate: string | null;
+};
 
 const typeLabels: Record<string, string> = {
   technical_work: "Technical work",
@@ -60,6 +74,7 @@ function SessionFields({
   errors,
   defaults,
   timeTypeOptions,
+  ticketBilling,
 }: {
   errors: Record<string, string[]>;
   defaults?: {
@@ -75,8 +90,42 @@ function SessionFields({
   };
   /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
   timeTypeOptions: string[];
+  /** Ticket context (see TicketBillingDefaults) — omit for Activities. */
+  ticketBilling?: TicketBillingDefaults;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+
+  const modalityOptions: SelectOption[] = (
+    ticketBilling ? TIME_MODALITIES.filter((m) => m !== "not_applicable") : TIME_MODALITIES
+  ).map((m) => ({ value: m, label: modalityLabels[m] ?? m }));
+  if (defaults?.modality && !modalityOptions.some((o) => o.value === defaults.modality)) {
+    modalityOptions.push({ value: defaults.modality, label: modalityLabels[defaults.modality] ?? defaults.modality });
+  }
+  const billingOptions: SelectOption[] = (
+    ticketBilling ? BILLING_STATUSES.filter((b) => b !== "pending_review") : BILLING_STATUSES
+  ).map((b) => ({ value: b, label: billingLabels[b]?.label ?? b }));
+  if (defaults?.billingStatus && !billingOptions.some((o) => o.value === defaults.billingStatus)) {
+    billingOptions.push({ value: defaults.billingStatus, label: billingLabels[defaults.billingStatus]?.label ?? defaults.billingStatus });
+  }
+  const defaultBillingStatus =
+    defaults?.billingStatus ??
+    (ticketBilling ? (ticketBilling.isGlobalPolicyIncluded ? "included_in_contract" : "billable") : "pending_review");
+
+  const [modality, setModality] = useState(defaults?.modality ?? (ticketBilling ? "" : "not_applicable"));
+  const [hourlyRate, setHourlyRate] = useState(defaults?.hourlyRate ?? "");
+  const [rateIsAutoSuggested, setRateIsAutoSuggested] = useState(false);
+
+  // Only auto-suggest a rate on a brand-new entry (no `defaults`) — editing
+  // an existing one never silently overwrites its already-captured rate.
+  function handleModalityChange(next: string) {
+    setModality(next);
+    if (!ticketBilling || defaults) return;
+    if (hourlyRate !== "" && !rateIsAutoSuggested) return;
+    const suggestion = next === "remote" ? ticketBilling.remoteRate : next === "onsite" ? ticketBilling.onsiteRate : null;
+    setHourlyRate(suggestion ?? "");
+    setRateIsAutoSuggested(suggestion !== null);
+  }
+
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -108,7 +157,8 @@ function SessionFields({
           <SearchableSelect
             name="timeType"
             required
-            defaultValue={defaults?.timeType ?? "technical_work"}
+            defaultValue={defaults?.timeType ?? (ticketBilling ? "" : "technical_work")}
+            placeholder={ticketBilling ? "Choose…" : "Seleccionar…"}
             options={[
               ...(defaults?.timeType && !timeTypeOptions.includes(defaults.timeType)
                 ? [{ value: defaults.timeType, label: typeLabels[defaults.timeType] ?? defaults.timeType }]
@@ -121,8 +171,8 @@ function SessionFields({
           <label className={labelClass}>Billing</label>
           <SearchableSelect
             name="billingStatus"
-            defaultValue={defaults?.billingStatus ?? "pending_review"}
-            options={BILLING_STATUSES.map((b) => ({ value: b, label: billingLabels[b]?.label ?? b }))}
+            defaultValue={defaultBillingStatus}
+            options={billingOptions}
           />
         </div>
       </div>
@@ -131,8 +181,11 @@ function SessionFields({
           <label className={labelClass}>Modality</label>
           <SearchableSelect
             name="modality"
-            defaultValue={defaults?.modality ?? "not_applicable"}
-            options={TIME_MODALITIES.map((m) => ({ value: m, label: modalityLabels[m] ?? m }))}
+            value={modality}
+            onValueChange={handleModalityChange}
+            required={!!ticketBilling}
+            placeholder={ticketBilling ? "Choose…" : "Seleccionar…"}
+            options={modalityOptions}
           />
         </div>
         <div>
@@ -142,7 +195,11 @@ function SessionFields({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={defaults?.hourlyRate ?? ""}
+            value={hourlyRate}
+            onChange={(e) => {
+              setHourlyRate(e.target.value);
+              setRateIsAutoSuggested(false);
+            }}
             aria-invalid={errors.hourlyRate ? true : undefined}
             className={inputClass}
           />
@@ -187,12 +244,15 @@ export function AddTimeEntryForm({
   technicians,
   currentUserId,
   timeTypeOptions,
+  ticketBilling,
 }: {
   workItemId: number;
   technicians: Option[];
   currentUserId: number;
   /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
   timeTypeOptions: string[];
+  /** Ticket context (see TicketBillingDefaults) — omit for Activities. */
+  ticketBilling?: TicketBillingDefaults;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     createTimeEntry,
@@ -229,7 +289,7 @@ export function AddTimeEntryForm({
         </select>
         <FieldError errors={errors.userIds} />
       </div>
-      <SessionFields errors={errors} timeTypeOptions={timeTypeOptions} />
+      <SessionFields errors={errors} timeTypeOptions={timeTypeOptions} ticketBilling={ticketBilling} />
       <SubmitButton>Log time</SubmitButton>
     </form>
   );
@@ -241,6 +301,7 @@ export function TimeEntryRow({
   canDelete,
   readOnly,
   timeTypeOptions,
+  ticketBilling,
 }: {
   entry: {
     id: number;
@@ -263,6 +324,8 @@ export function TimeEntryRow({
   readOnly: boolean;
   /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
   timeTypeOptions: string[];
+  /** Ticket context (see TicketBillingDefaults) — omit for Activities. */
+  ticketBilling?: TicketBillingDefaults;
 }) {
   const [editing, setEditing] = useState(false);
   const [editState, editAction] = useActionState<ActionState, FormData>(
@@ -367,6 +430,7 @@ export function TimeEntryRow({
           <SessionFields
             errors={errors}
             timeTypeOptions={timeTypeOptions}
+            ticketBilling={ticketBilling}
             defaults={{
               date: entry.date,
               durationMinutes: entry.durationMinutes,

@@ -244,6 +244,53 @@ export async function getClientServicesList(orgId: number, companyId: number) {
     .orderBy(asc(services.name));
 }
 
+/**
+ * Billing defaults for a company's Ticket time entries (2026-09-14 Billing
+ * redesign — see BillingForm's replacement in ticket-panels.tsx): whether the
+ * client is on a policy service (Billing defaults to "In Contract"), plus the
+ * best-guess hourly rate by modality to prefill on a new time entry. Each
+ * rate is resolved independently — the support-category active service's
+ * rate if it has one, else the first active service (of any category) that
+ * has one — since a company can have several active services and not all of
+ * them carry a rate (e.g. licensing services never do). Editable by the
+ * technician either way, so an imperfect guess here is low-stakes.
+ */
+export async function getCompanyBillingDefaults(
+  orgId: number,
+  companyId: number | null,
+): Promise<{ isGlobalPolicyIncluded: boolean; remoteRate: string | null; onsiteRate: string | null }> {
+  if (!companyId) return { isGlobalPolicyIncluded: false, remoteRate: null, onsiteRate: null };
+  const rows = await db
+    .select({
+      remoteRate: clientServices.remoteRate,
+      onsiteRate: clientServices.onsiteRate,
+      serviceCategory: services.category,
+      serviceDefaultRemoteRate: services.defaultRemoteRate,
+      serviceDefaultOnsiteRate: services.defaultOnsiteRate,
+      defaultBillingIncluded: services.defaultBillingIncluded,
+    })
+    .from(clientServices)
+    .innerJoin(services, eq(clientServices.serviceId, services.id))
+    .where(
+      and(
+        eq(clientServices.organizationId, orgId),
+        eq(clientServices.companyId, companyId),
+        eq(clientServices.status, "active"),
+        eq(services.status, "active"),
+      ),
+    );
+
+  const isGlobalPolicyIncluded = rows.some((r) => r.defaultBillingIncluded);
+  const ranked = [...rows].sort((a, b) => Number(b.serviceCategory === "support") - Number(a.serviceCategory === "support"));
+  const resolvedRemoteRate = ranked.map((r) => r.remoteRate ?? r.serviceDefaultRemoteRate).find((r) => r !== null) ?? null;
+  const resolvedOnsiteRate = ranked.map((r) => r.onsiteRate ?? r.serviceDefaultOnsiteRate).find((r) => r !== null) ?? null;
+  return {
+    isGlobalPolicyIncluded,
+    remoteRate: resolvedRemoteRate,
+    onsiteRate: resolvedOnsiteRate,
+  };
+}
+
 export async function getClientContracts(orgId: number, companyId: number) {
   return db
     .select()

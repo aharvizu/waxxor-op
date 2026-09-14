@@ -27,6 +27,7 @@ import {
   workItems,
 } from "@/db/schema";
 import { requireUser } from "@/lib/session";
+import { getCompanyBillingDefaults } from "@/lib/company360-data";
 import { getCatalog, getCatalogNames } from "@/lib/settings-data";
 import { getArticleForTicket } from "@/lib/knowledge-data";
 import { getLabels } from "@/lib/labels";
@@ -73,6 +74,12 @@ const TAB_KEYS = [
   "history",
   "resolution",
 ] as const;
+
+// Billing is superseded by the Modalidad/Billing fields on Time entries
+// (2026-09-14 redesign) — hidden from the tab bar so techs aren't shown two
+// parallel billing UIs, but kept reachable at ?tab=billing and its data
+// untouched, in case a ticket still carries historical Billing-tab values.
+const VISIBLE_TAB_KEYS = TAB_KEYS.filter((k) => k !== "billing");
 
 export default async function TicketPage({
   params,
@@ -301,10 +308,11 @@ export default async function TicketPage({
     ).length,
   };
 
-  const [statuses, priorities, billingStatuses] = await Promise.all([
+  const [statuses, priorities, billingStatuses, companyBillingDefaults] = await Promise.all([
     listTicketStatuses(user.organizationId, { includeInactive: true }),
     listTicketPriorities(user.organizationId, { includeInactive: true }),
     listTicketBillingStatuses(user.organizationId, { includeInactive: true }),
+    getCompanyBillingDefaults(user.organizationId, w.companyId),
   ]);
   const currentStatus = statuses.find((s) => s.id === t.statusId);
   const currentPriority = priorities.find((p) => p.id === t.priorityId);
@@ -404,7 +412,7 @@ export default async function TicketPage({
         {/* center */}
         <div className="space-y-4 xl:col-span-2">
           <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-edge bg-surface p-1 shadow-card">
-            {TAB_KEYS.map((key) => (
+            {VISIBLE_TAB_KEYS.map((key) => (
               <TabLink key={key} href={`/helpdesk/${t.id}?tab=${key}`} active={tab === key}>
                 {TAB_LABELS[key]}
                 {key === "activities" && relatedStats.total > 0
@@ -628,7 +636,17 @@ export default async function TicketPage({
             </>
           ) : null}
 
-          {tab === "time" ? <TimeEntriesCard workItemId={w.id} readOnly={isClosed} /> : null}
+          {tab === "time" ? (
+            <TimeEntriesCard
+              workItemId={w.id}
+              readOnly={isClosed}
+              ticketBilling={{
+                isGlobalPolicyIncluded: companyBillingDefaults.isGlobalPolicyIncluded,
+                remoteRate: companyBillingDefaults.remoteRate,
+                onsiteRate: companyBillingDefaults.onsiteRate,
+              }}
+            />
+          ) : null}
 
           {tab === "files" ? (
             <Card className="overflow-hidden">

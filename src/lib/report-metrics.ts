@@ -905,11 +905,19 @@ export async function ticketDataQuality(orgId: number, period: Period, scope: Me
  */
 export async function billingSupportData(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
+  // A ticket's charge is now decided per time entry (Modalidad + Billing on
+  // the Time tab, 2026-09-14 redesign) instead of the ticket-level Billing
+  // tab — a ticket qualifies for this report as soon as it has at least one
+  // "billable" entry, even before anyone's typed an hourly rate on it (shows
+  // as $0 rather than silently vanishing, so the gap stays visible).
   const base = and(
     eq(workItems.organizationId, orgId),
     eq(workItems.type, "ticket"),
     sql`${workItems.createdAt} between ${from} and ${to}`,
-    sql`${tickets.calculatedAmount} > 0`,
+    sql`exists (
+      select 1 from ${timeEntries} te
+      where te.work_item_id = ${workItems.id} and te.voided_at is null and te.billing_status = 'billable'
+    )`,
     ...scopeWork(scope),
   );
   const rows = await db
@@ -921,12 +929,25 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
       date: sql<string>`${workItems.createdAt}::date::text`,
       title: workItems.title,
       technicianName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
-      modality: sql<string>`${tickets.billingModality}::text`,
+      modality: sql<string>`coalesce((
+        select string_agg(distinct te.modality::text, '/')
+        from ${timeEntries} te
+        where te.work_item_id = ${workItems.id} and te.voided_at is null and te.billing_status = 'billable'
+      ), 'not_applicable')`,
       minutes: int(sql`coalesce((
         select sum(te.duration_minutes) from ${timeEntries} te
-        where te.work_item_id = ${workItems.id} and te.voided_at is null
+        where te.work_item_id = ${workItems.id} and te.voided_at is null and te.billing_status = 'billable'
       ), 0)`),
-      cost: sql<string>`${tickets.calculatedAmount}::text`,
+      cost: sql<string>`coalesce((
+        select sum(te.calculated_amount) from ${timeEntries} te
+        where te.work_item_id = ${workItems.id} and te.voided_at is null and te.billing_status = 'billable'
+      ), 0)::text`,
+      // Pre-redesign tickets were invoiced from the ticket-level Billing tab
+      // (tickets.calculatedAmount), not from time entries (which never
+      // carried a rate back then) — kept here so an already-invoiced
+      // ticket's historical amount doesn't silently turn into $0 when this
+      // report is reprinted. Only read when `invoice` below is non-null.
+      legacyCost: sql<string>`coalesce(${tickets.calculatedAmount}, 0)::text`,
       comment: tickets.resolution,
     })
     .from(tickets)
@@ -938,11 +959,18 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
 
   const invoiceByTicket = await getTicketInvoiceMap(orgId, rows.map((r) => r.ticketId));
 
+  const resolvedRows = rows.map((r) => {
+    const invoice = invoiceByTicket.get(r.ticketId) ?? null;
+    const legacyCost = Number(r.legacyCost);
+    const cost = invoice && legacyCost > 0 ? r.legacyCost : r.cost;
+    return { ...r, cost };
+  });
+
   const byCompany = new Map<
     number | null,
-    { companyId: number | null; companyName: string; tickets: typeof rows; totalMinutes: number; totalCost: number }
+    { companyId: number | null; companyName: string; tickets: typeof resolvedRows; totalMinutes: number; totalCost: number }
   >();
-  for (const r of rows) {
+  for (const r of resolvedRows) {
     let group = byCompany.get(r.companyId);
     if (!group) {
       group = { companyId: r.companyId, companyName: r.companyName, tickets: [], totalMinutes: 0, totalCost: 0 };

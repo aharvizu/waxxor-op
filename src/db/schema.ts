@@ -487,6 +487,10 @@ export const services = pgTable("services", {
   // default: "Proveedores → Productos" manages it.
   vendorId: integer("vendor_id").references(() => vendors.id),
   isRenewable: boolean("is_renewable").notNull().default(false),
+  // A client contracted on a service with this on (e.g. "Poliza Global")
+  // never gets billed directly — their tickets' time entries default to
+  // "In Contract" instead of "Billable" (2026-09-14 Billing redesign).
+  defaultBillingIncluded: boolean("default_billing_included").notNull().default(false),
   status: serviceStatus("status").notNull().default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

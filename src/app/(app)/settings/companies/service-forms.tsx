@@ -44,6 +44,7 @@ export type ServiceRow = {
   defaultOnsiteRate: string | null;
   defaultFixedPrice: string | null;
   isRenewable: boolean;
+  defaultBillingIncluded: boolean;
   status: string;
   variants: VariantRow[];
 };
@@ -111,6 +112,10 @@ function ServiceEditForm({ service, onDone }: { service: ServiceRow; onDone: () 
       <label className="flex items-center gap-2 text-sm text-fg">
         <input type="checkbox" name="isRenewable" defaultChecked={service.isRenewable} /> {t("Es renovable", "Is renewable", locale)}
       </label>
+      <label className="flex items-center gap-2 text-sm text-fg">
+        <input type="checkbox" name="defaultBillingIncluded" defaultChecked={service.defaultBillingIncluded} />
+        {t("Incluido en póliza — nunca se factura al cliente", "Included in policy — client is never billed", locale)}
+      </label>
       <div className="flex items-center gap-2">
         <SubmitButton className="h-8">{t("Guardar", "Save", locale)}</SubmitButton>
         <button type="button" onClick={onDone} className={cx(buttonSecondaryClass, "h-8")}>
@@ -149,6 +154,10 @@ function ServiceAddForm({ onDone }: { onDone: () => void }) {
       </div>
       <label className="flex items-center gap-2 text-sm text-fg">
         <input type="checkbox" name="isRenewable" /> {t("Es renovable", "Is renewable", locale)}
+      </label>
+      <label className="flex items-center gap-2 text-sm text-fg">
+        <input type="checkbox" name="defaultBillingIncluded" />
+        {t("Incluido en póliza — nunca se factura al cliente", "Included in policy — client is never billed", locale)}
       </label>
       <div className="flex items-center gap-2">
         <SubmitButton className="h-8">{t("Agregar servicio", "Add service", locale)}</SubmitButton>
@@ -386,6 +395,7 @@ function ServiceListRow({ service }: { service: ServiceRow }) {
         </button>
         <span className="min-w-0 truncate font-medium text-fg">{service.name}</span>
         <Badge tone="slate">{service.category}</Badge>
+        {service.defaultBillingIncluded ? <Badge tone="blue">{t("Póliza", "Policy", locale)}</Badge> : null}
         {service.status !== "active" ? <Badge tone="slate">{t("Inactivo", "Inactive", locale)}</Badge> : null}
         {service.variants.length > 0 ? (
           <span className="text-xs text-muted">

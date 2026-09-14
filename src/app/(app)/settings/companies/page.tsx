@@ -53,6 +53,7 @@ export default async function CompaniesSettingsPage() {
     defaultOnsiteRate: s.defaultOnsiteRate,
     defaultFixedPrice: s.defaultFixedPrice,
     isRenewable: s.isRenewable,
+    defaultBillingIncluded: s.defaultBillingIncluded,
     status: s.status,
     variants: variantRows
       .filter((v) => v.serviceId === s.id)
