@@ -910,10 +910,16 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
   // tab — a ticket qualifies for this report as soon as it has at least one
   // "billable" entry, even before anyone's typed an hourly rate on it (shows
   // as $0 rather than silently vanishing, so the gap stays visible).
+  // Scoped by closedAt, not creation date (2026-09-19) — "pending charges"
+  // means finished, ready-to-bill work; a ticket created months ago but only
+  // just closed belongs in THIS period's report, not the one it was opened
+  // in. Naturally excludes still-open tickets (closedAt is null, never
+  // matches `between`), which is intentional — nothing is "ready to charge"
+  // until the ticket is done.
   const base = and(
     eq(workItems.organizationId, orgId),
     eq(workItems.type, "ticket"),
-    sql`${workItems.createdAt} between ${from} and ${to}`,
+    sql`${tickets.closedAt} between ${from} and ${to}`,
     sql`exists (
       select 1 from ${timeEntries} te
       where te.work_item_id = ${workItems.id} and te.voided_at is null and te.billing_status = 'billable'
@@ -926,7 +932,7 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
       companyName: sql<string>`coalesce(${companies.name}, 'Sin empresa')`,
       ticketId: tickets.id,
       folio: tickets.folio,
-      date: sql<string>`${workItems.createdAt}::date::text`,
+      date: sql<string>`${tickets.closedAt}::date::text`,
       title: workItems.title,
       technicianName: sql<string>`coalesce(${users.name}, 'Sin asignar')`,
       modality: sql<string>`coalesce((
@@ -955,7 +961,7 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
     .leftJoin(companies, eq(workItems.companyId, companies.id))
     .leftJoin(users, eq(workItems.assigneeId, users.id))
     .where(base)
-    .orderBy(companies.name, workItems.createdAt);
+    .orderBy(companies.name, tickets.closedAt);
 
   const invoiceByTicket = await getTicketInvoiceMap(orgId, rows.map((r) => r.ticketId));
 

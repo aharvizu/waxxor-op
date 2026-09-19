@@ -366,6 +366,14 @@ export function TimeEntryRow({
             <span className="tabular-nums text-muted">
               {fmtMoney(entry.calculatedAmount)}
             </span>
+          ) : ticketBilling && entry.billingStatus === "billable" && !entry.voided && !readOnly ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-medium text-amber-600 hover:underline dark:text-amber-300"
+            >
+              Sin monto — agregar
+            </button>
           ) : null}
           {entry.voided ? <Badge tone="red">Voided</Badge> : null}
         </div>

@@ -79,7 +79,11 @@ export default async function BillingSupportPage({
 
       {clients.length === 0 ? (
         <EmptyState icon={<FileText className="size-8" />} title={t("Sin tickets cobrables en el periodo", "No billable tickets in the period", locale)}>
-          {t("Ningún ticket del periodo tiene un importe calculado mayor a $0.", "No ticket in the period has a calculated amount greater than $0.", locale)}
+          {t(
+            "Ningún ticket se cerró en este periodo con al menos un registro de Tiempo marcado como Billable.",
+            "No ticket closed in this period with at least one time entry marked Billable.",
+            locale,
+          )}
         </EmptyState>
       ) : (
         <>

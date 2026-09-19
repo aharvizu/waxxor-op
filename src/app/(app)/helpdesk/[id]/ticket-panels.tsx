@@ -36,6 +36,7 @@ import {
   reopenTicket,
   resolveTicket,
   setTicketBilling,
+  setTicketBillingStatus,
   setTicketPriority,
   unlinkActivity,
   updateTicketDetails,
@@ -125,6 +126,41 @@ export function StatusSelect({
           {t("Aplicar", "Set", locale)}
         </button>
       ) : null}
+      {state && !state.ok ? <FormAlert state={state} className="w-full" /> : null}
+    </form>
+  );
+}
+
+/**
+ * Sets the ticket's overall Billing classification (Unclassified/In
+ * contract/Billable/…) — usable anytime the ticket is open, not only at
+ * close, now that the old Billing tab is hidden (2026-09-14 redesign).
+ */
+export function BillingStatusSelect({
+  ticketId,
+  billingStatusId,
+  billingStatuses,
+}: {
+  ticketId: number;
+  billingStatusId: number;
+  billingStatuses: Option[];
+}) {
+  const [state, formAction] = useForm(setTicketBillingStatus);
+  const locale = useLocale();
+  return (
+    <form action={formAction} className="flex items-center gap-2">
+      <input type="hidden" name="id" value={ticketId} />
+      <SearchableSelect
+        name="billingStatusId"
+        key={billingStatusId}
+        defaultValue={String(billingStatusId)}
+        aria-label={t("Estado de cobro", "Billing status", locale)}
+        className="h-8 w-auto text-xs"
+        options={billingStatuses.map((s) => ({ value: String(s.id), label: s.name }))}
+      />
+      <button type="submit" className={cx(buttonSecondaryClass, "h-8 px-2.5 text-xs")}>
+        {t("Aplicar", "Set", locale)}
+      </button>
       {state && !state.ok ? <FormAlert state={state} className="w-full" /> : null}
     </form>
   );

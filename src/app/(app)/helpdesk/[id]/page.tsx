@@ -44,6 +44,7 @@ import { fmtDate, fmtDateTime, fmtMoney } from "@/lib/format";
 import { formatMinutes } from "@/lib/time-entries";
 import {
   BillingForm,
+  BillingStatusSelect,
   CatalogChip,
   CloseForm,
   Composer,
@@ -403,6 +404,7 @@ export default async function TicketPage({
               disabled={false}
             />
           ) : null}
+          <BillingStatusSelect ticketId={t.id} billingStatusId={t.billingStatusId} billingStatuses={billingOptions} />
           {canReopen ? <ReopenControl ticketId={t.id} /> : null}
           {user.role === "superadmin" ? <DeleteTicketControl ticketId={t.id} /> : null}
         </div>

@@ -1050,6 +1050,62 @@ export async function setTicketBilling(
   return success("Billing classification updated.");
 }
 
+const billingStatusOnlySchema = z.object({
+  id: z.coerce.number().int().positive(),
+  billingStatusId: z.coerce.number().int().positive(),
+});
+
+/**
+ * Lets a ticket's overall billing classification (Unclassified/In
+ * contract/Billable/…) be set anytime the ticket is open, not only at
+ * close (see performClose's billingStatusId input) — the Billing tab that
+ * used to be the other place to set it (setTicketBilling above) is now
+ * hidden, superseded by per-time-entry Billing (2026-09-14). Unlike
+ * setTicketBilling, this never requires a computable amount — that
+ * concept moved to time entries too.
+ */
+export async function setTicketBillingStatus(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const { data, error } = parseForm(billingStatusOnlySchema, formData);
+  if (error) return error;
+
+  try {
+    await db.transaction(async (tx) => {
+      const row = await loadTicket(tx, user, data.id);
+      const billingStatus = await getTicketBillingStatus(tx, user.organizationId, data.billingStatusId);
+      if (!billingStatus) throw new TicketNotFoundError();
+      const patch = {
+        billingStatus: legacyBillingFor(billingStatus),
+        billingStatusId: billingStatus.id,
+      };
+      const changes = diffFields(
+        {
+          organizationId: user.organizationId,
+          userId: Number(user.id),
+          entityType: "ticket",
+          entityId: row.ticket.id,
+        },
+        row.ticket,
+        patch,
+        ["billingStatus"],
+      );
+      if (changes.length === 0) return;
+      await tx
+        .update(tickets)
+        .set({ ...patch, billingDeterminedById: Number(user.id), billingDeterminedAt: new Date() })
+        .where(eq(tickets.id, row.ticket.id));
+      await recordAudit(tx, changes);
+    });
+  } catch (err) {
+    return ticketError(err);
+  }
+  refresh(data.id);
+  return success("Estado de cobro actualizado.");
+}
+
 /* -------------------------------------------------- conversation & notes */
 
 async function getOrCreateConversation(
