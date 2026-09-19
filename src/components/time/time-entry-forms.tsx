@@ -152,21 +152,28 @@ function SessionFields({
           />
           <FieldError errors={errors.durationMinutes} />
         </div>
-        <div>
-          <label className={labelClass}>Type</label>
-          <SearchableSelect
-            name="timeType"
-            required
-            defaultValue={defaults?.timeType ?? (ticketBilling ? "" : "technical_work")}
-            placeholder={ticketBilling ? "Choose…" : "Seleccionar…"}
-            options={[
-              ...(defaults?.timeType && !timeTypeOptions.includes(defaults.timeType)
-                ? [{ value: defaults.timeType, label: typeLabels[defaults.timeType] ?? defaults.timeType }]
-                : []),
-              ...timeTypeOptions.map((t) => ({ value: t, label: typeLabels[t] ?? t })),
-            ]}
-          />
-        </div>
+        {ticketBilling ? (
+          // Redundant with Modality below for Tickets (same Remote/On-Site
+          // question, asked twice) — kept only as a hidden field, derived
+          // from Modality, so the still-NOT-NULL timeType column stays
+          // satisfied without showing the tech a duplicate control.
+          <input type="hidden" name="timeType" value={modality === "onsite" ? "onsite_support" : "remote_support"} />
+        ) : (
+          <div>
+            <label className={labelClass}>Type</label>
+            <SearchableSelect
+              name="timeType"
+              required
+              defaultValue={defaults?.timeType ?? "technical_work"}
+              options={[
+                ...(defaults?.timeType && !timeTypeOptions.includes(defaults.timeType)
+                  ? [{ value: defaults.timeType, label: typeLabels[defaults.timeType] ?? defaults.timeType }]
+                  : []),
+                ...timeTypeOptions.map((t) => ({ value: t, label: typeLabels[t] ?? t })),
+              ]}
+            />
+          </div>
+        )}
         <div>
           <label className={labelClass}>Billing</label>
           <SearchableSelect

@@ -24,7 +24,7 @@ export async function TimeEntriesCard({
 }) {
   const user = await requireUser();
 
-  const [entries, technicianRows, allTimeTypeOptions] = await Promise.all([
+  const [entries, technicianRows, timeTypeOptions] = await Promise.all([
     db
       .select({
         entry: timeEntries,
@@ -48,13 +48,6 @@ export async function TimeEntriesCard({
       .orderBy(asc(users.name)),
     getCatalogNames(user.organizationId, "time_entry_type"),
   ]);
-  // Tickets (2026-09-14 Billing redesign): "Tipo" narrows to the catalog's
-  // two Remote/On-Site items — Activities keeps the full catalog (shared
-  // with activities.activityType, whose "general"/"meeting"/"reminder" are
-  // system-protected, so the underlying catalog itself is never touched).
-  const timeTypeOptions = ticketBilling
-    ? allTimeTypeOptions.filter((t) => t === "remote_support" || t === "onsite_support")
-    : allTimeTypeOptions;
 
   const active = entries.filter((e) => !e.entry.voidedAt);
   const totalMinutes = active.reduce((s, e) => s + e.entry.durationMinutes, 0);
