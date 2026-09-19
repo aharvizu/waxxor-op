@@ -117,7 +117,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   }
   if (search.trim()) {
     const term = `%${search.trim()}%`;
-    conditions.push(or(ilike(workItems.title, term), ilike(tickets.folio, term))!);
+    conditions.push(or(ilike(workItems.title, term), ilike(tickets.folio, term), ilike(companies.name, term))!);
   }
   // Direct status/billing passthrough — bookmarkable dashboard/indicator
   // drill-down links (today/page.tsx, lib/indicators.ts) that don't map to
@@ -151,7 +151,12 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
   const offset = isPaged ? (page - 1) * limit : 0;
 
   const [[{ totalCount }], rawRows] = await Promise.all([
-    db.select({ totalCount: sql<number>`count(*)::int` }).from(tickets).innerJoin(workItems, eq(tickets.workItemId, workItems.id)).where(and(...conditions)),
+    db
+      .select({ totalCount: sql<number>`count(*)::int` })
+      .from(tickets)
+      .innerJoin(workItems, eq(tickets.workItemId, workItems.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
+      .where(and(...conditions)),
     db
     .with(timeByItem)
     .select({

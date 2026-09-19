@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, ilike, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, companies, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
@@ -88,7 +88,8 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
     if (qSql) conditions.push(qSql);
   }
   if (search.trim()) {
-    conditions.push(ilike(workItems.title, `%${search.trim()}%`));
+    const term = `%${search.trim()}%`;
+    conditions.push(or(ilike(workItems.title, term), ilike(activities.folio, term), ilike(companies.name, term))!);
   }
   // Direct status passthrough — bookmarkable dashboard/indicator drill-down
   // links that don't map to a quick filter or saved view.
@@ -104,7 +105,12 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
   const offset = isPaged ? (page - 1) * limit : 0;
 
   const [[{ totalCount }], rawRows] = await Promise.all([
-    db.select({ totalCount: sql<number>`count(*)::int` }).from(activities).innerJoin(workItems, eq(activities.workItemId, workItems.id)).where(and(...conditions)),
+    db
+      .select({ totalCount: sql<number>`count(*)::int` })
+      .from(activities)
+      .innerJoin(workItems, eq(activities.workItemId, workItems.id))
+      .leftJoin(companies, eq(workItems.companyId, companies.id))
+      .where(and(...conditions)),
     db
       .select({
         id: activities.id,

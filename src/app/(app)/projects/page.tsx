@@ -71,7 +71,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   }
   if (search.trim()) {
     const term = `%${search.trim()}%`;
-    conditions.push(or(ilike(projects.name, term), ilike(projects.folio, term))!);
+    conditions.push(or(ilike(projects.name, term), ilike(projects.folio, term), ilike(companies.name, term))!);
   }
   // Direct status passthrough — bookmarkable dashboard/indicator drill-down
   // links that don't map to a quick filter or saved view.
@@ -89,7 +89,11 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   const offset = isPaged ? (page - 1) * limit : 0;
 
   const [[{ totalCount }], rawRows] = await Promise.all([
-    db.select({ totalCount: sql<number>`count(*)::int` }).from(projects).where(and(...conditions)),
+    db
+      .select({ totalCount: sql<number>`count(*)::int` })
+      .from(projects)
+      .leftJoin(companies, eq(projects.companyId, companies.id))
+      .where(and(...conditions)),
     db
       .select({
         id: projects.id,
