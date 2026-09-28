@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/session";
 import { getSetting } from "@/lib/settings-data";
 import { formatMinutes } from "@/lib/time-entries";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { getPeriodLabels } from "@/lib/labels";
 import { t, type Locale } from "@/lib/i18n";
 import { PrintButton } from "@/components/print-button";
 
@@ -20,18 +21,6 @@ function getModalityLabels(locale: Locale): Record<string, string> {
     onsite: t("Sitio", "On-site", locale),
     fixed_price: t("Precio fijo", "Fixed price", locale),
     not_applicable: "—",
-  };
-}
-
-function getPeriodLabels(locale: Locale): Record<string, string> {
-  return {
-    current_week: t("Semana actual", "Current week", locale),
-    previous_week: t("Semana anterior", "Previous week", locale),
-    current_month: t("Mes actual", "Current month", locale),
-    previous_month: t("Mes anterior", "Previous month", locale),
-    current_quarter: t("Trimestre actual", "Current quarter", locale),
-    previous_quarter: t("Trimestre anterior", "Previous quarter", locale),
-    current_year: t("Año actual", "Current year", locale),
   };
 }
 

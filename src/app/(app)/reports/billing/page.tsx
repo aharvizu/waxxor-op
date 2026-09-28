@@ -6,24 +6,13 @@ import { billingSupportData } from "@/lib/report-metrics";
 import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import { getOrgLocale } from "@/lib/get-org-locale";
+import { getPeriodLabels } from "@/lib/labels";
 import { t, type Locale } from "@/lib/i18n";
 import { Card, CardHeader, EmptyState, PageHeader, THead, Table, TBody, Th, buttonClass, buttonSecondaryClass } from "@/components/ui";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ClientBillingRow } from "./billing-forms";
 
 export const metadata: Metadata = { title: "Cobros y facturación" };
-
-function getPeriodLabels(locale: Locale): Record<string, string> {
-  return {
-    current_week: t("Semana actual", "Current week", locale),
-    previous_week: t("Semana anterior", "Previous week", locale),
-    current_month: t("Mes actual", "Current month", locale),
-    previous_month: t("Mes anterior", "Previous month", locale),
-    current_quarter: t("Trimestre actual", "Current quarter", locale),
-    previous_quarter: t("Trimestre anterior", "Previous quarter", locale),
-    current_year: t("Año actual", "Current year", locale),
-  };
-}
 
 /**
  * Reportes → Cobros y facturación (Pantalla 5 of the legacy KPI brief) — a

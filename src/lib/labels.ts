@@ -1,5 +1,5 @@
 import type { BadgeTone } from "@/components/ui";
-import type { Locale } from "@/lib/i18n";
+import { t, type Locale } from "@/lib/i18n";
 
 /**
  * Shared status/priority/role label maps, bilingual (es/en) — Settings →
@@ -348,6 +348,25 @@ const knowledgeRelationTypeMetaBi: Record<string, BiMeta> = {
 
 /** Locale-aware entry point — server pages resolve `locale` via getOrgLocale,
  * client components via useLocale(). */
+/**
+ * Period-rule labels for the report/indicator period pickers (PERIOD_RULES in
+ * lib/reports.ts). Kept apart from the maps above because these carry no
+ * BadgeTone — same idea, plain text. Screens that don't offer a custom range
+ * filter `custom` out of PERIOD_RULES before mapping.
+ */
+export function getPeriodLabels(locale: Locale): Record<string, string> {
+  return {
+    current_week: t("Semana actual", "Current week", locale),
+    previous_week: t("Semana anterior", "Previous week", locale),
+    current_month: t("Mes actual", "Current month", locale),
+    previous_month: t("Mes anterior", "Previous month", locale),
+    current_quarter: t("Trimestre actual", "Current quarter", locale),
+    previous_quarter: t("Trimestre anterior", "Previous quarter", locale),
+    current_year: t("Año actual", "Current year", locale),
+    custom: t("Personalizado", "Custom", locale),
+  };
+}
+
 export function getLabels(locale: Locale) {
   return {
     ticketStatusMeta: resolveMap(ticketStatusMetaBi, locale),

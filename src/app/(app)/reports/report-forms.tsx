@@ -6,7 +6,8 @@ import { FieldError, FormAlert } from "@/components/form-feedback";
 import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-result";
-import { getLabels } from "@/lib/labels";
+import { getLabels, getPeriodLabels } from "@/lib/labels";
+import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { PERIOD_RULES, REPORT_TYPES } from "@/lib/reports";
 import {
@@ -24,17 +25,6 @@ import {
 } from "./actions";
 
 type Option = { id: number; name: string };
-
-const PERIOD_LABELS: Record<string, string> = {
-  current_week: "Semana actual",
-  previous_week: "Semana anterior",
-  current_month: "Mes actual",
-  previous_month: "Mes anterior",
-  current_quarter: "Trimestre actual",
-  previous_quarter: "Trimestre anterior",
-  current_year: "Año actual",
-  custom: "Personalizado",
-};
 
 /* ----------------------------------------------------------- row actions */
 
@@ -116,47 +106,55 @@ export function CreateReportForm({
   const [reportType, setReportType] = useState(defaults?.reportType ?? "monthly_service");
   const [periodRule, setPeriodRule] = useState("previous_month");
   const clientRequired = ["monthly_service", "operational_summary", "executive_summary", "sla_report", "billing_support"].includes(reportType);
-  const { reportTypeMeta } = getLabels(useLocale());
+  const locale = useLocale();
+  const { reportTypeMeta } = getLabels(locale);
+  const PERIOD_LABELS = getPeriodLabels(locale);
 
   return (
     <form action={formAction} className="space-y-4">
       <FormAlert state={state} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="reportType" className={labelClass}>Tipo</label>
+          <label htmlFor="reportType" className={labelClass}>{t("Tipo", "Type", locale)}</label>
           <SearchableSelect
             id="reportType"
             name="reportType"
             value={reportType}
             onValueChange={setReportType}
-            options={REPORT_TYPES.map((t) => ({ value: t, label: reportTypeMeta[t]?.label ?? t }))}
+            options={REPORT_TYPES.map((rt) => ({ value: rt, label: reportTypeMeta[rt]?.label ?? rt }))}
           />
         </div>
         <div>
-          <label htmlFor="title" className={labelClass}>Nombre</label>
+          <label htmlFor="title" className={labelClass}>{t("Nombre", "Name", locale)}</label>
           <input id="title" name="title" required className={inputClass} aria-invalid={errors.title ? true : undefined} />
           <FieldError id="title-error" errors={errors.title} />
         </div>
         <div>
-          <label htmlFor="companyId" className={labelClass}>Empresa{clientRequired ? " (requerido)" : " (opcional)"}</label>
+          <label htmlFor="companyId" className={labelClass}>
+            {t("Empresa", "Company", locale)}
+            {clientRequired ? ` (${t("requerido", "required", locale)})` : ` (${t("opcional", "optional", locale)})`}
+          </label>
           <SearchableSelect
             id="companyId"
             name="companyId"
             defaultValue={defaults?.companyId ? String(defaults.companyId) : ""}
-            options={[{ value: "", label: "— Sin cliente —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+            options={[{ value: "", label: t("— Sin cliente —", "— No client —", locale) }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
           />
         </div>
         <div>
-          <label htmlFor="projectId" className={labelClass}>Proyecto{reportType === "project_report" ? " (requerido)" : " (opcional)"}</label>
+          <label htmlFor="projectId" className={labelClass}>
+            {t("Proyecto", "Project", locale)}
+            {reportType === "project_report" ? ` (${t("requerido", "required", locale)})` : ` (${t("opcional", "optional", locale)})`}
+          </label>
           <SearchableSelect
             id="projectId"
             name="projectId"
             defaultValue={defaults?.projectId ? String(defaults.projectId) : ""}
-            options={[{ value: "", label: "— Sin proyecto —" }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
+            options={[{ value: "", label: t("— Sin proyecto —", "— No project —", locale) }, ...projects.map((p) => ({ value: String(p.id), label: p.name }))]}
           />
         </div>
         <div>
-          <label htmlFor="periodRule" className={labelClass}>Periodo</label>
+          <label htmlFor="periodRule" className={labelClass}>{t("Periodo", "Period", locale)}</label>
           <SearchableSelect
             id="periodRule"
             name="periodRule"
@@ -166,35 +164,35 @@ export function CreateReportForm({
           />
         </div>
         <div>
-          <label htmlFor="templateId" className={labelClass}>Plantilla</label>
+          <label htmlFor="templateId" className={labelClass}>{t("Plantilla", "Template", locale)}</label>
           <SearchableSelect
             id="templateId"
             name="templateId"
-            options={[{ value: "", label: "— Secciones por defecto —" }, ...templates.map((t) => ({ value: String(t.id), label: t.name }))]}
+            options={[{ value: "", label: t("— Secciones por defecto —", "— Default sections —", locale) }, ...templates.map((tpl) => ({ value: String(tpl.id), label: tpl.name }))]}
           />
         </div>
         {periodRule === "custom" ? (
           <>
             <div>
-              <label htmlFor="periodStart" className={labelClass}>Inicio</label>
+              <label htmlFor="periodStart" className={labelClass}>{t("Inicio", "Start", locale)}</label>
               <input type="date" id="periodStart" name="periodStart" className={inputClass} />
             </div>
             <div>
-              <label htmlFor="periodEnd" className={labelClass}>Fin</label>
+              <label htmlFor="periodEnd" className={labelClass}>{t("Fin", "End", locale)}</label>
               <input type="date" id="periodEnd" name="periodEnd" className={inputClass} />
             </div>
           </>
         ) : null}
         <div>
-          <label htmlFor="responsibleUserId" className={labelClass}>Responsable</label>
+          <label htmlFor="responsibleUserId" className={labelClass}>{t("Responsable", "Owner", locale)}</label>
           <SearchableSelect
             id="responsibleUserId"
             name="responsibleUserId"
-            options={[{ value: "", label: "— Yo —" }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
+            options={[{ value: "", label: t("— Yo —", "— Me —", locale) }, ...internalUsers.map((u) => ({ value: String(u.id), label: u.name }))]}
           />
         </div>
         <div>
-          <label htmlFor="deliveryChannel" className={labelClass}>Canal previsto (opcional)</label>
+          <label htmlFor="deliveryChannel" className={labelClass}>{t("Canal previsto (opcional)", "Planned channel (optional)", locale)}</label>
           <SearchableSelect
             id="deliveryChannel"
             name="deliveryChannel"
@@ -204,9 +202,9 @@ export function CreateReportForm({
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm text-fg">
-        <input type="checkbox" name="generateNow" /> Generar contenido inmediatamente
+        <input type="checkbox" name="generateNow" /> {t("Generar contenido inmediatamente", "Generate content immediately", locale)}
       </label>
-      <SubmitButton>Crear reporte</SubmitButton>
+      <SubmitButton>{t("Crear reporte", "Create report", locale)}</SubmitButton>
     </form>
   );
 }
