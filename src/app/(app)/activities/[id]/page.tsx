@@ -302,7 +302,7 @@ export default async function ActivityPage({
       </Card>
 
       <div className="mt-6">
-        <TimeEntriesCard workItemId={w.id} readOnly={archived} />
+        <TimeEntriesCard workItemId={w.id} access={archived ? "read" : "full"} />
       </div>
     </div>
   );

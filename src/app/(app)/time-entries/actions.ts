@@ -15,6 +15,7 @@ import {
 import { diffFields, recordAudit } from "@/lib/audit";
 import { getCatalogNames } from "@/lib/settings-data";
 import { requireRole, requireUser, type SessionUser } from "@/lib/session";
+import { getTimeEntryAccess, type TimeEntryAccess } from "@/lib/time-entry-access";
 import {
   billingStatusSchema,
   calculateAmount,
@@ -25,6 +26,18 @@ import {
 
 class EntryNotFoundError extends Error {}
 class EntryVoidedError extends Error {}
+/** The work item's own state (closed / invoiced) forbids this edit — see TimeEntryAccess. */
+class EntryLockedError extends Error {
+  constructor(readonly access: Exclude<TimeEntryAccess, "full">) {
+    super("locked");
+  }
+}
+
+const LOCKED_MESSAGE: Record<Exclude<TimeEntryAccess, "full">, string> = {
+  billing:
+    "Este ticket está cerrado — solo se puede ajustar su cobro. Reábrelo para cambiar el registro de tiempo.",
+  read: "Este ticket ya está facturado — su tiempo no se puede modificar.",
+};
 
 const optionalText = z
   .string()
@@ -53,6 +66,15 @@ const createSchema = sessionFieldsSchema.extend({
 const updateSchema = sessionFieldsSchema.extend({
   id: z.coerce.number().int().positive(),
   userId: z.coerce.number().int().positive("Select the technician."),
+});
+
+/** Closed-ticket edit: only what decides the charge, never the record of the work. */
+const updateBillingSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  billingStatus: billingStatusSchema,
+  modality: timeModalitySchema,
+  hourlyRate: optionalMoneySchema,
+  internalHourlyCost: optionalMoneySchema,
 });
 
 const idSchema = z.object({ id: z.coerce.number().int().positive() });
@@ -146,6 +168,9 @@ export async function createTimeEntry(
     );
   if (!item) return businessError("This work item no longer exists.");
 
+  const access = await getTimeEntryAccess(db, user.organizationId, item.id);
+  if (access !== "full") return businessError(LOCKED_MESSAGE[access]);
+
   const amount = calculateAmount(data.durationMinutes, data.hourlyRate);
   const internalCost = calculateAmount(data.durationMinutes, data.internalHourlyCost);
 
@@ -225,6 +250,8 @@ export async function updateTimeEntry(
   try {
     await db.transaction(async (tx) => {
       const before = await loadEntry(tx, user, data.id);
+      const access = await getTimeEntryAccess(tx, user.organizationId, before.workItemId);
+      if (access !== "full") throw new EntryLockedError(access);
       const patch = {
         userId: data.userId,
         date: data.date,
@@ -261,6 +288,9 @@ export async function updateTimeEntry(
       await recordAudit(tx, changes);
     });
   } catch (err) {
+    if (err instanceof EntryLockedError) {
+      return businessError(LOCKED_MESSAGE[err.access]);
+    }
     if (err instanceof EntryNotFoundError) {
       return businessError("This time entry no longer exists.");
     }
@@ -275,6 +305,89 @@ export async function updateTimeEntry(
   return success("Time entry updated.");
 }
 
+/**
+ * The only edit a closed (but not yet invoiced) ticket allows: the fields
+ * that decide the charge — Billing, Modality and the two rates — plus the
+ * amounts they recompute, against the duration already on record. Everything
+ * describing the work itself (date, duration, technician, description) stays
+ * frozen; use updateTimeEntry on an open ticket for those.
+ */
+export async function updateTimeEntryBilling(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const { data, error } = parseForm(updateBillingSchema, formData);
+  if (error) return error;
+
+  const validTimeTypes = await getCatalogNames(user.organizationId, "time_entry_type");
+
+  try {
+    await db.transaction(async (tx) => {
+      const before = await loadEntry(tx, user, data.id);
+      const access = await getTimeEntryAccess(tx, user.organizationId, before.workItemId);
+      if (access === "read") throw new EntryLockedError(access);
+
+      const [item] = await tx
+        .select({ type: workItems.type })
+        .from(workItems)
+        .where(eq(workItems.id, before.workItemId));
+      // On Tickets the hidden timeType mirrors Modality (2026-09-14 redesign)
+      // — keep the mirror true when Modality moves. Left alone if the org's
+      // catalog no longer offers the matching item: a rate fix shouldn't fail
+      // over an unrelated catalog gap.
+      const mirrored = data.modality === "onsite" ? "onsite_support" : "remote_support";
+      const timeType =
+        item?.type === "ticket" && data.modality !== before.modality && validTimeTypes.includes(mirrored)
+          ? mirrored
+          : before.timeType;
+
+      const patch = {
+        billingStatus: data.billingStatus,
+        modality: data.modality,
+        timeType,
+        hourlyRate: data.hourlyRate,
+        internalHourlyCost: data.internalHourlyCost,
+        calculatedAmount: calculateAmount(before.durationMinutes, data.hourlyRate),
+        calculatedInternalCost: calculateAmount(before.durationMinutes, data.internalHourlyCost),
+      };
+      const changes = diffFields(
+        {
+          organizationId: user.organizationId,
+          userId: Number(user.id),
+          entityType: "time_entry",
+          entityId: before.id,
+        },
+        before,
+        patch,
+        auditedFields,
+      );
+      if (changes.length === 0) return;
+      await tx
+        .update(timeEntries)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(timeEntries.id, before.id));
+      await recordAudit(tx, changes);
+    });
+  } catch (err) {
+    if (err instanceof EntryLockedError) {
+      return businessError(LOCKED_MESSAGE[err.access]);
+    }
+    if (err instanceof EntryNotFoundError) {
+      return businessError("This time entry no longer exists.");
+    }
+    if (err instanceof EntryVoidedError) {
+      return businessError("Voided entries cannot be edited.");
+    }
+    return unexpectedError(err);
+  }
+
+  revalidatePath("/activities");
+  revalidatePath("/helpdesk");
+  revalidatePath("/reports/billing");
+  return success("Cobro actualizado.");
+}
+
 export async function voidTimeEntry(
   _prev: ActionState,
   formData: FormData,
@@ -286,6 +399,8 @@ export async function voidTimeEntry(
   try {
     await db.transaction(async (tx) => {
       const before = await loadEntry(tx, user, data.id);
+      const access = await getTimeEntryAccess(tx, user.organizationId, before.workItemId);
+      if (access !== "full") throw new EntryLockedError(access);
       const voidedAt = new Date();
       await tx
         .update(timeEntries)
@@ -304,6 +419,9 @@ export async function voidTimeEntry(
       });
     });
   } catch (err) {
+    if (err instanceof EntryLockedError) {
+      return businessError(LOCKED_MESSAGE[err.access]);
+    }
     if (err instanceof EntryNotFoundError) {
       return businessError("This time entry no longer exists.");
     }
@@ -330,6 +448,8 @@ export async function deleteTimeEntry(
   try {
     await db.transaction(async (tx) => {
       const entry = await loadEntry(tx, me, data.id, { allowVoided: true });
+      const access = await getTimeEntryAccess(tx, me.organizationId, entry.workItemId);
+      if (access === "read") throw new EntryLockedError(access);
       await tx.delete(timeEntries).where(eq(timeEntries.id, entry.id));
       await recordAudit(tx, {
         organizationId: me.organizationId,
@@ -351,6 +471,9 @@ export async function deleteTimeEntry(
       });
     });
   } catch (err) {
+    if (err instanceof EntryLockedError) {
+      return businessError(LOCKED_MESSAGE[err.access]);
+    }
     if (err instanceof EntryNotFoundError) {
       return businessError("This time entry no longer exists.");
     }

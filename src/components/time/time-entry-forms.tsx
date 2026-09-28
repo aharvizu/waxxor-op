@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useActionState } from "react";
-import { Ban, Pencil, Trash2 } from "lucide-react";
+import { Ban, Coins, Pencil, Trash2 } from "lucide-react";
 import {
   Badge,
   buttonSecondaryClass,
@@ -23,8 +23,10 @@ import {
   createTimeEntry,
   deleteTimeEntry,
   updateTimeEntry,
+  updateTimeEntryBilling,
   voidTimeEntry,
 } from "@/app/(app)/time-entries/actions";
+import type { TimeEntryAccess } from "@/lib/time-entry-access";
 
 type Option = { id: number; name: string };
 
@@ -75,6 +77,7 @@ function SessionFields({
   defaults,
   timeTypeOptions,
   ticketBilling,
+  billingOnly = false,
 }: {
   errors: Record<string, string[]>;
   defaults?: {
@@ -92,6 +95,8 @@ function SessionFields({
   timeTypeOptions: string[];
   /** Ticket context (see TicketBillingDefaults) — omit for Activities. */
   ticketBilling?: TicketBillingDefaults;
+  /** Closed-ticket mode: only the fields that decide the charge (TimeEntryAccess "billing"). */
+  billingOnly?: boolean;
 }) {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -124,6 +129,78 @@ function SessionFields({
     const suggestion = next === "remote" ? ticketBilling.remoteRate : next === "onsite" ? ticketBilling.onsiteRate : null;
     setHourlyRate(suggestion ?? "");
     setRateIsAutoSuggested(suggestion !== null);
+  }
+
+  // Declared once, laid out twice: the full form spreads them across its two
+  // grids, the closed-ticket form gathers the four billing ones into a single
+  // row (see `billingOnly`).
+  const billingField = (
+    <div>
+      <label className={labelClass}>Billing</label>
+      <SearchableSelect
+        name="billingStatus"
+        defaultValue={defaultBillingStatus}
+        options={billingOptions}
+      />
+    </div>
+  );
+  const modalityField = (
+    <div>
+      <label className={labelClass}>Modality</label>
+      <SearchableSelect
+        name="modality"
+        value={modality}
+        onValueChange={handleModalityChange}
+        required={!!ticketBilling}
+        placeholder={ticketBilling ? "Choose…" : "Seleccionar…"}
+        options={modalityOptions}
+      />
+    </div>
+  );
+  const hourlyRateField = (
+    <div>
+      <label className={labelClass}>Hourly rate (optional)</label>
+      <input
+        name="hourlyRate"
+        type="number"
+        step="0.01"
+        min="0"
+        value={hourlyRate}
+        onChange={(e) => {
+          setHourlyRate(e.target.value);
+          setRateIsAutoSuggested(false);
+        }}
+        aria-invalid={errors.hourlyRate ? true : undefined}
+        className={inputClass}
+      />
+      <FieldError errors={errors.hourlyRate} />
+    </div>
+  );
+  const internalCostField = (
+    <div>
+      <label className={labelClass}>Internal cost/h (optional)</label>
+      <input
+        name="internalHourlyCost"
+        type="number"
+        step="0.01"
+        min="0"
+        defaultValue={defaults?.internalHourlyCost ?? ""}
+        aria-invalid={errors.internalHourlyCost ? true : undefined}
+        className={inputClass}
+      />
+      <FieldError errors={errors.internalHourlyCost} />
+    </div>
+  );
+
+  if (billingOnly) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {billingField}
+        {modalityField}
+        {hourlyRateField}
+        {internalCostField}
+      </div>
+    );
   }
 
   return (
@@ -174,57 +251,12 @@ function SessionFields({
             />
           </div>
         )}
-        <div>
-          <label className={labelClass}>Billing</label>
-          <SearchableSelect
-            name="billingStatus"
-            defaultValue={defaultBillingStatus}
-            options={billingOptions}
-          />
-        </div>
+        {billingField}
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div>
-          <label className={labelClass}>Modality</label>
-          <SearchableSelect
-            name="modality"
-            value={modality}
-            onValueChange={handleModalityChange}
-            required={!!ticketBilling}
-            placeholder={ticketBilling ? "Choose…" : "Seleccionar…"}
-            options={modalityOptions}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>Hourly rate (optional)</label>
-          <input
-            name="hourlyRate"
-            type="number"
-            step="0.01"
-            min="0"
-            value={hourlyRate}
-            onChange={(e) => {
-              setHourlyRate(e.target.value);
-              setRateIsAutoSuggested(false);
-            }}
-            aria-invalid={errors.hourlyRate ? true : undefined}
-            className={inputClass}
-          />
-          <FieldError errors={errors.hourlyRate} />
-        </div>
-        <div>
-          <label className={labelClass}>Internal cost/h (optional)</label>
-          <input
-            name="internalHourlyCost"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={defaults?.internalHourlyCost ?? ""}
-            aria-invalid={errors.internalHourlyCost ? true : undefined}
-            className={inputClass}
-          />
-          <FieldError errors={errors.internalHourlyCost} />
-        </div>
+        {modalityField}
+        {hourlyRateField}
+        {internalCostField}
         <div>
           <label className={labelClass}>Result (optional)</label>
           <input name="result" defaultValue={defaults?.result ?? ""} className={inputClass} />
@@ -306,7 +338,7 @@ export function TimeEntryRow({
   entry,
   technicians,
   canDelete,
-  readOnly,
+  access,
   timeTypeOptions,
   ticketBilling,
 }: {
@@ -328,15 +360,21 @@ export function TimeEntryRow({
   };
   technicians: Option[];
   canDelete: boolean;
-  readOnly: boolean;
+  /** How far this entry may still be edited — see TimeEntryAccess. */
+  access: TimeEntryAccess;
   /** Active names from the org's time-entry-type catalog (Settings → Actividades). */
   timeTypeOptions: string[];
   /** Ticket context (see TicketBillingDefaults) — omit for Activities. */
   ticketBilling?: TicketBillingDefaults;
 }) {
   const [editing, setEditing] = useState(false);
+  // "billing" keeps the charge editable on a closed ticket while the record
+  // of the work stays frozen, so it posts to a narrower action.
+  const billingOnly = access === "billing";
+  const canEditAll = access === "full";
+  const canEditBilling = access !== "read";
   const [editState, editAction] = useActionState<ActionState, FormData>(
-    updateTimeEntry,
+    billingOnly ? updateTimeEntryBilling : updateTimeEntry,
     null,
   );
   const [voidState, voidAction] = useActionState<ActionState, FormData>(
@@ -373,7 +411,7 @@ export function TimeEntryRow({
             <span className="tabular-nums text-muted">
               {fmtMoney(entry.calculatedAmount)}
             </span>
-          ) : ticketBilling && entry.billingStatus === "billable" && !entry.voided && !readOnly ? (
+          ) : ticketBilling && entry.billingStatus === "billable" && !entry.voided && canEditBilling ? (
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -384,27 +422,30 @@ export function TimeEntryRow({
           ) : null}
           {entry.voided ? <Badge tone="red">Voided</Badge> : null}
         </div>
-        {!readOnly && !entry.voided ? (
+        {canEditBilling && !entry.voided ? (
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              aria-label="Edit entry"
+              aria-label={billingOnly ? "Edit billing" : "Edit entry"}
+              title={billingOnly ? "Ajustar cobro (ticket cerrado)" : undefined}
               onClick={() => setEditing((v) => !v)}
               className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-primary-soft hover:text-primary"
             >
-              <Pencil className="size-3.5" />
+              {billingOnly ? <Coins className="size-3.5" /> : <Pencil className="size-3.5" />}
             </button>
-            <form action={voidAction}>
-              <input type="hidden" name="id" value={entry.id} />
-              <button
-                type="submit"
-                aria-label="Void entry"
-                title="Void (keeps the record, excluded from totals)"
-                className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-danger/10 hover:text-danger"
-              >
-                <Ban className="size-3.5" />
-              </button>
-            </form>
+            {canEditAll ? (
+              <form action={voidAction}>
+                <input type="hidden" name="id" value={entry.id} />
+                <button
+                  type="submit"
+                  aria-label="Void entry"
+                  title="Void (keeps the record, excluded from totals)"
+                  className="flex size-7 items-center justify-center rounded-md text-faint transition-colors hover:bg-danger/10 hover:text-danger"
+                >
+                  <Ban className="size-3.5" />
+                </button>
+              </form>
+            ) : null}
           </div>
         ) : null}
         {canDelete && entry.voided ? (
@@ -434,18 +475,26 @@ export function TimeEntryRow({
         <form action={editAction} className="mt-3 space-y-3 border-t border-edge pt-3">
           <input type="hidden" name="id" value={entry.id} />
           <FormAlert state={editState} />
-          <div>
-            <label className={labelClass}>Technician</label>
-            <SearchableSelect
-              name="userId"
-              defaultValue={String(entry.userId)}
-              options={technicians.map((t) => ({ value: String(t.id), label: t.name }))}
-            />
-          </div>
+          {billingOnly ? (
+            <p className="text-xs text-muted">
+              Ticket cerrado — solo se puede ajustar el cobro. El monto se recalcula sobre{" "}
+              {formatMinutes(entry.durationMinutes)} ya registrados.
+            </p>
+          ) : (
+            <div>
+              <label className={labelClass}>Technician</label>
+              <SearchableSelect
+                name="userId"
+                defaultValue={String(entry.userId)}
+                options={technicians.map((t) => ({ value: String(t.id), label: t.name }))}
+              />
+            </div>
+          )}
           <SessionFields
             errors={errors}
             timeTypeOptions={timeTypeOptions}
             ticketBilling={ticketBilling}
+            billingOnly={billingOnly}
             defaults={{
               date: entry.date,
               durationMinutes: entry.durationMinutes,
@@ -459,7 +508,7 @@ export function TimeEntryRow({
             }}
           />
           <div className="flex items-center gap-2">
-            <SubmitButton>Save entry</SubmitButton>
+            <SubmitButton>{billingOnly ? "Guardar cobro" : "Save entry"}</SubmitButton>
             <button
               type="button"
               onClick={() => setEditing(false)}

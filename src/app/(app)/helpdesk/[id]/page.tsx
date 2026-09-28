@@ -35,6 +35,8 @@ import { getOrgLocale } from "@/lib/get-org-locale";
 import { t as tt } from "@/lib/i18n";
 import { canCreateDraft } from "@/lib/knowledge";
 import { isWorkflowDropdownCategory } from "@/lib/tickets";
+import { getTicketInvoiceMap } from "@/lib/billing-invoices";
+import { timeEntryAccessFor } from "@/lib/time-entry-access";
 import { listTicketBillingStatuses, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import { CreateKbArticleForm } from "./kb-from-ticket-form";
 import { Badge, Card, CardHeader, buttonSecondaryClass } from "@/components/ui";
@@ -320,6 +322,25 @@ export default async function TicketPage({
   const currentBilling = billingStatuses.find((b) => b.id === t.billingStatusId);
 
   const isClosed = currentStatus?.category === "closed" || currentStatus?.category === "cancelled";
+  // The charge lives on the time entries since the 2026-09-14 redesign, so a
+  // closed ticket keeps them editable for billing only — until an invoice
+  // freezes them for good. See TimeEntryAccess.
+  const ticketInvoice = (await getTicketInvoiceMap(user.organizationId, [t.id])).get(t.id) ?? null;
+  const timeAccess = timeEntryAccessFor({ isClosed, isInvoiced: ticketInvoice !== null });
+  const timeAccessNote =
+    timeAccess === "read"
+      ? tt(
+          `Facturado en ${ticketInvoice?.invoiceNumber} — el tiempo y su cobro ya no se pueden modificar.`,
+          `Invoiced on ${ticketInvoice?.invoiceNumber} — time and charge can no longer be changed.`,
+          locale,
+        )
+      : timeAccess === "billing"
+        ? tt(
+            "Ticket cerrado — solo se puede ajustar el cobro (facturación, modalidad y tarifas). Reábrelo para corregir fecha, duración, técnico o descripción.",
+            "Closed ticket — only the charge can be adjusted (billing, modality and rates). Reopen it to fix date, duration, technician or description.",
+            locale,
+          )
+        : undefined;
   const canReopen = currentStatus?.category === "resolved" || currentStatus?.category === "closed" || currentStatus?.category === "cancelled";
   const billingPending = currentBilling?.category === "pending";
   const iconFor = {
@@ -641,7 +662,8 @@ export default async function TicketPage({
           {tab === "time" ? (
             <TimeEntriesCard
               workItemId={w.id}
-              readOnly={isClosed}
+              access={timeAccess}
+              accessNote={timeAccessNote}
               ticketBilling={{
                 isGlobalPolicyIncluded: companyBillingDefaults.isGlobalPolicyIncluded,
                 remoteRate: companyBillingDefaults.remoteRate,

@@ -7,6 +7,7 @@ import { formatMinutes, summarizeByUser } from "@/lib/time-entries";
 import { getCatalogNames } from "@/lib/settings-data";
 import { requireUser } from "@/lib/session";
 import { AddTimeEntryForm, TimeEntryRow, type TicketBillingDefaults } from "./time-entry-forms";
+import type { TimeEntryAccess } from "@/lib/time-entry-access";
 
 /**
  * Shared "Time" card for activity and ticket detail pages.
@@ -14,11 +15,19 @@ import { AddTimeEntryForm, TimeEntryRow, type TicketBillingDefaults } from "./ti
  */
 export async function TimeEntriesCard({
   workItemId,
-  readOnly = false,
+  access = "full",
+  accessNote,
   ticketBilling,
 }: {
   workItemId: number;
-  readOnly?: boolean;
+  /**
+   * How far these entries may still be edited — resolved by the caller, which
+   * knows its own lock (a closed ticket, an invoiced one, an archived
+   * activity). See TimeEntryAccess; the actions re-check it server-side.
+   */
+  access?: TimeEntryAccess;
+  /** One line explaining a restricted `access` to the user. */
+  accessNote?: string;
   /** Ticket context (see TicketBillingDefaults) — omit for Activities. */
   ticketBilling?: TicketBillingDefaults;
 }) {
@@ -83,6 +92,11 @@ export async function TimeEntriesCard({
         }
       />
       <div className="space-y-5 p-5">
+        {accessNote ? (
+          <p className="rounded-lg border border-edge bg-subtle px-3 py-2 text-xs text-muted">
+            {accessNote}
+          </p>
+        ) : null}
         {perUser.length > 0 ? (
           <ul className="flex flex-wrap gap-2 text-xs text-muted">
             {perUser.map((u) => (
@@ -121,7 +135,7 @@ export async function TimeEntriesCard({
                 }}
                 technicians={technicianRows}
                 canDelete={user.role === "superadmin"}
-                readOnly={readOnly}
+                access={access}
                 timeTypeOptions={timeTypeOptions}
                 ticketBilling={ticketBilling}
               />
@@ -129,7 +143,7 @@ export async function TimeEntriesCard({
           </ul>
         )}
 
-        {!readOnly ? (
+        {access === "full" ? (
           <AddTimeEntryForm
             workItemId={workItemId}
             technicians={technicianRows}
