@@ -903,6 +903,35 @@ export async function ticketDataQuality(orgId: number, period: Period, scope: Me
  * headline: pending tickets only, since already-invoiced money isn't "to
  * bill" anymore.
  */
+/**
+ * What a ticket is worth on the billing statement, as a pure function of the
+ * ticket's own data — deliberately NOT of whether it has been invoiced yet.
+ *
+ * The time entries decide (2026-09-14 redesign). The old ticket-level amount
+ * only stands in when they produce nothing at all, which is exactly the
+ * pre-redesign ticket the field was kept for: charged from the ticket Billing
+ * tab back when entries never carried a rate.
+ *
+ * This used to be keyed on "is this ticket invoiced?", so the amount flipped
+ * the moment someone typed an invoice number — any ticket still carrying a
+ * stale ticket-level amount (the old Billing tab is hidden, but its data was
+ * never cleared) jumped from its time-entry sum to that old number, on screen
+ * and in the export. Real incidents 2026-09-29: CWIMM TK-000278 went 250 →
+ * 300, Ferrotek TK-000272 went 2400 → 2000. Invoicing must never move an
+ * amount, so the invoiced state is no longer part of this rule.
+ */
+export function resolveBillingCost({
+  entryCost,
+  legacyCost,
+}: {
+  /** Sum of the ticket's billable time entries (numeric string, "0" if none). */
+  entryCost: string;
+  /** tickets.calculatedAmount, the pre-redesign ticket-level amount ("0" if none). */
+  legacyCost: string;
+}): string {
+  return Number(entryCost) > 0 ? entryCost : legacyCost;
+}
+
 export async function billingSupportData(orgId: number, period: Period, scope: MetricsScope = {}) {
   const { from, to } = periodBounds(period);
   // A ticket's charge is now decided per time entry (Modalidad + Billing on
@@ -948,11 +977,10 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
         select sum(te.calculated_amount) from ${timeEntries} te
         where te.work_item_id = ${workItems.id} and te.voided_at is null and te.billing_status = 'billable'
       ), 0)::text`,
-      // Pre-redesign tickets were invoiced from the ticket-level Billing tab
+      // Pre-redesign tickets were charged from the ticket-level Billing tab
       // (tickets.calculatedAmount), not from time entries (which never
-      // carried a rate back then) — kept here so an already-invoiced
-      // ticket's historical amount doesn't silently turn into $0 when this
-      // report is reprinted. Only read when `invoice` below is non-null.
+      // carried a rate back then) — kept here so such a ticket's historical
+      // amount doesn't show as $0. See resolveBillingCost for when it wins.
       legacyCost: sql<string>`coalesce(${tickets.calculatedAmount}, 0)::text`,
       comment: tickets.resolution,
     })
@@ -965,12 +993,10 @@ export async function billingSupportData(orgId: number, period: Period, scope: M
 
   const invoiceByTicket = await getTicketInvoiceMap(orgId, rows.map((r) => r.ticketId));
 
-  const resolvedRows = rows.map((r) => {
-    const invoice = invoiceByTicket.get(r.ticketId) ?? null;
-    const legacyCost = Number(r.legacyCost);
-    const cost = invoice && legacyCost > 0 ? r.legacyCost : r.cost;
-    return { ...r, cost };
-  });
+  const resolvedRows = rows.map((r) => ({
+    ...r,
+    cost: resolveBillingCost({ entryCost: r.cost, legacyCost: r.legacyCost }),
+  }));
 
   const byCompany = new Map<
     number | null,
