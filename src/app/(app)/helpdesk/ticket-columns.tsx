@@ -37,6 +37,8 @@ export type TicketRow = {
   assigneeName: string | null;
   updatedAt: Date;
   createdAt: Date;
+  /** Real close instant (tickets.closedAt), null while open or after a reopen. */
+  closedAt: Date | null;
   minutes: number;
   customFields: Record<string, unknown>;
 };
@@ -153,6 +155,11 @@ export function buildColumnRegistry(
       render: (r) => <CatalogChip entry={billingStatuses.get(r.billingStatusId)} fallback={r.billingStatus} />,
     },
     updatedAt: { key: "updatedAt", label: t("Actualizado", "Updated", locale), render: (r) => <span className="tabular-nums text-muted">{fmtDateTime(r.updatedAt)}</span> },
+    closedAt: {
+      key: "closedAt",
+      label: t("Cerrado", "Closed", locale),
+      render: (r) => <span className="tabular-nums text-muted">{r.closedAt ? fmtDate(r.closedAt) : "—"}</span>,
+    },
   };
   for (const f of customFieldDefs) {
     registry[`cf_${f.key}`] = {
@@ -168,9 +175,12 @@ export function buildColumnRegistry(
 }
 
 export const DEFAULT_COLUMNS = ["folio", "title", "companyName", "assigneeName", "status", "priority", "category", "modality", "slaName", "dueAt", "scheduledFor", "minutes", "billingStatus", "updatedAt"];
+/** Superset of DEFAULT_COLUMNS — extra columns (Cerrado) show up unchecked in
+ * the picker until opted in, so no saved view's layout changes by itself. */
+const EXTRA_COLUMNS = ["closedAt"];
 export function buildTicketColumnOptions(locale: Locale = DEFAULT_LOCALE) {
   const registry = buildColumnRegistry([], new Map(), new Map(), new Map(), locale);
-  return DEFAULT_COLUMNS.map((key) => ({ key, label: registry[key]?.label ?? key }));
+  return [...DEFAULT_COLUMNS, ...EXTRA_COLUMNS].map((key) => ({ key, label: registry[key]?.label ?? key }));
 }
 export function buildTicketKanbanGroupOptions(locale: Locale = DEFAULT_LOCALE) {
   return [

@@ -106,6 +106,11 @@ export const TICKET_FIELDS: Record<string, FieldDefinition> = {
   dueAt: { key: "dueAt", label: "Vence", type: "date", column: tickets.resolutionTargetAt },
   // Independent from dueAt/SLA — when the client asked for the work to happen on a specific day, not a deadline.
   scheduledFor: { key: "scheduledFor", label: "Fecha agendada", type: "date", column: workItems.dueDate },
+  // The real close instant, cleared on reopen — not workItems.updatedAt, which
+  // any later edit (a billing reclassification, a comment) moves. This is the
+  // column the billing statement and the Indicadores already scope by, so
+  // "cerrados este mes" means the same thing everywhere.
+  closedAt: { key: "closedAt", label: "Cerrado", type: "date", column: tickets.closedAt },
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
 };
 
@@ -495,7 +500,16 @@ export function ticketQuickFilterSql(key: TicketQuickFilterKey, userId: number):
         lt(tickets.resolutionTargetAt, now),
       );
     case "closed_recent":
-      return and(inArray(workItems.status, ["closed", "cancelled"]), gte(workItems.updatedAt, weekAgo));
+      // Recency comes from the real close instant, not workItems.updatedAt:
+      // that column moves on any later edit, so a ticket closed two months ago
+      // and reclassified yesterday looked "recently closed", while one closed
+      // eight days ago and untouched since vanished. Cancelled tickets never
+      // get a closedAt (only performClose stamps it), so they keep falling
+      // back to updatedAt rather than dropping out of the chip.
+      return and(
+        inArray(workItems.status, ["closed", "cancelled"]),
+        sql`coalesce(${tickets.closedAt}, ${workItems.updatedAt}) >= ${weekAgo}`,
+      );
     default:
       return undefined;
   }

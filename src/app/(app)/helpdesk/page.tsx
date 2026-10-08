@@ -180,6 +180,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
       assigneeName: users.name,
       updatedAt: workItems.updatedAt,
       createdAt: workItems.createdAt,
+      closedAt: tickets.closedAt,
       minutes: sql<number>`coalesce(${timeByItem.minutes}, 0)::int`,
     })
     .from(tickets)
