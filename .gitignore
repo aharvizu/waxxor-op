@@ -43,3 +43,6 @@ next-env.d.ts
 # keep the example env template in git
 !.env.example
 .uploads
+
+# local scratch scripts (one-off DB checks, debug runners) — never shipped
+.scratch/
