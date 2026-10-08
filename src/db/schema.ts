@@ -1936,6 +1936,16 @@ export const recurrenceDefinitions = pgTable(
     /** resets on success; at RECURRENCE_MAX_CONSECUTIVE_FAILURES → status error */
     consecutiveFailedCount: integer("consecutive_failed_count").notNull().default(0),
     companyId: integer("company_id").references(() => companies.id),
+    // Which of the client's contracted services this recurring work fulfills
+    // (2026-10-07). Recurring work is contracted work: a linked service means
+    // the generated Ticket opens "In contract" instead of waiting for someone
+    // to classify it, and it records WHICH contract covers the work — a client
+    // can have several services and only one of them covers this recurrence.
+    // SET NULL rather than cascade: losing the link must never delete the
+    // operational work itself.
+    clientServiceId: integer("client_service_id").references(() => clientServices.id, {
+      onDelete: "set null",
+    }),
     projectId: integer("project_id").references(() => projects.id),
     projectListId: integer("project_list_id").references(() => projectLists.id),
     assigneeId: integer("assignee_id").references(() => users.id),
@@ -1953,6 +1963,7 @@ export const recurrenceDefinitions = pgTable(
   (table) => [
     index("recurrence_defs_due_idx").on(table.organizationId, table.status, table.nextRunAt),
     index("recurrence_defs_client_idx").on(table.companyId),
+    index("recurrence_defs_client_service_idx").on(table.clientServiceId),
     index("recurrence_defs_project_idx").on(table.projectId),
     index("recurrence_defs_assignee_idx").on(table.assigneeId),
   ],

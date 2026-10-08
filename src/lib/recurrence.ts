@@ -410,6 +410,36 @@ export function usedVariables(text: string): string[] {
   return [...out];
 }
 
+/* --------------------------------------------- out-of-band vs. scheduled */
+
+export type RecurrenceExecutionSource = (typeof recurrenceExecutions.$inferSelect)["executionSource"];
+
+/**
+ * Does this run consume a *scheduled* occurrence, and therefore move
+ * `nextRunAt` to the next one? Only the scheduler does: "Ejecutar ahora",
+ * a retry and a backfill are out-of-band and must leave the calendar alone
+ * (`docs/features/recurrence-executions.md`).
+ */
+export function advancesCalendar(source: RecurrenceExecutionSource): boolean {
+  return source === "scheduler";
+}
+
+/**
+ * The template's relative-date offset ("Vence N días después", "Inicia N días
+ * después") as this run should apply it. A manual run means "I need this one
+ * today", so its dates land on the occurrence itself instead of N days out —
+ * offsets exist for the scheduled cycle, and a monthly recurrence with a
+ * 30-day offset otherwise hands back work already due next month. A template
+ * with no offset still produces no date.
+ */
+export function offsetForSource(
+  source: RecurrenceExecutionSource,
+  offsetDays: number | null,
+): number | null {
+  if (offsetDays === null) return null;
+  return source === "manual" ? 0 : offsetDays;
+}
+
 /* ------------------------------------------------------------ templates */
 
 const offsetDays = z.coerce.number().int().min(-365).max(365);

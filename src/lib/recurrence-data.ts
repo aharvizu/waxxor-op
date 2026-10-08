@@ -1,10 +1,13 @@
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  clientServices,
   companies,
   projects,
   recurrenceDefinitions,
   recurrenceExecutions,
+  serviceVariants,
+  services,
   users,
 } from "@/db/schema";
 import {
@@ -20,6 +23,46 @@ import {
  * subqueries); previews are computed in memory from typed schedule columns
  * (no DB round-trip per occurrence).
  */
+
+/**
+ * The "Servicio contratado" options for the wizard, keyed by company: every
+ * client's *active* contracted services (variant included in the label, since
+ * a client can hold the same service twice under different conditions — e.g.
+ * M365 with and without support). Loaded for all clients at once rather than
+ * per selection so the picker stays instant while the user switches client.
+ * Only active rows: an expired contract must not be offered as cover for new
+ * work (the server re-checks with isClientServiceActive anyway).
+ */
+export async function getClientServicesByCompany(
+  orgId: number,
+): Promise<Record<number, { id: number; name: string }[]>> {
+  const rows = await db
+    .select({
+      id: clientServices.id,
+      companyId: clientServices.companyId,
+      serviceName: services.name,
+      variantName: serviceVariants.name,
+    })
+    .from(clientServices)
+    .innerJoin(services, eq(clientServices.serviceId, services.id))
+    .leftJoin(serviceVariants, eq(clientServices.variantId, serviceVariants.id))
+    .where(
+      and(
+        eq(clientServices.organizationId, orgId),
+        eq(clientServices.status, "active"),
+        eq(services.status, "active"),
+      ),
+    )
+    .orderBy(services.name);
+  const byCompany: Record<number, { id: number; name: string }[]> = {};
+  for (const r of rows) {
+    (byCompany[r.companyId] ??= []).push({
+      id: r.id,
+      name: r.variantName ? `${r.serviceName} — ${r.variantName}` : r.serviceName,
+    });
+  }
+  return byCompany;
+}
 
 function toSchedule(def: typeof recurrenceDefinitions.$inferSelect): ScheduleFields {
   return {
@@ -55,6 +98,23 @@ export async function getRecurrenceDetail(orgId: number, id: number) {
       projectStatus: projects.status,
       assigneeName: users.name,
       creatorName: sql<string | null>`(select u.name from users u where u.id = ${recurrenceDefinitions.createdById})`,
+      // The contract covering this recurring work, with its own status so the
+      // detail page can call out a link whose service was since cancelled —
+      // that link stops producing "In contract" tickets (see
+      // resolveInitialTicketBillingStatus).
+      clientServiceName: sql<string | null>`(
+        select s.name || coalesce(' — ' || sv.name, '')
+        from client_services cs
+        join services s on s.id = cs.service_id
+        left join service_variants sv on sv.id = cs.variant_id
+        where cs.id = ${recurrenceDefinitions.clientServiceId}
+      )`,
+      clientServiceActive: sql<boolean>`coalesce((
+        select cs.status = 'active' and s.status = 'active'
+        from client_services cs
+        join services s on s.id = cs.service_id
+        where cs.id = ${recurrenceDefinitions.clientServiceId}
+      ), false)`,
     })
     .from(recurrenceDefinitions)
     .leftJoin(companies, eq(recurrenceDefinitions.companyId, companies.id))

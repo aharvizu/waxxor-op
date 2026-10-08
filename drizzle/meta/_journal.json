@@ -281,6 +281,13 @@
       "when": 1789407962364,
       "tag": "0039_empty_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791431920901,
+      "tag": "0040_absent_vulcan",
+      "breakpoints": true
     }
   ]
 }

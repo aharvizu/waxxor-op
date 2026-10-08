@@ -1,0 +1,3 @@
+ALTER TABLE "recurrence_definitions" ADD COLUMN "client_service_id" integer;--> statement-breakpoint
+ALTER TABLE "recurrence_definitions" ADD CONSTRAINT "recurrence_definitions_client_service_id_client_services_id_fk" FOREIGN KEY ("client_service_id") REFERENCES "public"."client_services"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "recurrence_defs_client_service_idx" ON "recurrence_definitions" USING btree ("client_service_id");

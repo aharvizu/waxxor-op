@@ -5,10 +5,10 @@ import { recordAudit } from "@/lib/audit";
 import { buildSlaSnapshot, getOrgCalendar, resolveSlaDefinition } from "@/lib/sla";
 import type { SessionUser } from "@/lib/session";
 import {
-  getDefaultTicketBillingStatus,
   getTicketPriorityByLegacyValue,
   getTicketStatusBySemanticKey,
   legacyBillingFor,
+  resolveInitialTicketBillingStatus,
 } from "@/lib/ticket-catalogs";
 import type { WorkItemPriority } from "@/lib/work-items";
 
@@ -153,7 +153,8 @@ export async function convertActivityToTicket(
     // 2. ticket specialization with its immutable, sequence-generated folio
     const priority = await getTicketPriorityByLegacyValue(tx, user.organizationId, input.priority);
     const status = await getTicketStatusBySemanticKey(tx, user.organizationId, "NEW");
-    const billingStatus = await getDefaultTicketBillingStatus(tx, user.organizationId);
+    // "In contract" for clients on a policy service, org default otherwise.
+    const billingStatus = await resolveInitialTicketBillingStatus(tx, user.organizationId, finalClientId);
     if (!priority || !status || !billingStatus) throw new ConversionError("not_found");
 
     // SLA cascade: explicit (superadmin) → active default for the priority → none

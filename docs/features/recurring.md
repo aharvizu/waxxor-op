@@ -18,7 +18,7 @@ RecurrenceDefinition (la regla + plantilla)
 
 ## Modelo (migración `drizzle/0016_regular_wildside.sql`)
 
-**`recurrence_definitions`**: `targetType` (activity/ticket/project_activity/report — ver limitación abajo), `status` (draft/active/paused/completed/expired/error/archived), campos de programación tipados (no solo JSON — `frequency`, `interval`, `daysOfWeek` jsonb, `dayOfMonth`, `monthOfYear`, `weekOfMonth`, `timeOfDay`, `timezone`, `startAt`/`endAt`/`maxOccurrences`), contadores (`occurrenceCount`/`successfulCount`/`failedCount`/`skippedCount`/`consecutiveFailedCount`), contexto opcional (`clientId`/`projectId`/`projectListId`/`assigneeId`), `templateData` jsonb (discriminado por `targetType`, validado con Zod — nunca campos arbitrarios). Índice compuesto `(organizationId, status, nextRunAt)` para la consulta del scheduler.
+**`recurrence_definitions`**: `targetType` (activity/ticket/project_activity/report — ver limitación abajo), `status` (draft/active/paused/completed/expired/error/archived), campos de programación tipados (no solo JSON — `frequency`, `interval`, `daysOfWeek` jsonb, `dayOfMonth`, `monthOfYear`, `weekOfMonth`, `timeOfDay`, `timezone`, `startAt`/`endAt`/`maxOccurrences`), contadores (`occurrenceCount`/`successfulCount`/`failedCount`/`skippedCount`/`consecutiveFailedCount`), contexto opcional (`clientId`/`clientServiceId`/`projectId`/`projectListId`/`assigneeId`), `templateData` jsonb (discriminado por `targetType`, validado con Zod — nunca campos arbitrarios). Índice compuesto `(organizationId, status, nextRunAt)` para la consulta del scheduler.
 
 **`recurrence_executions`**: `occurrenceKey` único por `(recurrenceDefinitionId, occurrenceKey)` — **la garantía real de idempotencia vive en este índice de base de datos**, no solo en el código de aplicación. `status` (pending/running/succeeded/failed/skipped/cancelled/duplicate_prevented), `executionSource` (scheduler/manual/retry/backfill), `generatedEntityType`/`generatedEntityId`, `errorCode`/`errorMessage` (acotado a 500 caracteres, nunca stack traces).
 
@@ -31,7 +31,8 @@ Ver `docs/features/recurrence-scheduling.md`, `recurrence-executions.md`, `recur
 3. **`nextRunAt` se calcula de forma determinística** en `src/lib/recurrence.ts` (sin dependencias) y se **almacena en UTC**; la hora configurada se interpreta en la `timezone` IANA de la recurrencia, nunca en la del servidor.
 4. **DST no duplica ni pierde ocurrencias** — la clave de ocurrencia es la fecha local calendario, no el instante UTC; `zonedTimeToUtc` resuelve saltos de horario de verano con una corrección de dos pasadas (unit-tested contra América/Nueva York 2026).
 5. **Solo SuperAdmin elimina permanentemente**, y solo si la recurrencia nunca generó objetos exitosos (`deleteRecurrence` bloquea con mensaje claro — usa Archivar).
-6. **`organizationId` nunca viene del navegador** — toda action lo toma de la sesión; todo id foráneo (cliente/proyecto/lista/responsable/SLA) se revalida dentro de la organización antes de guardar o ejecutar.
+6. **`organizationId` nunca viene del navegador** — toda action lo toma de la sesión; todo id foráneo (cliente/servicio contratado/proyecto/lista/responsable/SLA) se revalida dentro de la organización antes de guardar o ejecutar.
+7. **El trabajo recurrente va bajo contrato** (2026-10-07) — el campo "Servicio contratado" (`clientServiceId` → `client_services`) declara cuál de los servicios del cliente cubre esta recurrencia, y su Ticket nace con Cobro "In contract". Se revalida en cada generación: si el servicio se canceló, el ticket cae al default de la organización en lugar de seguir naciendo no facturable. Ver `docs/features/ticket-billing.md` §Trabajo recurrente bajo contrato.
 
 ## Motor de ejecución (`src/lib/recurrence-engine.ts`)
 

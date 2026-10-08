@@ -10,6 +10,7 @@ import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
 import {
   describeSchedule,
+  getClientServicesByCompany,
   getRecurrenceDetail,
   getRecurrenceExecutions,
   successRate,
@@ -247,6 +248,15 @@ async function ResumenTab({
           <CardHeader title="Contexto" className="mb-3 px-0 pt-0" />
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-muted">Empresa</dt><dd className="text-fg">{detail.companyName ?? "Interno"}</dd></div>
+            <div className="flex justify-between gap-3">
+              <dt className="shrink-0 text-muted">Contrato</dt>
+              <dd className="text-right text-fg">
+                {detail.clientServiceName ?? <span className="text-muted">Sin contrato</span>}
+                {detail.clientServiceName && !detail.clientServiceActive ? (
+                  <span className="block text-xs text-danger">Servicio inactivo — los tickets ya no nacen en contrato</span>
+                ) : null}
+              </dd>
+            </div>
             <div className="flex justify-between"><dt className="text-muted">Proyecto</dt><dd className="text-fg">{detail.projectName ?? "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Responsable</dt><dd className="text-fg">{detail.assigneeName ?? "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Creado por</dt><dd className="text-fg">{detail.creatorName ?? "—"}</dd></div>
@@ -309,13 +319,14 @@ async function ConfiguracionTab({
   def: NonNullable<Awaited<ReturnType<typeof getRecurrenceDetail>>>["def"];
   isSuperAdmin: boolean;
 }) {
-  const [companyRows, projectRows, listRows, userRows, activityTypeOptions, categoryOptions] = await Promise.all([
+  const [companyRows, projectRows, listRows, userRows, activityTypeOptions, categoryOptions, clientServicesByCompany] = await Promise.all([
     db.select({ id: companies.id, name: companies.name }).from(companies).where(eq(companies.organizationId, orgId)).orderBy(asc(companies.name)),
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.organizationId, orgId)).orderBy(asc(projects.name)),
     db.select({ id: projectLists.id, name: projectLists.name, projectId: projectLists.projectId }).from(projectLists).where(eq(projectLists.organizationId, orgId)),
     db.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.organizationId, orgId), ne(users.role, "client"))).orderBy(asc(users.name)),
     getCatalogNames(orgId, "time_entry_type"),
     getCatalogNames(orgId, "ticket_category"),
+    getClientServicesByCompany(orgId),
   ]);
   const projectListsByProject: Record<number, { id: number; name: string }[]> = {};
   for (const l of listRows) (projectListsByProject[l.projectId] ??= []).push({ id: l.id, name: l.name });
@@ -334,6 +345,7 @@ async function ConfiguracionTab({
       <Card className="p-6">
         <RecurrenceWizard
           companies={companyRows}
+          clientServicesByCompany={clientServicesByCompany}
           projects={projectRows}
           projectListsByProject={projectListsByProject}
           internalUsers={userRows}
@@ -345,6 +357,7 @@ async function ConfiguracionTab({
             description: def.description,
             targetType: def.targetType,
             companyId: def.companyId,
+            clientServiceId: def.clientServiceId,
             projectId: def.projectId,
             projectListId: def.projectListId,
             assigneeId: def.assigneeId,

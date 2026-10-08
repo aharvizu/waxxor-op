@@ -21,9 +21,11 @@ import {
   GenerationError,
   TemplateRenderError,
   addDays,
+  advancesCalendar,
   isExhausted,
   nextOccurrenceLocal,
   occurrenceRunAt,
+  offsetForSource,
   renderTemplate,
   templateDataSchema,
   todayInTz,
@@ -37,10 +39,10 @@ import { resolvePeriod } from "@/lib/reports";
 import { buildSlaSnapshot, getOrgCalendar, resolveSlaDefinition } from "@/lib/sla";
 import type { SessionUser } from "@/lib/session";
 import {
-  getDefaultTicketBillingStatus,
   getTicketPriorityByLegacyValue,
   getTicketStatusBySemanticKey,
   legacyBillingFor,
+  resolveInitialTicketBillingStatus,
 } from "@/lib/ticket-catalogs";
 import { createWorkItem } from "@/lib/work-items";
 
@@ -193,7 +195,13 @@ async function generateEntity(
   templateData: TemplateData,
   occurrenceLocal: LocalDate,
   ctx: Context,
+  source: ExecutionSource,
 ): Promise<{ entityType: string; entityId: number; folio?: string }> {
+  // A manual run anchors the template's relative dates to the occurrence
+  // itself (today) instead of pushing them out by the cycle's offsets — see
+  // offsetForSource. Reported 2026-10-04: a monthly recurrence with "Vence 30
+  // días después" handed back a ticket already due next month, invisible in Hoy.
+  const offsetFor = (days: number | null) => offsetForSource(source, days);
   const renderCtx: TemplateContext = {
     client: ctx.client ? { name: ctx.client.name } : null,
     contact: ctx.contact,
@@ -219,12 +227,10 @@ async function generateEntity(
   }
 
   if (templateData.targetType === "activity" || templateData.targetType === "project_activity") {
-    const dueDate =
-      templateData.dueOffsetDays !== null ? addDays(occurrenceLocal, templateData.dueOffsetDays) : null;
-    const startDate =
-      templateData.startOffsetDays !== null
-        ? addDays(occurrenceLocal, templateData.startOffsetDays)
-        : null;
+    const dueOffset = offsetFor(templateData.dueOffsetDays);
+    const startOffset = offsetFor(templateData.startOffsetDays);
+    const dueDate = dueOffset !== null ? addDays(occurrenceLocal, dueOffset) : null;
+    const startDate = startOffset !== null ? addDays(occurrenceLocal, startOffset) : null;
     const item = await createWorkItem(tx, actor, {
       type: "activity",
       title,
@@ -267,8 +273,8 @@ async function generateEntity(
 
   if (templateData.targetType === "ticket") {
     if (!ctx.client) throw new GenerationError("client_missing", "Los tickets requieren cliente.");
-    const dueDate =
-      templateData.dueOffsetDays !== null ? addDays(occurrenceLocal, templateData.dueOffsetDays) : null;
+    const dueOffset = offsetFor(templateData.dueOffsetDays);
+    const dueDate = dueOffset !== null ? addDays(occurrenceLocal, dueOffset) : null;
     const item = await createWorkItem(tx, actor, {
       type: "ticket",
       title,
@@ -281,7 +287,14 @@ async function generateEntity(
     });
     const priority = await getTicketPriorityByLegacyValue(tx, def.organizationId, templateData.priority);
     const status = await getTicketStatusBySemanticKey(tx, def.organizationId, ctx.assignee ? "ASSIGNED" : "NEW");
-    const billingStatus = await getDefaultTicketBillingStatus(tx, def.organizationId);
+    // The recurrence's linked contracted service covers this work, so the
+    // ticket opens "In contract" — see resolveInitialTicketBillingStatus for
+    // the full cascade. A link whose service was since cancelled stops
+    // covering: the ticket falls back to the org default so somebody has to
+    // classify it, rather than silently staying non-billable.
+    const billingStatus = await resolveInitialTicketBillingStatus(tx, def.organizationId, ctx.client.id, {
+      clientServiceId: def.clientServiceId,
+    });
     if (!priority || !status || !billingStatus) {
       throw new GenerationError("sla_missing", "El catálogo de tickets de la organización está incompleto.");
     }
@@ -413,7 +426,7 @@ export async function executeOccurrence(
 
     const templateResult = templateDataSchema.safeParse(def.templateData);
     if (!templateResult.success) {
-      await failExecution(tx, def, executionId, "template_invalid", "La plantilla guardada es inválida.");
+      await failExecution(tx, def, executionId, "template_invalid", "La plantilla guardada es inválida.", source);
       return { kind: "failed", code: "template_invalid", message: "La plantilla guardada es inválida." };
     }
     const templateData = templateResult.data;
@@ -424,7 +437,7 @@ export async function executeOccurrence(
       assertContextValid(def, ctx, templateData);
       const actor = await actorFor(tx, def);
       const occurrenceLocal = todayInTz(scheduledFor, def.timezone);
-      const result = await generateEntity(tx, def, actor, templateData, occurrenceLocal, ctx);
+      const result = await generateEntity(tx, def, actor, templateData, occurrenceLocal, ctx, source);
 
       await tx
         .update(recurrenceExecutions)
@@ -438,12 +451,12 @@ export async function executeOccurrence(
         })
         .where(eq(recurrenceExecutions.id, executionId));
 
-      await advanceSchedule(tx, def, true);
+      await advanceSchedule(tx, def, true, source);
       return { kind: "succeeded", ...result };
     } catch (err) {
       const code = err instanceof GenerationError ? err.code : "timeout";
       const message = err instanceof Error ? err.message : "Error desconocido.";
-      await failExecution(tx, def, executionId, code, message);
+      await failExecution(tx, def, executionId, code, message, source);
       return { kind: "failed", code, message };
     }
   });
@@ -455,6 +468,7 @@ async function failExecution(
   executionId: number,
   code: string,
   message: string,
+  source: ExecutionSource,
 ) {
   // never persist raw stack traces or secrets — message is a bounded, human string
   const safeMessage = message.slice(0, 500);
@@ -468,7 +482,7 @@ async function failExecution(
       updatedAt: new Date(),
     })
     .where(eq(recurrenceExecutions.id, executionId));
-  await advanceSchedule(tx, def, false);
+  await advanceSchedule(tx, def, false, source);
 }
 
 /**
@@ -490,17 +504,43 @@ async function orgFailureLimit(tx: DbExecutor, orgId: number): Promise<number> {
   return parsed.success ? parsed.data.maxConsecutiveFailures : RECURRENCE_MAX_CONSECUTIVE_FAILURES;
 }
 
-/** Advances counters + nextRunAt, and applies the auto-pause-on-failures policy. */
-async function advanceSchedule(tx: DbExecutor, def: Definition, success: boolean) {
+/**
+ * Advances counters, and — only for a `scheduler` run — `nextRunAt` plus the
+ * completed/expired transitions that depend on it. Always applies the
+ * auto-pause-on-failures policy.
+ *
+ * Only the scheduler consumes a *scheduled* occurrence, so only the scheduler
+ * moves the calendar (`docs/features/recurrence-executions.md`: "Ejecutar
+ * ahora" genera una ocurrencia fuera de banda … no interfiere con el
+ * calendario ni con `nextRunAt`"). This used to advance on every source, so
+ * each click of "Ejecutar ahora" silently ate the next real occurrence —
+ * three monthly recurrences had jumped from their October date to November
+ * (reported 2026-10-04) — and a backfill of N past dates pushed the calendar
+ * N cycles into the future. Out-of-band runs still count toward the
+ * execution stats and the consecutive-failure limit; they just never decide
+ * when the recurrence runs next, nor finish it off (`completed`/`expired`
+ * follow the calendar).
+ */
+async function advanceSchedule(
+  tx: DbExecutor,
+  def: Definition,
+  success: boolean,
+  source: ExecutionSource,
+) {
+  const advanceCalendar = advancesCalendar(source);
   const schedule = toSchedule(def);
   const nowRef = def.nextRunAt ?? new Date();
-  const nextLocal = nextOccurrenceLocal(schedule, todayInTz(nowRef, def.timezone), false);
-  const exhausted = isExhausted({
-    occurrenceCount: def.occurrenceCount + 1,
-    maxOccurrences: def.maxOccurrences,
-    endAt: def.endAt,
-    nextLocal,
-  });
+  const nextLocal = advanceCalendar
+    ? nextOccurrenceLocal(schedule, todayInTz(nowRef, def.timezone), false)
+    : null;
+  const exhausted =
+    advanceCalendar &&
+    isExhausted({
+      occurrenceCount: def.occurrenceCount + 1,
+      maxOccurrences: def.maxOccurrences,
+      endAt: def.endAt,
+      nextLocal,
+    });
 
   const consecutiveFailedCount = success ? 0 : def.consecutiveFailedCount + 1;
   const failureLimit = success
@@ -530,7 +570,9 @@ async function advanceSchedule(tx: DbExecutor, def: Definition, success: boolean
       lastRunAt: new Date(),
       lastSuccessfulRunAt: success ? new Date() : def.lastSuccessfulRunAt,
       lastFailedRunAt: success ? def.lastFailedRunAt : new Date(),
-      nextRunAt: status === "active" && nextLocal ? occurrenceRunAt(schedule, nextLocal) : null,
+      ...(advanceCalendar
+        ? { nextRunAt: status === "active" && nextLocal ? occurrenceRunAt(schedule, nextLocal) : null }
+        : {}),
       status,
       isActive,
       updatedAt: new Date(),
@@ -697,7 +739,7 @@ export async function retryExecution(
       assertContextValid(def, ctx, templateData);
       const actor = await actorFor(tx, def);
       const occurrenceLocal = todayInTz(exec.scheduledFor, def.timezone);
-      const result = await generateEntity(tx, def, actor, templateData, occurrenceLocal, ctx);
+      const result = await generateEntity(tx, def, actor, templateData, occurrenceLocal, ctx, "retry");
 
       await tx
         .update(recurrenceExecutions)

@@ -1,6 +1,8 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, type DbExecutor } from "@/db";
 import {
+  clientServices,
+  services,
   ticketBillingStatuses,
   ticketPriorities,
   ticketStatuses,
@@ -260,6 +262,106 @@ export async function getTicketBillingStatusBySemanticKey(tx: DbExecutor, orgId:
     .from(ticketBillingStatuses)
     .where(and(eq(ticketBillingStatuses.organizationId, orgId), eq(ticketBillingStatuses.semanticKey, semanticKey)));
   return row ?? null;
+}
+
+/**
+ * Is this client contracted on a policy service — one with "Incluido en
+ * póliza" (`services.defaultBillingIncluded`, e.g. "Poliza Global")? Both the
+ * service and the client's contracted row must be active, same as
+ * `getCompanyBillingDefaults`'s `isGlobalPolicyIncluded` (which derives the
+ * identical rule from the rows it already loads for the rate suggestion).
+ */
+export async function isCompanyOnPolicyService(
+  tx: DbExecutor,
+  orgId: number,
+  companyId: number,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: clientServices.id })
+    .from(clientServices)
+    .innerJoin(services, eq(clientServices.serviceId, services.id))
+    .where(
+      and(
+        eq(clientServices.organizationId, orgId),
+        eq(clientServices.companyId, companyId),
+        eq(clientServices.status, "active"),
+        eq(services.status, "active"),
+        eq(services.defaultBillingIncluded, true),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * Is this specific contracted-service row still a live cover for the client's
+ * work? Used for an explicit link (a Recurrence's "Servicio contratado"), so
+ * it checks the row really belongs to this org + client and that both it and
+ * the catalog service are still `active` — a cancelled service stops covering
+ * new work.
+ */
+export async function isClientServiceActive(
+  tx: DbExecutor,
+  orgId: number,
+  companyId: number,
+  clientServiceId: number,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: clientServices.id })
+    .from(clientServices)
+    .innerJoin(services, eq(clientServices.serviceId, services.id))
+    .where(
+      and(
+        eq(clientServices.id, clientServiceId),
+        eq(clientServices.organizationId, orgId),
+        eq(clientServices.companyId, companyId),
+        eq(clientServices.status, "active"),
+        eq(services.status, "active"),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * The Cobro a brand-new Ticket starts with (2026-10-04). Work already covered
+ * by a contract opens as "In contract" instead of the org's default
+ * "Unclassified": nothing to decide at close and nothing of it lands on the
+ * billing statement. Two ways work counts as covered, checked in order:
+ *
+ * 1. **An explicit link** (`opts.clientServiceId`) — a Recurrence that
+ *    declares which contracted service it fulfills (2026-10-07). Recurring
+ *    work is contracted work, so the link alone covers it regardless of the
+ *    service's "Incluido en póliza" flag, and it records *which* contract
+ *    covers it when the client has several.
+ * 2. **A policy service on the client** — contracted on a service with
+ *    "Incluido en póliza" (e.g. "Poliza Global"), that client is never billed
+ *    per ticket at all.
+ *
+ * Anything else keeps the org default. Used by every Ticket creation path —
+ * the new-ticket form, Activity → Ticket conversion and the Recurrences
+ * engine — so the rule applies no matter who opens the ticket.
+ *
+ * Falls back to the org default when the catalog has no active
+ * INCLUDED_IN_CONTRACT row: catalogs are org-configurable and an admin may
+ * have retired it.
+ */
+export async function resolveInitialTicketBillingStatus(
+  tx: DbExecutor,
+  orgId: number,
+  companyId: number | null,
+  opts: { clientServiceId?: number | null } = {},
+): Promise<TicketBillingStatusRow | null> {
+  const covered =
+    companyId !== null &&
+    ((opts.clientServiceId != null &&
+      (await isClientServiceActive(tx, orgId, companyId, opts.clientServiceId))) ||
+      (await isCompanyOnPolicyService(tx, orgId, companyId)));
+  if (covered) {
+    const included = await getTicketBillingStatusBySemanticKey(tx, orgId, "INCLUDED_IN_CONTRACT");
+    if (included?.isActive) return included;
+  }
+  return getDefaultTicketBillingStatus(tx, orgId);
 }
 
 const LEGACY_TO_PRIORITY_SEMANTIC: Record<LegacyPriority, string> = {

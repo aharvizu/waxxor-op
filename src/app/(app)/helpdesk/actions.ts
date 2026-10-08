@@ -51,7 +51,6 @@ import {
   ticketBillingModalitySchema,
 } from "@/lib/tickets";
 import {
-  getDefaultTicketBillingStatus,
   getDefaultTicketPriority,
   getTicketBillingStatus,
   getTicketPriority,
@@ -60,6 +59,7 @@ import {
   legacyBillingFor,
   legacyPriorityFor,
   legacyStatusFor,
+  resolveInitialTicketBillingStatus,
   type TicketStatusRow,
 } from "@/lib/ticket-catalogs";
 import { getCatalogNames } from "@/lib/settings-data";
@@ -339,7 +339,8 @@ export async function createTicket(
       if (!priority) throw new TicketNotFoundError();
       const status = await getTicketStatusBySemanticKey(tx, user.organizationId, assigneeId ? "ASSIGNED" : "NEW");
       if (!status) throw new TicketNotFoundError();
-      const billingStatus = await getDefaultTicketBillingStatus(tx, user.organizationId);
+      // "In contract" for clients on a policy service, org default otherwise.
+      const billingStatus = await resolveInitialTicketBillingStatus(tx, user.organizationId, companyId);
       if (!billingStatus) throw new TicketNotFoundError();
 
       const item = await createWorkItem(tx, user, {

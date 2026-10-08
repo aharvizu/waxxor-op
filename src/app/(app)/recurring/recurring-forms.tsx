@@ -260,6 +260,7 @@ export type RecurrenceFormDefaults = {
   description?: string | null;
   targetType?: TargetType;
   companyId?: number | null;
+  clientServiceId?: number | null;
   projectId?: number | null;
   projectListId?: number | null;
   assigneeId?: number | null;
@@ -290,6 +291,7 @@ const COMMON_TIMEZONES = [
 export function RecurrenceWizard({
   defaults,
   companies,
+  clientServicesByCompany,
   projects,
   projectListsByProject,
   internalUsers,
@@ -299,6 +301,9 @@ export function RecurrenceWizard({
 }: {
   defaults?: RecurrenceFormDefaults;
   companies: Option[];
+  /** The client's active contracted services, keyed by company — the
+   * "Servicio contratado" options (see clientServices in the pages). */
+  clientServicesByCompany: Record<number, Option[]>;
   projects: Option[];
   projectListsByProject: Record<number, Option[]>;
   internalUsers: Option[];
@@ -320,6 +325,9 @@ export function RecurrenceWizard({
   );
   const [name, setName] = useState(defaults?.name ?? "");
   const [companyId, setClientId] = useState<string>(defaults?.companyId ? String(defaults.companyId) : "");
+  const [clientServiceId, setClientServiceId] = useState<string>(
+    defaults?.clientServiceId ? String(defaults.clientServiceId) : "",
+  );
   const [projectId, setProjectId] = useState<string>(defaults?.projectId ? String(defaults.projectId) : "");
   const [projectListId, setProjectListId] = useState<string>(defaults?.projectListId ? String(defaults.projectListId) : "");
   const [assigneeId, setAssigneeId] = useState<string>(defaults?.assigneeId ? String(defaults.assigneeId) : "");
@@ -350,6 +358,7 @@ export function RecurrenceWizard({
   const [maxOccurrences, setMaxOccurrences] = useState(defaults?.maxOccurrences != null ? String(defaults.maxOccurrences) : "");
 
   const projectLists = projectId ? (projectListsByProject[Number(projectId)] ?? []) : [];
+  const clientServices = companyId ? (clientServicesByCompany[Number(companyId)] ?? []) : [];
   const companyName = companies.find((c) => String(c.id) === companyId)?.name;
   const projectName = projects.find((p) => String(p.id) === projectId)?.name;
   const assigneeName = internalUsers.find((u) => String(u.id) === assigneeId)?.name;
@@ -467,9 +476,33 @@ export function RecurrenceWizard({
               id="companyId"
               name="companyId"
               value={companyId}
-              onValueChange={setClientId}
+              onValueChange={(v) => {
+                setClientId(v);
+                // A contracted service belongs to one client — never carry the
+                // old client's service over to the new one.
+                setClientServiceId("");
+              }}
               options={[{ value: "", label: "— Sin cliente / interno —" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
             />
+          </Field>
+          <Field label="Servicio contratado (opcional)" name="clientServiceId" errors={errors}>
+            <SearchableSelect
+              id="clientServiceId"
+              name="clientServiceId"
+              value={clientServiceId}
+              onValueChange={setClientServiceId}
+              disabled={!companyId}
+              placeholder={companyId ? "— Sin contrato —" : "Elige la empresa primero"}
+              options={[
+                { value: "", label: "— Sin contrato —" },
+                ...clientServices.map((cs) => ({ value: String(cs.id), label: cs.name })),
+              ]}
+            />
+            <p className="mt-1.5 text-xs text-muted">
+              {companyId && clientServices.length === 0
+                ? "Este cliente no tiene servicios activos registrados — dale de alta el servicio en Configuración → Clientes."
+                : "El trabajo cubierto por un contrato genera tickets con Cobro \u201cIn contract\u201d; sin contrato nacen sin clasificar."}
+            </p>
           </Field>
           {targetType === "project_activity" ? (
             <>

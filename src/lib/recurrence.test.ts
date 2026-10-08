@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  advancesCalendar,
   classifyError,
   computeNextRun,
   describeSchedule,
@@ -10,6 +11,7 @@ import {
   nextOccurrencesLocal,
   nthWeekdayOfMonth,
   occurrenceRunAt,
+  offsetForSource,
   renderTemplate,
   TemplateRenderError,
   todayInTz,
@@ -245,5 +247,28 @@ describe("calendar helpers", () => {
   it("addDays crosses month/year boundaries", () => {
     expect(addDays("2026-12-30", 3)).toBe("2027-01-02");
     expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+  });
+});
+
+describe("out-of-band executions", () => {
+  it("only a scheduler run advances the calendar", () => {
+    expect(advancesCalendar("scheduler")).toBe(true);
+    // "Ejecutar ahora", a retry and a backfill must never eat the next
+    // scheduled occurrence (reported 2026-10-04: monthly recurrences jumped
+    // from their October date to November after one manual run).
+    expect(advancesCalendar("manual")).toBe(false);
+    expect(advancesCalendar("retry")).toBe(false);
+    expect(advancesCalendar("backfill")).toBe(false);
+  });
+
+  it("a manual run anchors relative dates to the occurrence, not the cycle", () => {
+    expect(offsetForSource("manual", 30)).toBe(0);
+    expect(addDays("2026-10-02", offsetForSource("manual", 30)!)).toBe("2026-10-02");
+    // No offset configured stays no date.
+    expect(offsetForSource("manual", null)).toBeNull();
+    // Scheduled and backfilled occurrences keep honoring the template offset.
+    expect(offsetForSource("scheduler", 30)).toBe(30);
+    expect(offsetForSource("backfill", 30)).toBe(30);
+    expect(offsetForSource("scheduler", null)).toBeNull();
   });
 });

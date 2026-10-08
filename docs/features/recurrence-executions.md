@@ -23,6 +23,10 @@ Una fila por **ocurrencia intentada** (no por ocurrencia programada — solo se 
 
 `runManually` genera una ocurrencia **fuera de banda** con su propia clave (`manual-<timestamp>`), distinta de la clave de la ocurrencia programada — no interfiere con el calendario ni con `nextRunAt`. Requiere confirmación en la UI (`window.confirm`), registra `executedByUserId` y `executionSource: "manual"`, y audita normalmente a través del mismo camino que una ejecución del scheduler.
 
+**La fecha es hoy, no la del ciclo (2026-10-04)**: un run manual resuelve los offsets relativos de la plantilla (`dueOffsetDays`, `startOffsetDays`) **contra la ocurrencia misma**, es decir con offset 0 — ver `offsetForSource` en `src/lib/recurrence.ts`. Los offsets existen para el ciclo programado: una recurrencia mensual con "Vence 30 días después" devolvía un ticket que ya vencía el mes próximo y por tanto no aparecía en Hoy, mientras que la intención de "Ejecutar ahora" es trabajo para hoy. Una plantilla sin offset sigue generando el objeto sin fecha; `scheduler` y `backfill` siguen aplicando el offset contra su propia fecha de ocurrencia.
+
+> **Corregido 2026-10-04** — `executeOccurrence` llamaba a `advanceSchedule` en todos los orígenes, así que cada clic en "Ejecutar ahora" **avanzaba `nextRunAt`** y se comía la siguiente ocurrencia programada (tres recurrencias mensuales reales habían saltado de su fecha de octubre a noviembre; un backfill de N fechas pasadas empujaba el calendario N ciclos al futuro). Ahora solo el `scheduler` mueve el calendario — ver `advancesCalendar`. Los runs fuera de banda siguen sumando a los contadores de ejecuciones y al límite de fallos consecutivos; lo que ya no hacen es decidir cuándo corre la recurrencia la próxima vez, ni darla por `completed`/`expired` (ambos estados dependen del calendario).
+
 ## Ejecutar la ocurrencia pendiente (scheduler)
 
 `runDueRecurrences` consulta `status = active AND isActive AND nextRunAt <= now() AND archivedAt IS NULL`, y para cada una construye la clave de la ocurrencia programada (`todayInTz(def.nextRunAt, def.timezone)` — la fecha local de esa ejecución) y la procesa **conservando `scheduledFor`**. Tras procesar (éxito o fallo), `nextRunAt` avanza a la siguiente ocurrencia elegible.
@@ -41,6 +45,7 @@ Una fila por **ocurrencia intentada** (no por ocurrencia programada — solo se 
 1. **Modo preview (`dry: true`)** — calcula las fechas locales que caerían en el rango, sin crear nada. La UI lo usa implícitamente al mostrar el límite antes de confirmar (spec: "preview antes de ejecutar").
 2. **Modo real** — genera cada ocurrencia del rango como una ejecución independiente (`executionSource: "backfill"`), respetando la idempotencia normal (si una ocurrencia de ese rango ya se había procesado, se omite silenciosamente vía `duplicate_prevented`).
 3. **Límite duro**: `RECURRENCE_MAX_BACKFILL = 31` — nunca genera miles de objetos por accidente, incluso si el rango pedido es mayor.
+   - No toca `nextRunAt`: rellenar el pasado nunca mueve el calendario futuro (ver la nota de corrección arriba).
 4. Restringido a SuperAdmin/Administrator/Director (Project Manager excluido — spec §27); requiere checkbox de confirmación explícito en el formulario.
 
 ## Historial

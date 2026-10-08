@@ -38,6 +38,7 @@ import {
   skipNextOccurrence,
 } from "@/lib/recurrence-engine";
 import { requireRole, requireUser, type SessionUser } from "@/lib/session";
+import { isClientServiceActive } from "@/lib/ticket-catalogs";
 
 /** Manage roles per spec §27; Technician creates/runs but not backfill/hard-delete. */
 const MGMT_ROLES = ["superadmin", "administrator", "director", "project_manager"] as const;
@@ -132,6 +133,8 @@ const definitionCoreSchema = z.object({
   description: optionalText,
   targetType: z.enum(ENABLED_TARGET_TYPES, "Selecciona un tipo soportado."),
   companyId: optionalId,
+  /** Which contracted service of the client this recurring work fulfills. */
+  clientServiceId: optionalId,
   projectId: optionalId,
   projectListId: optionalId,
   assigneeId: optionalId,
@@ -160,7 +163,13 @@ function validateTemplateVariables(templateData: Record<string, unknown>) {
 async function validateContext(
   tx: DbExecutor,
   orgId: number,
-  data: { companyId: number | null; projectId: number | null; projectListId: number | null; assigneeId: number | null },
+  data: {
+    companyId: number | null;
+    clientServiceId: number | null;
+    projectId: number | null;
+    projectListId: number | null;
+    assigneeId: number | null;
+  },
 ) {
   if (data.companyId) {
     const [client] = await tx
@@ -168,6 +177,14 @@ async function validateContext(
       .from(companies)
       .where(and(eq(companies.id, data.companyId), eq(companies.organizationId, orgId)));
     if (!client) throw new RuleError("El cliente no existe en esta organización.");
+  }
+  // The contract link must be one of THIS client's active services — never
+  // another client's row, and never a cancelled one (it decides the generated
+  // Ticket's Cobro, so a wrong link would silently stop work being billed).
+  if (data.clientServiceId) {
+    if (!data.companyId) throw new RuleError("Selecciona el cliente antes del servicio contratado.");
+    const covering = await isClientServiceActive(tx, orgId, data.companyId, data.clientServiceId);
+    if (!covering) throw new RuleError("El servicio contratado no está activo para ese cliente.");
   }
   if (data.projectId) {
     const [project] = await tx
@@ -295,6 +312,7 @@ export async function createRecurrence(
           maxOccurrences: schedule.data.maxOccurrences,
           nextRunAt: activate ? (next?.runAt ?? null) : null,
           companyId: core.data.companyId,
+          clientServiceId: core.data.clientServiceId,
           projectId: core.data.projectId,
           projectListId: core.data.projectListId,
           assigneeId: resolved.assigneeId,
@@ -322,7 +340,7 @@ export async function createRecurrence(
 /* =============================================================== update */
 
 const REC_AUDITED = [
-  "name", "description", "companyId", "projectId", "projectListId", "assigneeId",
+  "name", "description", "companyId", "clientServiceId", "projectId", "projectListId", "assigneeId",
   "timezone", "frequency", "interval", "dayOfMonth", "monthOfYear", "weekOfMonth",
   "timeOfDay", "startAt", "endAt", "maxOccurrences",
 ] as const;
@@ -397,6 +415,7 @@ export async function updateRecurrence(
         name: core.data.name,
         description: core.data.description,
         companyId: core.data.companyId,
+        clientServiceId: core.data.clientServiceId,
         projectId: core.data.projectId,
         projectListId: core.data.projectListId,
         assigneeId: resolved.assigneeId,
@@ -758,6 +777,7 @@ export async function duplicateRecurrence(
       const before = await loadDefinition(tx, user, data.id);
       const resolved = await validateContext(tx, user.organizationId, {
         companyId: before.companyId,
+        clientServiceId: before.clientServiceId,
         projectId: before.projectId,
         projectListId: before.projectListId,
         assigneeId: before.assigneeId,
@@ -785,6 +805,7 @@ export async function duplicateRecurrence(
           maxOccurrences: before.maxOccurrences,
           nextRunAt: null,
           companyId: before.companyId,
+          clientServiceId: before.clientServiceId,
           projectId: before.projectId,
           projectListId: before.projectListId,
           assigneeId: resolved.assigneeId,
