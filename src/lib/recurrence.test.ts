@@ -6,6 +6,7 @@ import {
   computeNextRun,
   describeSchedule,
   isExhausted,
+  isManualOccurrenceKey,
   isoWeekday,
   nextOccurrenceLocal,
   nextOccurrencesLocal,
@@ -270,5 +271,14 @@ describe("out-of-band executions", () => {
     expect(offsetForSource("scheduler", 30)).toBe(30);
     expect(offsetForSource("backfill", 30)).toBe(30);
     expect(offsetForSource("scheduler", null)).toBeNull();
+  });
+
+  it("tells a manual occurrence from a scheduled one by its key", () => {
+    // Retrying a failed "Ejecutar ahora" has to anchor its dates like the
+    // original run did, and executionSource is overwritten to "retry" once a
+    // retry fails — the key is what still remembers.
+    expect(isManualOccurrenceKey("manual-1790973070198")).toBe(true);
+    // A scheduled or backfilled occurrence's key is its local date.
+    expect(isManualOccurrenceKey("2026-10-18")).toBe(false);
   });
 });

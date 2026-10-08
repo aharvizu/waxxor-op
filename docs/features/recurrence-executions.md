@@ -33,6 +33,8 @@ Una fila por **ocurrencia intentada** (no por ocurrencia programada — solo se 
 
 ## Reintentar
 
+`retryExecution` **conserva la naturaleza de la ocurrencia, no la del run** (2026-10-08): reintentar un "Ejecutar ahora" fallido ancla las fechas relativas a la ocurrencia igual que lo hizo el run original, en lugar de volver a empujarlas un ciclo. El origen se reconoce por la clave (`isManualOccurrenceKey` — `manual-<timestamp>`), no por `executionSource`, porque ese campo se sobreescribe a `"retry"` cuando un reintento falla y tras el primero la fila ya no recordaría de dónde venía. La **fecha de la ocurrencia sigue siendo la original** (`exec.scheduledFor`), no hoy: un reintento regenera la *misma* ocurrencia, y fijarla a cuando se pidió es lo que evita que se convierta en otra.
+
 `retryExecution` solo opera sobre ejecuciones en `status = "failed"`; reutiliza la **misma fila** (incrementa `attemptCount`, no crea una nueva), y si el contexto ya es válido genera el objeto normalmente. Si la recurrencia había entrado en `status = "error"` por fallos consecutivos, un reintento exitoso la regresa a `paused` (no a `active` automáticamente — reactivarla es una decisión explícita separada) y resetea `consecutiveFailedCount` a 0. Reintentar una ejecución que ya tiene éxito se rechaza explícitamente (no puede duplicar el objeto).
 
 ## Omitir la próxima ocurrencia

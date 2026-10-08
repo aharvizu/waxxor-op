@@ -425,6 +425,18 @@ export function advancesCalendar(source: RecurrenceExecutionSource): boolean {
 }
 
 /**
+ * Was this occurrence created out of band by "Ejecutar ahora"? Manual keys are
+ * `manual-<timestamp>`, a scheduled or backfilled one's key is its local date
+ * (`docs/architecture/recurrence-idempotency.md`). The key is the only durable
+ * record of it: `executionSource` is overwritten to "retry" when a retry
+ * fails, so after one failed retry the row no longer remembers where the
+ * occurrence came from.
+ */
+export function isManualOccurrenceKey(occurrenceKey: string): boolean {
+  return occurrenceKey.startsWith("manual-");
+}
+
+/**
  * The template's relative-date offset ("Vence N días después", "Inicia N días
  * después") as this run should apply it. A manual run means "I need this one
  * today", so its dates land on the occurrence itself instead of N days out —

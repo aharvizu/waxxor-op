@@ -23,6 +23,7 @@ import {
   addDays,
   advancesCalendar,
   isExhausted,
+  isManualOccurrenceKey,
   nextOccurrenceLocal,
   occurrenceRunAt,
   offsetForSource,
@@ -738,8 +739,16 @@ export async function retryExecution(
       const ctx = await loadContext(tx, def, contactId);
       assertContextValid(def, ctx, templateData);
       const actor = await actorFor(tx, def);
+      // The occurrence's own date, not today's: a retry regenerates the SAME
+      // occurrence (same key), so pinning it to when it was first due is what
+      // keeps a retry from quietly becoming a different occurrence.
       const occurrenceLocal = todayInTz(exec.scheduledFor, def.timezone);
-      const result = await generateEntity(tx, def, actor, templateData, occurrenceLocal, ctx, "retry");
+      // …and the occurrence's nature, not the fact that this run is a retry,
+      // decides how the template's offsets apply: retrying a failed "Ejecutar
+      // ahora" must anchor the dates to the occurrence just like the original
+      // run did, instead of pushing them a cycle out again.
+      const originSource: ExecutionSource = isManualOccurrenceKey(exec.occurrenceKey) ? "manual" : "retry";
+      const result = await generateEntity(tx, def, actor, templateData, occurrenceLocal, ctx, originSource);
 
       await tx
         .update(recurrenceExecutions)
