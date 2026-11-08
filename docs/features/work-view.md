@@ -69,17 +69,36 @@ El equipo no usa `/today` porque lo considera sobrecargado de información. Esta
 - Abre en **"Pendientes"**: con 197 de 205 tickets cerrados, mostrar todo por defecto sepultaría los ~16 vivos bajo el historial. "Todo" es un chip explícito.
 - Acciones de fila solo para tickets (`TicketRowActions`, reutilizado). Las actividades no tienen dropdown de fila en ningún lado de Watson todavía; inventarlo pertenece a su módulo, no a esta vista.
 
-## 7. Sin vistas guardadas (todavía), a propósito
+## 7. Orden: presets, no un constructor
+
+Un desplegable **"Ordenar por"** en la barra de controles, en la URL (`?sort=`) como todo lo demás aquí, así que un orden es compartible. Aplica a la tabla **y** a los carriles del tablero, porque el Kanban filtra las filas ya ordenadas.
+
+| Preset | Orden | Desempate |
+|---|---|---|
+| **Prioridad** (default) | crítica primero | vence más próximo, luego actualizado |
+| Vence | más próximo primero, sin fecha al final | prioridad, luego actualizado |
+| Actualizado | reciente primero | — |
+| Creado | reciente primero | — |
+
+Son **presets completos, no un par campo + dirección**: "prioridad ascendente" (lo trivial primero) no lo quiere nadie, así que cada preset lleva la única dirección que tiene sentido y la pantalla se queda en un desplegable en lugar de un constructor de ordenamiento.
+
+**El tipo no es criterio de orden.** Ordenar por tipo entierra sistemáticamente al que pierda — las actividades, siempre — que es lo contrario de juntarlas en una lista; el ícono y el prefijo del folio ya dicen qué es cada fila, y el filtro de tipo está ahí para cuando de verdad quieras uno solo.
+
+Dos detalles de implementación: `work_item_priority` está declarado `low → critical` y Postgres ordena un enum por su orden de declaración, así que `desc` da crítica primero sin `CASE`; y `asc` sobre una fecha nullable pone los NULL al final en Postgres, que es justo lo que "más próximo primero" quiere — el trabajo sin fecha se hunde en vez de encabezar.
+
+El ordenamiento por encabezado de la tabla sigue existiendo y es independiente: es de cliente y **solo sobre la página cargada** (50 filas), mientras el desplegable ordena el resultado completo en la base.
+
+## 8. Sin vistas guardadas (todavía), a propósito
 
 Trabajo es una vista transversal de la misma familia que Hoy y Calendario, que se manejan con query params. Cablear el Motor de Vistas habría requerido una migración de `config_module` más vistas sembradas **antes de que nadie use la pantalla una sola vez**.
 
 Filtros, búsqueda y rango de fechas ya viven en la URL (los pone `FilterBar`), así que una vista es compartible y marcable hoy. Las columnas elegidas son locales a la sesión hasta que alguien pida que persistan — y agregar el módulo al Motor después es aditivo.
 
-## 8. Componentes reutilizados, cero nuevos
+## 9. Componentes reutilizados, cero nuevos
 
 `DataTable`, `FilterBar`, `KanbanBoard`, `TicketRowActions`, `CatalogChip`-equivalente, `Badge`, `EmptyState`, y el idiom de control segmentado de Calendario. No se creó ningún componente compartido nuevo.
 
-## 9. Verificado (2026-11-08, datos reales)
+## 10. Verificado (2026-11-08, datos reales)
 
 Consulta unificada ejecutada contra la base productiva en modo lectura:
 
@@ -94,7 +113,7 @@ Consulta unificada ejecutada contra la base productiva en modo lectura:
 
 `npm run build` compila y registra `ƒ /work`; typecheck limpio, lint sin errores, 284 tests.
 
-## 10. Vista rápida (modal)
+## 11. Vista rápida (modal)
 
 Hacer click en una fila no abría nada: el `<tr>` de `DataTable` no lleva handler (es el componente del Motor de Vistas, intacto) y solo el texto del título era enlace. Reportado 2026-11-08.
 
@@ -113,7 +132,7 @@ Sin atajo de Escape todavía: forzaría el panel a ser componente de cliente. `/
 
 > **Corregido 2026-11-08** — el panel se entregó roto: `work-peek.tsx` es un server component y llamaba `workHref`, importado de `work-views.tsx`, que es `"use client"`. Cruzando esa frontera el import es una *referencia de cliente*, no la función, así que `next build` compilaba limpio y el modal lanzaba "Attempted to call workHref() from the server" al abrirse. La construcción de URLs se movió a `src/lib/work-peek.ts` (puro, importable por ambos runtimes) y ahora `src/lib/client-boundary.test.ts` recorre `src/app` y falla si cualquier server component importa un valor no-componente de un módulo `"use client"` — tercera vez que esta frontera muerde el repo, y la primera con red.
 
-## 11. Pendiente
+## 12. Pendiente
 
 - **Categorías realineadas 2026-11-08** por decisión del equipo: `Pending confirmation` pasó de `resolved` a `waiting` ("pending confirmation, waiting customer y waiting third party van en Waiting"); `open` y `resolved` se dejaron como estaban. Resultado: `in_progress`, `resolved`, `closed` y `cancelled` quedan con un solo estatus y por tanto **arrastrables** (4 de 6 carriles); `open` sigue con 4 estatus (New, Assigned, Scheduled, Reopened) y `waiting` con 3. Editable en Configuración → Tickets → "Categoría semántica", auditado.
   - Efectos secundarios verificados de ese movimiento: `canTransition` **no** cambia, porque para estatus de sistema manda `SYSTEM_TRANSITIONS` por `semanticKey` y el grafo por categoría es solo respaldo de estatus personalizados. `isSlaPauseStatus` sí cubre `waiting`, así que un ticket en Pending confirmation ahora **pausa el reloj de SLA** — impacto menor porque `resolvedAt` ya está estampado y la compliance de resolución ya quedó decidida. `isWorkflowDropdownCategory` incluye `waiting`, así que Pending confirmation ahora aparece en el dropdown genérico de estatus; `canTransition` lo rechaza salvo viniendo de Resolved, así que es una verruga de UX, no un hueco de workflow.

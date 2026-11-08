@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, asc, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, companies, ticketStatuses, tickets, users, workItems } from "@/db/schema";
 import { requireUser } from "@/lib/session";
@@ -12,19 +12,25 @@ import { ACTIVITY_STATUS_CATEGORY, type ActivityStatus } from "@/lib/activities"
 import { TICKET_STATUS_CATEGORIES, listTicketPriorities, listTicketStatuses } from "@/lib/ticket-catalogs";
 import {
   WORK_DEFAULT_QUICK,
+  WORK_DEFAULT_SORT,
   WORK_QUICK_FILTERS,
+  WORK_SORTS,
   buildDateRangeSql,
   buildFieldRegistry,
   buildFilterSql,
   buildWorkFields,
+  buildWorkSortOptions,
   dateRangeFilterSchema,
   filterGroupSchema,
   toPublicFields,
   workQuickFilterSql,
+  workSortSql,
   type DateRangeFilter,
   type FilterGroup,
   type WorkQuickFilterKey,
+  type WorkSortKey,
 } from "@/lib/filters";
+import { SearchableSelect } from "@/components/searchable-select";
 import { PageHeader, buttonSecondaryClass, cx } from "@/components/ui";
 import { WorkPeek } from "./work-peek";
 import { WorkViewContent } from "./work-view-content";
@@ -66,6 +72,9 @@ export default async function WorkPage({
   const quickKeys = WORK_QUICK_FILTERS.map((q) => q.key) as readonly string[];
   const quick = (quickKeys.includes(params.quick ?? "") ? params.quick : WORK_DEFAULT_QUICK) as WorkQuickFilterKey;
   const search = params.q ?? "";
+  const sort = ((WORK_SORTS as readonly string[]).includes(params.sort ?? "")
+    ? params.sort
+    : WORK_DEFAULT_SORT) as WorkSortKey;
 
   let filters: FilterGroup | null = null;
   if (params.filters) {
@@ -153,7 +162,7 @@ export default async function WorkPage({
       .leftJoin(activities, eq(activities.workItemId, workItems.id))
       .leftJoin(companies, eq(workItems.companyId, companies.id))
       .where(and(...conditions)),
-    baseQuery().where(and(...conditions)).orderBy(desc(workItems.updatedAt)).limit(limit).offset(offset),
+    baseQuery().where(and(...conditions)).orderBy(...workSortSql(sort)).limit(limit).offset(offset),
     listTicketStatuses(user.organizationId, { includeInactive: true }),
     listTicketPriorities(user.organizationId, { includeInactive: true }),
     db
@@ -202,6 +211,7 @@ export default async function WorkPage({
       kind: params.kind,
       quick: params.quick,
       q: params.q,
+      sort: params.sort,
       filters: params.filters,
       dateRange: params.dateRange,
       page: params.page,
@@ -265,6 +275,27 @@ export default async function WorkPage({
           <span className="text-xs text-muted tabular-nums">
             {totalCount} {t("elementos", "items", locale)}
           </span>
+          {/* Submits on change (GET), so the order lands in the URL like every
+              other control here and stays shareable. */}
+          <form method="get" className="flex items-center gap-2">
+            {viewMode !== "table" ? <input type="hidden" name="view" value={viewMode} /> : null}
+            {params.kind ? <input type="hidden" name="kind" value={params.kind} /> : null}
+            {params.quick ? <input type="hidden" name="quick" value={params.quick} /> : null}
+            {params.q ? <input type="hidden" name="q" value={params.q} /> : null}
+            {params.filters ? <input type="hidden" name="filters" value={params.filters} /> : null}
+            {params.dateRange ? <input type="hidden" name="dateRange" value={params.dateRange} /> : null}
+            <label htmlFor="work-sort" className="text-xs text-muted">
+              {t("Ordenar por", "Sort by", locale)}
+            </label>
+            <SearchableSelect
+              id="work-sort"
+              name="sort"
+              defaultValue={sort}
+              submitOnChange
+              className="h-8 w-auto text-xs"
+              options={buildWorkSortOptions(locale)}
+            />
+          </form>
           <div className="flex rounded-lg border border-edge p-0.5">
             {([
               { value: "table", label: t("Tabla", "Table", locale) },

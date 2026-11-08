@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, ilike, inArray, isNull, isNotNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNull, isNotNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import {
@@ -200,6 +200,52 @@ export function workQuickFilterSql(key: WorkQuickFilterKey, userId: number): SQL
       return undefined;
     default:
       return undefined;
+  }
+}
+
+/* ------------------------------------------------- Work: sort presets */
+
+export const WORK_SORTS = ["priority", "due", "updated", "created"] as const;
+export type WorkSortKey = (typeof WORK_SORTS)[number];
+export const WORK_DEFAULT_SORT: WorkSortKey = "priority";
+
+export function buildWorkSortOptions(locale: Locale): { value: WorkSortKey; label: string }[] {
+  return [
+    { value: "priority", label: t("Prioridad (crítica primero)", "Priority (critical first)", locale) },
+    { value: "due", label: t("Vence (más próximo primero)", "Due (soonest first)", locale) },
+    { value: "updated", label: t("Actualizado (reciente primero)", "Updated (newest first)", locale) },
+    { value: "created", label: t("Creado (reciente primero)", "Created (newest first)", locale) },
+  ];
+}
+
+/**
+ * Order for the combined Work list, as whole presets rather than a
+ * field + direction pair: "prioridad ascendente" (trivial work first) is not
+ * something anyone wants, so each preset carries the only direction that makes
+ * sense plus a tiebreaker, and the screen stays a dropdown instead of a sort
+ * builder.
+ *
+ * Type is deliberately **not** a sort key. Ordering by it would bury whichever
+ * type loses — activities, always — which is the opposite of the point of
+ * putting them in one list; the icon and folio prefix already say what a row
+ * is, and the type filter is there when you really want only one.
+ *
+ * `work_item_priority` is declared low → critical, and Postgres orders an enum
+ * by its declaration order, so `desc` gives critical first with no CASE.
+ * `asc` on a nullable date puts NULLs last in Postgres, which is what "soonest
+ * first" wants: undated work sinks instead of leading.
+ */
+export function workSortSql(key: WorkSortKey): SQL[] {
+  switch (key) {
+    case "priority":
+      return [desc(workItems.priority), asc(workItems.dueDate), desc(workItems.updatedAt)];
+    case "due":
+      return [asc(workItems.dueDate), desc(workItems.priority), desc(workItems.updatedAt)];
+    case "created":
+      return [desc(workItems.createdAt)];
+    case "updated":
+    default:
+      return [desc(workItems.updatedAt)];
   }
 }
 
