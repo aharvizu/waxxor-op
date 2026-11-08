@@ -8,7 +8,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
-import { workPeekToken } from "@/lib/work-peek";
+import { workDetailHref, workPeekToken } from "@/lib/work-peek";
 
 /**
  * The combined Activities + Tickets view ("Trabajo"). Both types are rows of
@@ -53,8 +53,9 @@ export type WorkRow = {
   priorityId: number | null;
 };
 
+/** Client-side alias of workDetailHref — the format itself is owned by lib/work-peek. */
 export function workHref(row: WorkRow): string {
-  return row.type === "ticket" ? `/helpdesk/${row.entityId}` : `/activities/${row.entityId}`;
+  return workDetailHref({ type: row.type, entityId: row.entityId });
 }
 
 /** The `?peek=` token the page resolves back to a row — format owned by lib/work-peek. */

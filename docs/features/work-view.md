@@ -106,6 +106,8 @@ Ahora el **folio y el título** abren un panel lateral (`?peek=t:123` / `a:45`),
 
 Sin atajo de Escape todavía: forzaría el panel a ser componente de cliente. `/today` tiene la misma limitación.
 
+> **Corregido 2026-11-08** — el panel se entregó roto: `work-peek.tsx` es un server component y llamaba `workHref`, importado de `work-views.tsx`, que es `"use client"`. Cruzando esa frontera el import es una *referencia de cliente*, no la función, así que `next build` compilaba limpio y el modal lanzaba "Attempted to call workHref() from the server" al abrirse. La construcción de URLs se movió a `src/lib/work-peek.ts` (puro, importable por ambos runtimes) y ahora `src/lib/client-boundary.test.ts` recorre `src/app` y falla si cualquier server component importa un valor no-componente de un módulo `"use client"` — tercera vez que esta frontera muerde el repo, y la primera con red.
+
 ## 11. Pendiente
 
 - **Categorías realineadas 2026-11-08** por decisión del equipo: `Pending confirmation` pasó de `resolved` a `waiting` ("pending confirmation, waiting customer y waiting third party van en Waiting"); `open` y `resolved` se dejaron como estaban. Resultado: `in_progress`, `resolved`, `closed` y `cancelled` quedan con un solo estatus y por tanto **arrastrables** (4 de 6 carriles); `open` sigue con 4 estatus (New, Assigned, Scheduled, Reopened) y `waiting` con 3. Editable en Configuración → Tickets → "Categoría semántica", auditado.

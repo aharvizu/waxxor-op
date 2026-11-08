@@ -2,11 +2,12 @@ import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import { getLabels } from "@/lib/labels";
 import { t, type Locale } from "@/lib/i18n";
+import { workDetailHref } from "@/lib/work-peek";
 import { PanelRow, SidePanel } from "@/components/side-panel";
 import { Badge, buttonClass, buttonSecondaryClass } from "@/components/ui";
 import { TicketRowActions } from "../helpdesk/ticket-row-actions";
 import type { WorkKanbanStatusOption } from "./work-kanban";
-import { workHref, type WorkRow } from "./work-views";
+import type { WorkRow } from "./work-views";
 
 /**
  * Quick view for a row of the combined Work list. Reads **only the row the
@@ -35,7 +36,7 @@ export function WorkPeek({
   users: { id: number; name: string }[];
 }) {
   const { ticketPriorityMeta, workCategoryMeta } = getLabels(locale);
-  const detailHref = workHref(row);
+  const detailHref = workDetailHref({ type: row.type, entityId: row.entityId });
   const isTicket = row.type === "ticket";
 
   return (
