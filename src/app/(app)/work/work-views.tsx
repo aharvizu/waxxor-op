@@ -8,6 +8,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { Badge, Card, EmptyState, cx } from "@/components/ui";
 import { DataTable, type DataTableColumn, type DataTableColumnConfig } from "@/components/views/data-table";
+import { workPeekToken } from "@/lib/work-peek";
 
 /**
  * The combined Activities + Tickets view ("Trabajo"). Both types are rows of
@@ -56,6 +57,11 @@ export function workHref(row: WorkRow): string {
   return row.type === "ticket" ? `/helpdesk/${row.entityId}` : `/activities/${row.entityId}`;
 }
 
+/** The `?peek=` token the page resolves back to a row — format owned by lib/work-peek. */
+export function peekToken(row: WorkRow): string {
+  return workPeekToken({ type: row.type, entityId: row.entityId });
+}
+
 /**
  * Type mark: icon + folio, the row's and card's type signal. The icon carries
  * a tooltip and screen-reader label so the distinction is never colour- or
@@ -94,20 +100,34 @@ export function StatusChip({ row, categoryTone }: { row: WorkRow; categoryTone: 
   return <Badge tone={categoryTone[row.category]?.tone ?? "slate"}>{row.statusLabel}</Badge>;
 }
 
-export function buildWorkColumnRegistry(locale: Locale): Record<string, DataTableColumn<WorkRow>> {
+/**
+ * `peekHref` makes both the folio and the title open the quick view instead of
+ * navigating away. Two targets, not one: the table's `<tr>` carries no click
+ * handler (the shared DataTable is the Views Engine's, left untouched), and a
+ * single clickable word in the title column was the whole complaint — "no
+ * puedo dar click y abrir". The folio sits at the row start, where people aim.
+ */
+export function buildWorkColumnRegistry(
+  locale: Locale,
+  peekHref: (row: WorkRow) => string,
+): Record<string, DataTableColumn<WorkRow>> {
   const { ticketPriorityMeta, workCategoryMeta } = getLabels(locale);
   const today = new Date().toISOString().slice(0, 10);
   return {
     folio: {
       label: "Folio",
-      render: (r) => <TypeMark row={r} locale={locale} />,
+      render: (r) => (
+        <Link href={peekHref(r)} className="inline-flex transition-opacity hover:opacity-70">
+          <TypeMark row={r} locale={locale} />
+        </Link>
+      ),
       sortValue: (r) => r.folio,
       defaultSize: 150,
     },
     title: {
       label: t("Trabajo", "Work", locale),
       render: (r) => (
-        <Link href={workHref(r)} className="font-medium text-fg transition-colors hover:text-primary">
+        <Link href={peekHref(r)} className="block font-medium text-fg transition-colors hover:text-primary">
           {r.title}
         </Link>
       ),
@@ -195,18 +215,20 @@ export function WorkTable({
   onColumnConfigChange,
   rowActions,
   filtered,
+  peekHref,
 }: {
   rows: WorkRow[];
   columnConfig: DataTableColumnConfig[];
   onColumnConfigChange: (updater: (prev: DataTableColumnConfig[]) => DataTableColumnConfig[]) => void;
   rowActions?: (row: WorkRow) => React.ReactNode;
   filtered: boolean;
+  peekHref: (row: WorkRow) => string;
 }) {
   const locale = useLocale();
   return (
     <DataTable
       rows={rows}
-      registry={buildWorkColumnRegistry(locale)}
+      registry={buildWorkColumnRegistry(locale, peekHref)}
       defaultColumnKeys={DEFAULT_WORK_COLUMNS}
       columnConfig={columnConfig}
       onColumnConfigChange={onColumnConfigChange}

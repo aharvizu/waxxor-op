@@ -92,8 +92,23 @@ Consulta unificada ejecutada contra la base productiva en modo lectura:
 
 `npm run build` compila y registra `ƒ /work`; typecheck limpio, lint sin errores, 284 tests.
 
-## 10. Pendiente
+## 10. Vista rápida (modal)
 
-- El par de estatus por categoría (`New`/`Assigned`, `Resolved`/`Pending confirmation`, `Waiting customer`/`Waiting third party`) hace que el arrastre se rechace en esas etapas. Es decisión del negocio recortarlos, no de diseño.
+Hacer click en una fila no abría nada: el `<tr>` de `DataTable` no lleva handler (es el componente del Motor de Vistas, intacto) y solo el texto del título era enlace. Reportado 2026-11-08.
+
+Ahora el **folio y el título** abren un panel lateral (`?peek=t:123` / `a:45`), y la tarjeta del Kanban completa también. Dos blancos en la tabla, no uno, y el folio está al inicio de la fila donde la gente apunta.
+
+- El panel se resuelve **contra las filas ya cargadas** — sin segunda consulta, así que no puede contradecir a la lista detrás. Un `?peek=` que apunte fuera de la página actual simplemente no renderiza nada.
+- Es un adelanto, no una segunda página de detalle: la sustancia exclusiva de cada tipo (SLA y cobro, proyecto y subactividades) vive en el detalle real, al que enlaza directo. Los tickets además traen los controles en línea de estatus/prioridad/responsable reutilizados de `TicketRowActions`.
+- `SidePanel` + `PanelRow` (`src/components/side-panel.tsx`) son el componente compartido nuevo, **sin hooks**, cerrado por URL — así funciona desde un server component y queda marcable y compatible con el botón atrás. `/today` tiene su propia versión inline equivalente; la siguiente vez que se toque esa página debe migrar a este componente para que haya una sola implementación.
+- El formato del token lo posee `src/lib/work-peek.ts` (puro, con prueba de ida y vuelta). Está ahí a propósito: lo construye un componente de cliente y lo parsea el server page, y si las dos mitades divergen el modal **falla en silencio** — no lanza, solo no abre nunca.
+- Cambiar de vista, de tipo o de página cierra el panel; filtros y búsqueda se conservan al cerrarlo.
+
+Sin atajo de Escape todavía: forzaría el panel a ser componente de cliente. `/today` tiene la misma limitación.
+
+## 11. Pendiente
+
+- **Categorías realineadas 2026-11-08** por decisión del equipo: `Pending confirmation` pasó de `resolved` a `waiting` ("pending confirmation, waiting customer y waiting third party van en Waiting"); `open` y `resolved` se dejaron como estaban. Resultado: `in_progress`, `resolved`, `closed` y `cancelled` quedan con un solo estatus y por tanto **arrastrables** (4 de 6 carriles); `open` sigue con 4 estatus (New, Assigned, Scheduled, Reopened) y `waiting` con 3. Editable en Configuración → Tickets → "Categoría semántica", auditado.
+  - Efectos secundarios verificados de ese movimiento: `canTransition` **no** cambia, porque para estatus de sistema manda `SYSTEM_TRANSITIONS` por `semanticKey` y el grafo por categoría es solo respaldo de estatus personalizados. `isSlaPauseStatus` sí cubre `waiting`, así que un ticket en Pending confirmation ahora **pausa el reloj de SLA** — impacto menor porque `resolvedAt` ya está estampado y la compliance de resolución ya quedó decidida. `isWorkflowDropdownCategory` incluye `waiting`, así que Pending confirmation ahora aparece en el dropdown genérico de estatus; `canTransition` lo rechaza salvo viniendo de Resolved, así que es una verruga de UX, no un hueco de workflow.
 - Vistas guardadas, si el uso real las pide.
 - Acciones de fila para actividades (pertenece al módulo de Actividades).

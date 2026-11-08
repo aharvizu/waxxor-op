@@ -25,7 +25,9 @@ import {
   type WorkQuickFilterKey,
 } from "@/lib/filters";
 import { PageHeader, buttonSecondaryClass, cx } from "@/components/ui";
+import { WorkPeek } from "./work-peek";
 import { WorkViewContent } from "./work-view-content";
+import { parseWorkPeekToken } from "@/lib/work-peek";
 import type { WorkRow } from "./work-views";
 
 export const metadata: Metadata = { title: "Trabajo" };
@@ -199,6 +201,8 @@ export default async function WorkPage({
       q: params.q,
       filters: params.filters,
       dateRange: params.dateRange,
+      page: params.page,
+      peek: params.peek,
       ...patch,
     };
     const qs = new URLSearchParams();
@@ -208,6 +212,14 @@ export default async function WorkPage({
   };
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  // Quick view, resolved against the rows already loaded — no second query, so
+  // the panel can never disagree with the list behind it. A ?peek= pointing at
+  // something outside the current page simply renders nothing.
+  const peekTarget = parseWorkPeekToken(params.peek);
+  const peekRow = peekTarget
+    ? rows.find((r) => r.type === peekTarget.type && r.entityId === peekTarget.entityId)
+    : undefined;
 
   return (
     <div>
@@ -234,7 +246,7 @@ export default async function WorkPage({
             ] as const).map((o) => (
               <Link
                 key={o.value}
-                href={buildHref({ kind: o.value || undefined, page: undefined })}
+                href={buildHref({ kind: o.value || undefined, page: undefined, peek: undefined })}
                 className={cx(
                   "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                   (kind ?? "") === o.value ? "bg-primary-soft text-primary" : "text-muted hover:bg-subtle hover:text-fg",
@@ -257,7 +269,7 @@ export default async function WorkPage({
             ] as const).map((o) => (
               <Link
                 key={o.value}
-                href={buildHref({ view: o.value === "table" ? undefined : o.value, page: undefined })}
+                href={buildHref({ view: o.value === "table" ? undefined : o.value, page: undefined, peek: undefined })}
                 className={cx(
                   "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                   viewMode === o.value ? "bg-primary-soft text-primary" : "text-muted hover:bg-subtle hover:text-fg",
@@ -286,18 +298,29 @@ export default async function WorkPage({
         filtered={quick !== WORK_DEFAULT_QUICK || kind !== null || search.trim() !== "" || filters !== null || dateRange !== null}
       />
 
+      {peekRow ? (
+        <WorkPeek
+          row={peekRow}
+          closeHref={buildHref({ peek: undefined })}
+          locale={locale}
+          ticketStatuses={statusRows.map((st) => ({ id: st.id, name: st.name, category: st.category, isActive: st.isActive }))}
+          ticketPriorities={priorityRows.map((p) => ({ id: p.id, name: p.name, isActive: p.isActive }))}
+          users={orgUsers}
+        />
+      ) : null}
+
       {isPaged && totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-end gap-2">
           <span className="text-xs text-muted tabular-nums">
             {page} / {totalPages}
           </span>
           {page > 1 ? (
-            <Link href={buildHref({ page: String(page - 1) })} className={buttonSecondaryClass}>
+            <Link href={buildHref({ page: String(page - 1), peek: undefined })} className={buttonSecondaryClass}>
               ←
             </Link>
           ) : null}
           {page < totalPages ? (
-            <Link href={buildHref({ page: String(page + 1) })} className={buttonSecondaryClass}>
+            <Link href={buildHref({ page: String(page + 1), peek: undefined })} className={buttonSecondaryClass}>
               →
             </Link>
           ) : null}

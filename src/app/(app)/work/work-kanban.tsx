@@ -12,7 +12,7 @@ import { ACTIVITY_STATUS_CATEGORY, ACTIVITY_WORKFLOW_STATUSES } from "@/lib/acti
 import type { TicketStatusCategoryValue } from "@/lib/ticket-catalogs";
 import { updateActivityWorkflow } from "../activities/actions";
 import { changeTicketStatus } from "../helpdesk/actions";
-import { TypeMark, workHref, type WorkRow } from "./work-views";
+import { TypeMark, type WorkRow } from "./work-views";
 
 /** Shape TicketRowActions and this board both consume — the org catalog trimmed to what they need. */
 export type WorkKanbanStatusOption = { id: number; name: string; category: TicketStatusCategoryValue; isActive: boolean };
@@ -38,11 +38,14 @@ export function WorkKanban({
   rows,
   categories,
   ticketStatuses,
+  peekHref,
 }: {
   rows: WorkRow[];
   /** Ordered shared categories (TICKET_STATUS_CATEGORIES) — passed in so lane order never depends on object key order. */
   categories: string[];
   ticketStatuses: WorkKanbanStatusOption[];
+  /** A card opens the quick view, not the detail page — same as the table's folio and title. */
+  peekHref: (row: WorkRow) => string;
 }) {
   const router = useRouter();
   const locale = useLocale();
@@ -119,9 +122,9 @@ export function WorkKanban({
         <div
           role="link"
           tabIndex={0}
-          onClick={() => router.push(workHref(r))}
+          onClick={() => router.push(peekHref(r))}
           onKeyDown={(e) => {
-            if (e.key === "Enter") router.push(workHref(r));
+            if (e.key === "Enter") router.push(peekHref(r));
           }}
           className="cursor-pointer space-y-2"
         >
