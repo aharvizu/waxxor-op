@@ -71,7 +71,7 @@ El equipo no usa `/today` porque lo considera sobrecargado de información. Esta
 
 ## 7. Orden: presets, no un constructor
 
-Un desplegable **"Ordenar por"** en la barra de controles, en la URL (`?sort=`) como todo lo demás aquí, así que un orden es compartible. Aplica a la tabla **y** a los carriles del tablero, porque el Kanban filtra las filas ya ordenadas.
+Un desplegable **"Ordenar por"** en la barra de controles, en la URL (`?sort=`) como todo lo demás aquí, así que un orden es compartible. La consulta lo honra en ambas vistas — el Kanban filtra las filas ya ordenadas — pero **el desplegable solo se muestra en el tablero**: un carril no tiene encabezados que clickear, así que ahí es la única forma de reordenar, mientras la tabla se queda con el click en encabezado y no carga dos mandos que compiten. Un orden elegido en el tablero sobrevive al cambiar a tabla.
 
 | Preset | Orden | Desempate |
 |---|---|---|
@@ -86,7 +86,7 @@ Son **presets completos, no un par campo + dirección**: "prioridad ascendente" 
 
 Dos detalles de implementación: `work_item_priority` está declarado `low → critical` y Postgres ordena un enum por su orden de declaración, así que `desc` da crítica primero sin `CASE`; y `asc` sobre una fecha nullable pone los NULL al final en Postgres, que es justo lo que "más próximo primero" quiere — el trabajo sin fecha se hunde en vez de encabezar.
 
-El ordenamiento por encabezado de la tabla sigue existiendo y es independiente: es de cliente y **solo sobre la página cargada** (50 filas), mientras el desplegable ordena el resultado completo en la base.
+El ordenamiento por encabezado es de cliente y **solo sobre la página cargada** (50 filas), mientras el orden del servidor cubre el resultado completo. Con el filtro por defecto ("Pendientes", ~16 filas) es una sola página y el orden es completo; en cuanto el resultado pagina, la tabla lo declara junto a la paginación — *"El orden por encabezado aplica solo a esta página"* — en lugar de dejar que una primera página con apariencia de ordenada engañe.
 
 ## 8. Sin vistas guardadas (todavía), a propósito
 

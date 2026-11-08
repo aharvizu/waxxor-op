@@ -275,27 +275,33 @@ export default async function WorkPage({
           <span className="text-xs text-muted tabular-nums">
             {totalCount} {t("elementos", "items", locale)}
           </span>
-          {/* Submits on change (GET), so the order lands in the URL like every
-              other control here and stays shareable. */}
-          <form method="get" className="flex items-center gap-2">
-            {viewMode !== "table" ? <input type="hidden" name="view" value={viewMode} /> : null}
-            {params.kind ? <input type="hidden" name="kind" value={params.kind} /> : null}
-            {params.quick ? <input type="hidden" name="quick" value={params.quick} /> : null}
-            {params.q ? <input type="hidden" name="q" value={params.q} /> : null}
-            {params.filters ? <input type="hidden" name="filters" value={params.filters} /> : null}
-            {params.dateRange ? <input type="hidden" name="dateRange" value={params.dateRange} /> : null}
-            <label htmlFor="work-sort" className="text-xs text-muted">
-              {t("Ordenar por", "Sort by", locale)}
-            </label>
-            <SearchableSelect
-              id="work-sort"
-              name="sort"
-              defaultValue={sort}
-              submitOnChange
-              className="h-8 w-auto text-xs"
-              options={buildWorkSortOptions(locale)}
-            />
-          </form>
+          {/* Board only: a lane has no column headers to click, so this is its
+              only way to reorder. The table keeps the familiar header click
+              instead of carrying a second, competing control — and an order
+              picked here survives switching to the table, since the query
+              honors ?sort= in both views. Submits on change (GET) so the
+              order lands in the URL and stays shareable. */}
+          {viewMode === "kanban" ? (
+            <form method="get" className="flex items-center gap-2">
+              <input type="hidden" name="view" value="kanban" />
+              {params.kind ? <input type="hidden" name="kind" value={params.kind} /> : null}
+              {params.quick ? <input type="hidden" name="quick" value={params.quick} /> : null}
+              {params.q ? <input type="hidden" name="q" value={params.q} /> : null}
+              {params.filters ? <input type="hidden" name="filters" value={params.filters} /> : null}
+              {params.dateRange ? <input type="hidden" name="dateRange" value={params.dateRange} /> : null}
+              <label htmlFor="work-sort" className="text-xs text-muted">
+                {t("Ordenar por", "Sort by", locale)}
+              </label>
+              <SearchableSelect
+                id="work-sort"
+                name="sort"
+                defaultValue={sort}
+                submitOnChange
+                className="h-8 w-auto text-xs"
+                options={buildWorkSortOptions(locale)}
+              />
+            </form>
+          ) : null}
           <div className="flex rounded-lg border border-edge p-0.5">
             {([
               { value: "table", label: t("Tabla", "Table", locale) },
@@ -348,7 +354,17 @@ export default async function WorkPage({
       ) : null}
 
       {isPaged && totalPages > 1 ? (
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          {/* Header sorting is client-side over the loaded page, so once the
+              result spans pages it no longer reflects the whole set — say it
+              rather than let a sorted-looking first page mislead. */}
+          <span className="mr-auto text-xs text-faint">
+            {t(
+              "El orden por encabezado aplica solo a esta página.",
+              "Header sorting applies to this page only.",
+              locale,
+            )}
+          </span>
           <span className="text-xs text-muted tabular-nums">
             {page} / {totalPages}
           </span>
