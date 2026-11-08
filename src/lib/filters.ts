@@ -17,7 +17,7 @@ import {
 } from "@/db/schema";
 import { ACTIVITY_STATUSES } from "@/lib/activities";
 import { getLabels } from "@/lib/labels";
-import type { Locale } from "@/lib/i18n";
+import { t, type Locale } from "@/lib/i18n";
 import { zonedTimeToUtc } from "@/lib/recurrence";
 import { ORG_TIMEZONE, PERIOD_RULES, resolvePeriod, type PeriodRule } from "@/lib/reports";
 
@@ -113,6 +113,95 @@ export const TICKET_FIELDS: Record<string, FieldDefinition> = {
   closedAt: { key: "closedAt", label: "Cerrado", type: "date", column: tickets.closedAt },
   updatedAt: { key: "updatedAt", label: "Actualizado", type: "date", column: workItems.updatedAt },
 };
+
+/**
+ * Work field registry — the **combined** Activities + Tickets view. Reads only
+ * `work_items` columns, which both types share, so one registry serves both
+ * without a union of specialization fields (2026-11-08).
+ *
+ * Deliberately narrow: no SLA, no billing, no channel, no activity type. Those
+ * are type-exclusive, and an advanced filter on a field half the rows cannot
+ * have is a trap — they stay in their own module, which keeps this screen from
+ * becoming another overloaded dashboard.
+ *
+ * `status` is absent on purpose: tickets carry an org-configurable catalog of
+ * 11 and activities a fixed 7, so a single option list would mix two
+ * vocabularies. Stage navigation happens through the Kanban (grouped by the
+ * shared category — ACTIVITY_STATUS_CATEGORY) and the quick filters instead.
+ *
+ * `dueDate` is `work_items.due_date`, which reads as "Vence" for an activity
+ * and "Fecha agendada" for a ticket — the one date a person actually commits
+ * to on both, hence the neutral label.
+ */
+export function buildWorkFields(locale: Locale): Record<string, FieldDefinition> {
+  const { ticketPriorityMeta } = getLabels(locale);
+  return {
+    type: {
+      key: "type",
+      label: t("Tipo", "Type", locale),
+      type: "select",
+      column: workItems.type,
+      options: [
+        { value: "ticket", label: t("Ticket", "Ticket", locale) },
+        { value: "activity", label: t("Actividad", "Activity", locale) },
+      ],
+    },
+    priority: {
+      key: "priority",
+      label: t("Prioridad", "Priority", locale),
+      type: "select",
+      column: workItems.priority,
+      options: Object.entries(ticketPriorityMeta).map(([value, m]) => ({ value, label: m.label })),
+    },
+    companyId: { key: "companyId", label: t("Empresa", "Company", locale), type: "company", column: workItems.companyId },
+    assigneeId: { key: "assigneeId", label: t("Responsable", "Assignee", locale), type: "user", column: workItems.assigneeId },
+    dueDate: { key: "dueDate", label: t("Vence", "Due", locale), type: "date", column: workItems.dueDate },
+    createdAt: { key: "createdAt", label: t("Creado", "Created", locale), type: "date", column: workItems.createdAt },
+    updatedAt: { key: "updatedAt", label: t("Actualizado", "Updated", locale), type: "date", column: workItems.updatedAt },
+  };
+}
+
+/**
+ * Statuses that mean "this is over", across both vocabularies — the union of
+ * the ticket categories `closed`/`cancelled` and TERMINAL_ACTIVITY_STATUSES,
+ * expressed against the shared `work_items.status` mirror so one predicate
+ * covers both types. 197 of 205 tickets sit in `closed`, so the combined view
+ * hiding these by default is the difference between 16 rows and 279.
+ */
+export const TERMINAL_WORK_STATUSES = ["closed", "cancelled", "completed", "archived"] as const;
+
+export type WorkQuickFilterKey = "pending" | "mine" | "unassigned" | "overdue" | "all";
+/** "Pendientes" is the screen's resting state (see WORK_DEFAULT_QUICK); "Todo" is the explicit opt-in to history. */
+export const WORK_QUICK_FILTERS: { key: WorkQuickFilterKey; label: string }[] = [
+  { key: "pending", label: "Pendientes" },
+  { key: "mine", label: "Míos" },
+  { key: "unassigned", label: "Sin asignar" },
+  { key: "overdue", label: "Vencidos" },
+  { key: "all", label: "Todo" },
+];
+export const WORK_DEFAULT_QUICK: WorkQuickFilterKey = "pending";
+
+/** Quick-filter SQL for the combined Work view — shared workItems columns only, so it is type-agnostic. */
+export function workQuickFilterSql(key: WorkQuickFilterKey, userId: number): SQL | undefined {
+  const today = new Date().toISOString().slice(0, 10);
+  const stillOpen = notInArray(workItems.status, [...TERMINAL_WORK_STATUSES]);
+  switch (key) {
+    case "pending":
+      return stillOpen;
+    // "Mine" and "unassigned" are about work to pick up, so both imply still open.
+    case "mine":
+      return and(eq(workItems.assigneeId, userId), stillOpen);
+    case "unassigned":
+      return and(isNull(workItems.assigneeId), stillOpen);
+    case "overdue":
+      return and(isNotNull(workItems.dueDate), lt(workItems.dueDate, today), stillOpen);
+    // "Todo" is the absence of the baseline, not a filter of its own.
+    case "all":
+      return undefined;
+    default:
+      return undefined;
+  }
+}
 
 /** Projects field registry — "configuración por entidad" over the same engine, no new machinery. */
 export const PROJECT_FIELDS: Record<string, FieldDefinition> = {

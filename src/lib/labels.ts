@@ -119,6 +119,23 @@ const activityStatusMetaBi: Record<string, BiMeta> = {
   archived: { es: "Archivada", en: "Archived", tone: "slate" },
 };
 
+/**
+ * The six shared status categories (ticket_statuses.category +
+ * ACTIVITY_STATUS_CATEGORY) as Kanban column chrome for the combined Work
+ * view. Tone here is column furniture, not a row signal: a row's type is read
+ * from its icon and folio prefix, so colour stays free to mean status and
+ * priority. `resolved` only ever holds tickets — an activity's end state is
+ * final (see ACTIVITY_STATUS_CATEGORY).
+ */
+const workCategoryMetaBi: Record<string, BiMeta> = {
+  open: { es: "Abierto", en: "Open", tone: "slate" },
+  in_progress: { es: "En progreso", en: "In progress", tone: "purple" },
+  waiting: { es: "En espera", en: "Waiting", tone: "amber" },
+  resolved: { es: "Resuelto", en: "Resolved", tone: "blue" },
+  closed: { es: "Cerrado", en: "Closed", tone: "green" },
+  cancelled: { es: "Cancelado", en: "Cancelled", tone: "slate" },
+};
+
 const activityTypeMetaBi: Record<string, BiMeta> = {
   general: { es: "General", en: "General", tone: "slate" },
   follow_up: { es: "Seguimiento", en: "Follow-up", tone: "blue" },
@@ -379,6 +396,7 @@ export function getLabels(locale: Locale) {
     reportStatusMeta: resolveMap(reportStatusMetaBi, locale),
     reportTypeMeta: resolveMap(reportTypeMetaBi, locale),
     activityStatusMeta: resolveMap(activityStatusMetaBi, locale),
+    workCategoryMeta: resolveMap(workCategoryMetaBi, locale),
     activityTypeMeta: resolveMap(activityTypeMetaBi, locale),
     slaHealthMeta: resolveMap(slaHealthMetaBi, locale),
     roleMeta: resolveMap(roleMetaBi, locale),

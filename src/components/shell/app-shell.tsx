@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ClipboardCheck,
+  Layers,
   ClipboardList,
   FileText,
   FolderKanban,
@@ -124,6 +125,10 @@ export function AppShell({
     {
       name: "Operations",
       items: [
+        // Cross-type entry point: Activities + Tickets in one list. The two
+        // per-type modules stay below it — they keep the specialist columns
+        // (SLA, cobro, canal) and the deep links Indicadores/Dashboard use.
+        { href: "/work", label: "Work", icon: Layers },
         { href: "/activities", label: "Activities", icon: ClipboardCheck },
         { href: "/helpdesk", label: "Tickets", icon: LifeBuoy, badge: openTickets },
         { href: "/projects", label: "Projects", icon: FolderKanban },

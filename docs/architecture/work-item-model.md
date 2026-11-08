@@ -31,6 +31,8 @@ Indexes on `work_items`: organization_id, type, status, priority, client_id, ass
 
 **Ticket columns added later**: `folio` + category/subcategory/channel/modality/contact arrived with the conversion step (`drizzle/0008`), and the SLA snapshot columns (definition reference, frozen minutes/calendar/timezone, targets, pause accounting) with `drizzle/0010` — see `docs/features/sla.md`. Still deferred: `resolution`/`confirmation`/billing fields (no business rules yet — OQ-04/OQ-12).
 
+**Vocabulario compartido de etapas (2026-11-08)**: los dos juegos de estatus responden la misma pregunta a través de seis categorías semánticas — `ticket_statuses.category` para tickets, `ACTIVITY_STATUS_CATEGORY` (`src/lib/activities.ts`) para actividades. Ese es el contrato que permite leerlos lado a lado **sin unificar los dos mecanismos**: ver `docs/features/work-view.md`.
+
 **Status enum**: shared and append-only. Tickets use the 11-status official lifecycle (`new`…`cancelled`, see `src/lib/tickets.ts`), activities their 7 (`pending`…`archived`); `cancelled` is shared. Legacy `open`/`waiting_on_customer` remain in the pg enum (unused) because Postgres enums can't drop values cheaply — data was migrated in `drizzle/0011`.
 
 `created_by_id` stays nullable (as it was on tickets) so user-deletion semantics don't change.

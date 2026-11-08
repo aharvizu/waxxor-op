@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACTIVITY_STATUS_CATEGORY,
   ACTIVITY_STATUSES,
+  TERMINAL_ACTIVITY_STATUSES,
   activityStatusSchema,
   activityWorkflowStatusSchema,
   completedAtFor,
@@ -53,5 +55,39 @@ describe("restore rule", () => {
   });
   it("restores everything else as pending", () => {
     expect(restoredStatus(null)).toBe("pending");
+  });
+});
+
+describe("shared status vocabulary", () => {
+  it("maps every activity status into a category, with none left out", () => {
+    // Total over the enum: a status added later without a category would be
+    // invisible in the combined Work view's Kanban.
+    for (const status of ACTIVITY_STATUSES) {
+      expect(ACTIVITY_STATUS_CATEGORY[status]).toBeTruthy();
+    }
+    expect(Object.keys(ACTIVITY_STATUS_CATEGORY).sort()).toEqual([...ACTIVITY_STATUSES].sort());
+  });
+
+  it("keeps the working stages distinguishable", () => {
+    expect(ACTIVITY_STATUS_CATEGORY.pending).toBe("open");
+    expect(ACTIVITY_STATUS_CATEGORY.in_progress).toBe("in_progress");
+    // blocked collapses into waiting on purpose — both mean "not progressing",
+    // and the row's own badge still says "Bloqueada".
+    expect(ACTIVITY_STATUS_CATEGORY.waiting).toBe("waiting");
+    expect(ACTIVITY_STATUS_CATEGORY.blocked).toBe("waiting");
+  });
+
+  it("never puts an activity in `resolved`, which means unconfirmed for a ticket", () => {
+    // An activity's end state is final: no confirmation step exists for it.
+    for (const status of ACTIVITY_STATUSES) {
+      expect(ACTIVITY_STATUS_CATEGORY[status]).not.toBe("resolved");
+    }
+    expect(ACTIVITY_STATUS_CATEGORY.completed).toBe("closed");
+    expect(ACTIVITY_STATUS_CATEGORY.archived).toBe("closed");
+    expect(ACTIVITY_STATUS_CATEGORY.cancelled).toBe("cancelled");
+  });
+
+  it("derives the terminal set from the categories, not a second hand-kept list", () => {
+    expect([...TERMINAL_ACTIVITY_STATUSES].sort()).toEqual(["archived", "cancelled", "completed"]);
   });
 });
