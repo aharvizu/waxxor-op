@@ -35,6 +35,8 @@ export type WorkRow = {
   type: WorkKind;
   folio: string;
   title: string;
+  /** Shown in the quick view, not in the table — a row is one line. */
+  description: string | null;
   /** The precise status name: the org's catalog name for a ticket, the localized label for an activity. */
   statusLabel: string;
   /** Org-configured hex for a ticket status; null for activities, which fall back to the category tone. */

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
@@ -118,6 +119,7 @@ export default async function WorkPage({
         id: workItems.id,
         type: workItems.type,
         title: workItems.title,
+        description: workItems.description,
         status: workItems.status,
         priority: workItems.priority,
         dueDate: workItems.dueDate,
@@ -175,6 +177,7 @@ export default async function WorkPage({
       type: isTicket ? "ticket" : "activity",
       folio: (isTicket ? r.ticketFolio : r.activityFolio) ?? "—",
       title: r.title,
+      description: r.description,
       statusLabel: isTicket
         ? (r.ticketStatusName ?? r.status)
         : (activityStatusMeta[r.status]?.label ?? r.status),
@@ -299,14 +302,18 @@ export default async function WorkPage({
       />
 
       {peekRow ? (
+        // Suspense so the list never waits on the panel's time-log query.
+        <Suspense fallback={null}>
         <WorkPeek
           row={peekRow}
+          orgId={user.organizationId}
           closeHref={buildHref({ peek: undefined })}
           locale={locale}
           ticketStatuses={statusRows.map((st) => ({ id: st.id, name: st.name, category: st.category, isActive: st.isActive }))}
           ticketPriorities={priorityRows.map((p) => ({ id: p.id, name: p.name, isActive: p.isActive }))}
           users={orgUsers}
         />
+        </Suspense>
       ) : null}
 
       {isPaged && totalPages > 1 ? (
