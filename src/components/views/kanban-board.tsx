@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { Badge, cx, type BadgeTone } from "@/components/ui";
 
@@ -29,6 +29,11 @@ const COLUMN_TONES: Record<BadgeTone, string> = {
   purple: "bg-purple-50 dark:bg-purple-400/10",
 };
 
+/** Shortest a lane may get before the board starts scrolling the page instead. */
+const MIN_LANE_PX = 256; // 16rem, matching the min-h-[16rem] fallback below
+/** Breathing room under the board so the last card is not flush with the window edge. */
+const BOARD_GUTTER_PX = 24;
+
 /**
  * Generic drag-and-drop Kanban board — one component for every module
  * (motor de vistas reutilizable, 2026-07-21). `onMove` is the caller's
@@ -51,11 +56,46 @@ export function KanbanBoard<T extends { id: number }>({
   onMove: (itemId: number, fromColumnKey: string, toColumnKey: string) => Promise<{ ok: boolean; message?: string }>;
   emptyLabel?: string;
 }) {
+  const boardRef = useRef<HTMLDivElement>(null);
+  /** null until measured — the first paint falls back to the CSS estimate below. */
+  const [laneHeight, setLaneHeight] = useState<number | null>(null);
   const [local, setLocal] = useState(columns);
   const [prevColumns, setPrevColumns] = useState(columns);
   const [dragging, setDragging] = useState<{ id: number; from: string } | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The lanes fill from wherever the board starts down to the bottom of the
+   * window. This used to be a hardcoded `calc(100vh-19rem)`, which only ever
+   * fit one page: 19rem is the chrome of a Views Engine screen (view tabs +
+   * FilterBar + ViewToolbar), so leaner screens like Trabajo — two rows, not
+   * three — stopped ~6rem short of the bottom and left a dead strip under the
+   * board (reported 2026-11-08). Measuring costs one read per layout change
+   * and makes every board, present and future, end flush with the window
+   * regardless of what sits above it.
+   *
+   * `scrollY` is added so the offset is the document's, not the viewport's,
+   * and the measurement therefore survives being taken mid-scroll. The
+   * observer watches `body` because the chrome above grows and shrinks on its
+   * own (filter chips wrapping, the error banner appearing).
+   */
+  useEffect(() => {
+    function measure() {
+      const el = boardRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setLaneHeight(Math.max(MIN_LANE_PX, window.innerHeight - top - BOARD_GUTTER_PX));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.body);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer.disconnect();
+    };
+  }, []);
 
   // Resync when the server re-fetches (filters/search/quick changed, or
   // another tab moved something) — adjusted during render, not in an
@@ -106,7 +146,7 @@ export function KanbanBoard<T extends { id: number }>({
           lanes' headers out of view. min-h-0 is required here: without it a
           flex child refuses to shrink below its content size, so
           overflow-y-auto would never actually kick in. */}
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      <div ref={boardRef} className="flex gap-4 overflow-x-auto pb-2">
         {local.map((col) => (
           <div
             key={col.key}
@@ -116,8 +156,13 @@ export function KanbanBoard<T extends { id: number }>({
             }}
             onDragLeave={() => setOverKey((k) => (k === col.key ? null : k))}
             onDrop={() => handleDrop(col.key)}
+            style={laneHeight === null ? undefined : { height: laneHeight }}
             className={cx(
-              "flex h-[calc(100vh-19rem)] min-h-[16rem] w-72 shrink-0 flex-col rounded-lg border border-transparent p-1 transition-colors",
+              "flex min-h-[16rem] w-72 shrink-0 flex-col rounded-lg border border-transparent p-1 transition-colors",
+              // Pre-measurement estimate only, so the server render and the
+              // first paint already show a full-height board instead of
+              // collapsing to min-h and jumping.
+              laneHeight === null && "h-[calc(100vh-19rem)]",
               COLUMN_TONES[col.tone],
               overKey === col.key && "border-primary/50 bg-primary-soft/30",
             )}
