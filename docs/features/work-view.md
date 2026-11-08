@@ -49,6 +49,10 @@ Unit-tested en `src/lib/activities.test.ts` (totalidad del mapa, ausencia de `re
 
 ## 5. Tablero: seis carriles, y arrastre que no adivina
 
+**Es la vista por defecto desde 2026-11-08** (antes abría en tabla, a pedido del equipo). Con el filtro "Pendientes" son ~16 elementos repartidos en seis carriles: eso cabe de un vistazo y es la lectura para la que se pidió la pantalla, mientras la tabla sirve para buscar algo concreto. `?view=table` es el opt-out explícito y queda en la URL; el tablero, al ser el defecto, no ensucia el enlace. La barra lateral apunta a `/work` sin parámetros, así que entra al tablero.
+
+Los carriles **miden el espacio disponible** en lugar de descontar una constante: `KanbanBoard` tenía la altura clavada en `calc(100vh-19rem)`, que es el cromo de una pantalla del Motor de Vistas (pestañas + FilterBar + ViewToolbar), y Trabajo tiene una fila menos, así que su tablero terminaba ~6rem antes del borde de la ventana (corregido 2026-11-08). Ahora mide su propio offset y llega al fondo; el `calc` quedó como estimación del primer pintado para que no haya brinco.
+
 El Kanban agrupa por categoría, no por estatus: agrupar por estatus daría ~16 carriles (11 + 7).
 
 Arrastrar reutiliza los setters ya validados de cada tipo (`changeTicketStatus` / `updateActivityWorkflow`) y **no inventa reglas de transición**. Una categoría puede contener varios estatus para un tipo — "En espera" cubre *Waiting customer* y *Waiting third party* — y adivinar cuál quiso la persona reescribiría la historia de SLA del ticket en silencio. Entonces:
@@ -67,6 +71,7 @@ El equipo no usa `/today` porque lo considera sobrecargado de información. Esta
 - **Seis columnas** por defecto (folio, trabajo, empresa, responsable, estado, vence), no catorce. El resto del registro (prioridad, etapa) espera en el selector de columnas.
 - **Sin tira de KPIs**, sin secciones, sin contadores.
 - Abre en **"Pendientes"**: con 197 de 205 tickets cerrados, mostrar todo por defecto sepultaría los ~16 vivos bajo el historial. "Todo" es un chip explícito.
+- **Seis columnas** aplican a la tabla; el tablero abre primero (§5) y muestra por tarjeta solo folio, tipo, prioridad, título, empresa, vence y responsable.
 - Acciones de fila solo para tickets (`TicketRowActions`, reutilizado). Las actividades no tienen dropdown de fila en ningún lado de Watson todavía; inventarlo pertenece a su módulo, no a esta vista.
 
 ## 7. Orden: presets, no un constructor

@@ -54,8 +54,10 @@ const KANBAN_LIMIT = 500;
  * views, and the 18 deep links that Indicadores, Hoy and Dashboard point at
  * them. This is the cross-type entry point, they are the specialist ones.
  *
- * Opens on "Pendientes" on purpose: 197 of 205 tickets are closed, so showing
- * everything by default would bury the ~16 live items under history.
+ * Opens on the board, filtered to "Pendientes", on purpose: 197 of 205 tickets
+ * are closed, so showing everything by default would bury the ~16 live items
+ * under history — and those ~16 fit the six lanes without scrolling, which is
+ * the reading the team asked this screen for.
  */
 export default async function WorkPage({
   searchParams,
@@ -67,7 +69,10 @@ export default async function WorkPage({
   const locale = await getOrgLocale(user.organizationId);
   const userId = Number(user.id);
 
-  const viewMode = params.view === "kanban" ? "kanban" : "table";
+  // Opens on the board; `?view=table` is the explicit opt-out. The board is
+  // what the team reads this screen for — ~16 live items across six lanes is a
+  // standup at a glance, where the table is for looking something up.
+  const viewMode = params.view === "table" ? "table" : "kanban";
   const kind = params.kind === "ticket" || params.kind === "activity" ? params.kind : null;
   const quickKeys = WORK_QUICK_FILTERS.map((q) => q.key) as readonly string[];
   const quick = (quickKeys.includes(params.quick ?? "") ? params.quick : WORK_DEFAULT_QUICK) as WorkQuickFilterKey;
@@ -207,7 +212,7 @@ export default async function WorkPage({
 
   const buildHref = (patch: Record<string, string | undefined>) => {
     const next: Record<string, string | undefined> = {
-      view: viewMode === "table" ? undefined : viewMode,
+      view: viewMode === "kanban" ? undefined : viewMode,
       kind: params.kind,
       quick: params.quick,
       q: params.q,
@@ -248,7 +253,7 @@ export default async function WorkPage({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         {/* Type filter — same idiom as Calendario's `kind` select. */}
         <form method="get" className="flex flex-wrap items-center gap-2">
-          {viewMode !== "table" ? <input type="hidden" name="view" value={viewMode} /> : null}
+          {viewMode === "table" ? <input type="hidden" name="view" value="table" /> : null}
           {params.quick ? <input type="hidden" name="quick" value={params.quick} /> : null}
           {params.q ? <input type="hidden" name="q" value={params.q} /> : null}
           <div className="flex rounded-lg border border-edge p-0.5">
@@ -309,7 +314,7 @@ export default async function WorkPage({
             ] as const).map((o) => (
               <Link
                 key={o.value}
-                href={buildHref({ view: o.value === "table" ? undefined : o.value, page: undefined, peek: undefined })}
+                href={buildHref({ view: o.value === "kanban" ? undefined : o.value, page: undefined, peek: undefined })}
                 className={cx(
                   "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                   viewMode === o.value ? "bg-primary-soft text-primary" : "text-muted hover:bg-subtle hover:text-fg",
