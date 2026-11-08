@@ -56,6 +56,8 @@ Arrastrar reutiliza los setters ya validados de cada tipo (`changeTicketStatus` 
 - La categoría resuelve a **exactamente un** estatus para ese tipo → se aplica.
 - Resuelve a cero o a varios → se rechaza nombrando las opciones, igual que el tablero de Recurrentes rechaza una transición que no puede expresar.
 
+La tarjeta usa **la misma superficie** que los tableros de Tickets y Actividades (`rounded-lg border border-edge bg-surface p-3 shadow-card`). `KanbanBoard` solo separa las tarjetas con `space-y-2`; la superficie pertenece a cada `renderCard`, y sin ella las tarjetas de Trabajo eran texto suelto sin borde visible entre un elemento y el siguiente (corregido 2026-11-08). El título va con `line-clamp-2` para que uno largo no estire la tarjeta fuera del carril.
+
 Con el catálogo actual de la organización eso hace arrastrable `in_progress`, `closed` y `cancelled` para tickets, y todo salvo `waiting` para actividades. **Recortar el catálogo a lo que el equipo realmente usa es lo que vuelve arrastrable el resto** — de 11 estatus de ticket solo 5 se han usado alguna vez, y 197 de 205 tickets están en `Closed`.
 
 ## 6. Deliberadamente escasa

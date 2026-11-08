@@ -126,31 +126,42 @@ export function WorkKanban({
           onKeyDown={(e) => {
             if (e.key === "Enter") router.push(peekHref(r));
           }}
-          className="cursor-pointer space-y-2"
+          // Same card surface as the Tickets and Activities boards —
+          // KanbanBoard only spaces the cards, the surface belongs to
+          // renderCard, and without it these were loose text with no visible
+          // edge between one item and the next (reported 2026-11-08).
+          className="cursor-pointer rounded-lg border border-edge bg-surface p-3 text-sm shadow-card transition-colors hover:border-edge-strong"
         >
-          <TypeMark row={r} locale={locale} />
-          <p className="text-sm font-medium text-fg">{r.title}</p>
-          <p className="truncate text-xs text-muted">
-            {r.companyName ?? t("Interno", "Internal", locale)}
-            {r.assigneeName ? ` · ${r.assigneeName}` : ""}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <TypeMark row={r} locale={locale} />
             <Badge tone={ticketPriorityMeta[r.priority]?.tone ?? "slate"}>
               {ticketPriorityMeta[r.priority]?.label ?? r.priority}
             </Badge>
+          </div>
+          {/* Clamped: a long title must not stretch the card out of the lane. */}
+          <p className="mb-2 line-clamp-2 font-medium text-fg">{r.title}</p>
+          <p className="mb-2 truncate text-xs text-muted">
+            {r.companyName ?? t("Interno", "Internal", locale)}
+          </p>
+          <div className="flex items-center justify-between gap-2 text-xs">
             {r.dueDate ? (
               <span
                 className={cx(
-                  "inline-flex items-center gap-1 text-xs tabular-nums",
+                  "inline-flex items-center gap-1 tabular-nums",
                   r.dueDate < todayStr && r.category !== "closed" && r.category !== "cancelled"
                     ? "font-medium text-danger"
                     : "text-muted",
                 )}
               >
-                <CalendarClock aria-hidden className="size-3.5" />
+                <CalendarClock aria-hidden className="size-3.5 shrink-0" />
                 {fmtDate(r.dueDate)}
               </span>
-            ) : null}
+            ) : (
+              <span />
+            )}
+            <span className="shrink-0 truncate text-muted">
+              {r.assigneeName ?? t("Sin asignar", "Unassigned", locale)}
+            </span>
           </div>
         </div>
       )}
