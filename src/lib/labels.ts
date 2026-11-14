@@ -79,12 +79,14 @@ const taskStatusMetaBi: Record<string, BiMeta> = {
   done: { es: "Hecho", en: "Done", tone: "green" },
 };
 
-const quoteStatusMetaBi: Record<string, BiMeta> = {
+const proposalStatusMetaBi: Record<string, BiMeta> = {
   draft: { es: "Borrador", en: "Draft", tone: "slate" },
-  sent: { es: "Enviada", en: "Sent", tone: "blue" },
+  issued: { es: "Emitida", en: "Issued", tone: "blue" },
   accepted: { es: "Aceptada", en: "Accepted", tone: "green" },
   rejected: { es: "Rechazada", en: "Rejected", tone: "red" },
-  expired: { es: "Expirada", en: "Expired", tone: "amber" },
+  // Derivado de `issued` + vigencia vencida; nunca se guarda.
+  expired: { es: "Vencida", en: "Expired", tone: "amber" },
+  cancelled: { es: "Cancelada", en: "Cancelled", tone: "slate" },
 };
 
 const reportStatusMetaBi: Record<string, BiMeta> = {
@@ -392,7 +394,7 @@ export function getLabels(locale: Locale) {
     ticketPriorityMeta: resolveMap(ticketPriorityMetaBi, locale),
     projectStatusMeta: resolveMap(projectStatusMetaBi, locale),
     taskStatusMeta: resolveMap(taskStatusMetaBi, locale),
-    quoteStatusMeta: resolveMap(quoteStatusMetaBi, locale),
+    proposalStatusMeta: resolveMap(proposalStatusMetaBi, locale),
     reportStatusMeta: resolveMap(reportStatusMetaBi, locale),
     reportTypeMeta: resolveMap(reportTypeMetaBi, locale),
     activityStatusMeta: resolveMap(activityStatusMetaBi, locale),

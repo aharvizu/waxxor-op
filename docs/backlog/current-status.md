@@ -53,3 +53,5 @@ New open questions raised by this audit (to add to `docs/decisions/open-question
 - ~~**OQ-18**~~ — resolved 2026-07-18: the document-style templates were absorbed into the new operational report templates (legacy `content` column kept, unused). See E-14 above.
 - ~~**OQ-19**~~ — resolved 2026-07-18: manual KPIs remain as a complement at `/kpis`; computed indicators live at `/indicators`. See E-16 above.
 - **OQ-20** — Migration strategy for existing production data (users/tickets/tasks) when the PRD schema (roles, WorkItem, Lists) lands — is there production data to preserve?
+
+> **OQ-17 — resuelta 2026-11-14.** Quotes se reemplazó por **Propuestas** dentro de Sales (`docs/features/proposals.md`), junto con **Levantamientos** (`docs/features/assessments.md`). Ampliación de alcance sobre PRD §10, decidida por el dueño del producto.

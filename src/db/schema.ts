@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   date,
   index,
@@ -10,11 +11,13 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { BillingPeriod, ProductKey, ProposalDocument, ProposalItem } from "@/lib/proposals/types";
 
 export const organizationStatus = pgEnum("organization_status", [
   "active",
@@ -116,12 +119,17 @@ export const riskStatus = pgEnum("risk_status", [
   "closed",
 ]);
 export const taskStatus = pgEnum("task_status", ["todo", "in_progress", "done"]);
-export const quoteStatus = pgEnum("quote_status", [
+/**
+ * `expired` is deliberately absent: a proposal past its validity is DERIVED
+ * from `issued` + `expiresAt` (see lib/proposals/lifecycle), same pattern as
+ * contracts — no daily job has to keep the status in sync.
+ */
+export const proposalStatus = pgEnum("proposal_status", [
   "draft",
-  "sent",
+  "issued",
   "accepted",
   "rejected",
-  "expired",
+  "cancelled",
 ]);
 // Append-only: workflow states added for Reportes e Indicadores (2026-07-18).
 export const reportStatus = pgEnum("report_status", [
@@ -1491,33 +1499,119 @@ export const tasks = pgTable("tasks", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const quotes = pgTable("quotes", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id")
-    .notNull()
-    .references(() => organizations.id),
-  title: text("title").notNull(),
-  companyId: integer("company_id")
-    .notNull()
-    .references(() => companies.id),
-  status: quoteStatus("status").notNull().default("draft"),
-  currency: varchar("currency", { length: 3 }).notNull().default("USD"),
-  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("0"),
-  validUntil: date("valid_until"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+/**
+ * Assessment ("levantamiento") — a discovery questionnaire about a client's
+ * or prospect's IT environment, kept as a knowledge base and as the starting
+ * point of a proposal. `answers` is keyed by the question keys of the
+ * code-defined questionnaire (lib/assessments/questionnaire) — adding a
+ * question never needs a migration, and old answers stay readable.
+ * `companyId` is nullable: a prospect is assessed before it is a Company.
+ */
+export const assessments = pgTable(
+  "assessments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+    /** Display name — the Company's name, or the prospect's when there is no Company yet. */
+    clientName: text("client_name").notNull(),
+    contactName: text("contact_name"),
+    contactEmail: text("contact_email"),
+    contactPhone: text("contact_phone"),
+    status: text("status").$type<"draft" | "completed">().notNull().default("draft"),
+    conductedOn: date("conducted_on").notNull(),
+    answers: jsonb("answers").$type<Record<string, string | string[]>>().notNull().default({}),
+    notes: text("notes"),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("assessments_org_idx").on(t.organizationId), index("assessments_company_idx").on(t.companyId)],
+);
 
-export const quoteItems = pgTable("quote_items", {
-  id: serial("id").primaryKey(),
-  quoteId: integer("quote_id")
-    .notNull()
-    .references(() => quotes.id, { onDelete: "cascade" }),
-  description: text("description").notNull(),
-  quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default("1"),
-  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull().default("0"),
-  sortOrder: integer("sort_order").notNull().default(0),
-});
+/**
+ * Commercial proposal (Sales) — a one-page Letter document per product,
+ * numbered on issue. See docs/features/proposals.md.
+ *
+ * - `folio` is null while draft and assigned ONLY on issue (WX-2026-0001), so
+ *   numbers are never burned on proposals that never go out. Never reused.
+ * - All money is integer CENTS. Totals are recomputed on the server on every
+ *   save; the one-time and the recurring column are never added together.
+ * - `snapshot` freezes everything needed to redraw the issued document
+ *   identically (catalog texts, logos, totals). An issued proposal is
+ *   immutable: to correct it, cancel and clone (`replacesProposalId`).
+ * - `companyId` is nullable so a prospect can be quoted before it is a
+ *   Company; `clientName` is what the document prints.
+ */
+export const proposals = pgTable(
+  "proposals",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    folio: text("folio"),
+    series: text("series").notNull().default("WX"),
+    folioYear: integer("folio_year"),
+    sequence: integer("sequence"),
+    status: proposalStatus("status").notNull().default("draft"),
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+    clientName: text("client_name").notNull(),
+    preparedBy: text("prepared_by").notNull(),
+    date: date("date").notNull(),
+    validityDays: integer("validity_days").notNull().default(30),
+    productKey: text("product_key").$type<ProductKey>().notNull(),
+    planKey: text("plan_key"),
+    billingPeriod: text("billing_period").$type<BillingPeriod>(),
+    items: jsonb("items").$type<ProposalItem[]>().notNull(),
+    note: text("note").notNull().default(""),
+    ivaBps: integer("iva_bps").notNull().default(1600),
+    currency: varchar("currency", { length: 3 }).notNull().default("MXN"),
+    subtotalOneTimeCents: bigint("subtotal_one_time_cents", { mode: "number" }).notNull().default(0),
+    ivaOneTimeCents: bigint("iva_one_time_cents", { mode: "number" }).notNull().default(0),
+    totalOneTimeCents: bigint("total_one_time_cents", { mode: "number" }).notNull().default(0),
+    subtotalRecurringCents: bigint("subtotal_recurring_cents", { mode: "number" }).notNull().default(0),
+    ivaRecurringCents: bigint("iva_recurring_cents", { mode: "number" }).notNull().default(0),
+    totalRecurringCents: bigint("total_recurring_cents", { mode: "number" }).notNull().default(0),
+    snapshot: jsonb("snapshot").$type<ProposalDocument>(),
+    expiresAt: date("expires_at"),
+    issuedAt: timestamp("issued_at"),
+    replacesProposalId: integer("replaces_proposal_id"),
+    assessmentId: integer("assessment_id").references(() => assessments.id, { onDelete: "set null" }),
+    createdById: integer("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Safety net behind the atomic counter: two proposals can never share a folio.
+    uniqueIndex("proposals_org_folio_idx").on(t.organizationId, t.folio),
+    index("proposals_org_status_idx").on(t.organizationId, t.status),
+    index("proposals_company_idx").on(t.companyId),
+  ],
+);
+
+/**
+ * Folio counters, one row per (organization, series, year). The sequence
+ * restarts every year and is shared by every product. Incremented with
+ * INSERT … ON CONFLICT DO UPDATE inside the issue transaction, which Postgres
+ * serializes on the row — two people issuing at once get consecutive numbers,
+ * and a failed issue rolls its number back (no gaps).
+ */
+export const folioCounters = pgTable(
+  "folio_counters",
+  {
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    series: text("series").notNull(),
+    year: integer("year").notNull(),
+    last: integer("last").notNull().default(0),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.series, t.year] })],
+);
 
 /**
  * Report templates. Extended 2026-07-18 for operational reports: `sections`

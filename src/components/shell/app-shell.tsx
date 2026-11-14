@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   Layers,
   ClipboardList,
+  FileSearch,
   FileText,
   FolderKanban,
   Gauge,
@@ -138,7 +139,10 @@ export function AppShell({
     },
     {
       name: "Sales",
-      items: [{ href: "/quotes", label: "Quotes", icon: FileText }],
+      items: [
+        { href: "/proposals", label: "Propuestas", icon: FileText },
+        { href: "/assessments", label: "Levantamientos", icon: FileSearch },
+      ],
     },
     {
       name: "Companies",

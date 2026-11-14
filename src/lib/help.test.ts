@@ -13,7 +13,7 @@ describe("moduleForPath", () => {
   it("returns null for unmapped or root paths", () => {
     expect(moduleForPath("/")).toBeNull();
     expect(moduleForPath("/dashboard")).toBeNull();
-    expect(moduleForPath("/quotes")).toBeNull();
+    expect(moduleForPath("/proposals")).toBeNull();
   });
 
   it("every declared help module is reachable from some real path", () => {

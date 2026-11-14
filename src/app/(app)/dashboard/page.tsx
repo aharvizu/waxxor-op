@@ -16,8 +16,7 @@ import {
   kpiEntries,
   kpis,
   projects,
-  quoteItems,
-  quotes,
+  proposals,
   tickets,
   workItems,
 } from "@/db/schema";
@@ -32,7 +31,7 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import { fmtMoney } from "@/lib/format";
+import { formatCents } from "@/lib/proposals/money";
 import { requireUser } from "@/lib/session";
 import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
@@ -95,28 +94,25 @@ export default async function DashboardPage() {
     db.select({ value: count() }).from(projects).where(eq(projects.organizationId, orgId)),
     db
       .select({ value: count() })
-      .from(quotes)
-      .where(and(eq(quotes.organizationId, orgId), eq(quotes.status, "sent"))),
+      .from(proposals)
+      .where(and(eq(proposals.organizationId, orgId), eq(proposals.status, "issued"))),
     db
       .select({ value: count() })
-      .from(quotes)
-      .where(and(eq(quotes.organizationId, orgId), eq(quotes.status, "accepted"))),
+      .from(proposals)
+      .where(and(eq(proposals.organizationId, orgId), eq(proposals.status, "accepted"))),
     db
       .select({ value: count() })
-      .from(quotes)
-      .where(
-        and(
-          eq(quotes.organizationId, orgId),
-          inArray(quotes.status, ["accepted", "rejected", "expired"]),
-        ),
-      ),
+      .from(proposals)
+      .where(and(eq(proposals.organizationId, orgId), inArray(proposals.status, ["accepted", "rejected"]))),
+    // Two sums, never one: a one-time payment and a recurring one are
+    // different units (see lib/proposals/calc) and adding them means nothing.
     db
       .select({
-        value: sql<string>`coalesce(sum(${quoteItems.quantity} * ${quoteItems.unitPrice}), 0)`,
+        oneTime: sql<number>`coalesce(sum(${proposals.totalOneTimeCents}), 0)::float8`,
+        recurring: sql<number>`coalesce(sum(${proposals.totalRecurringCents}), 0)::float8`,
       })
-      .from(quoteItems)
-      .innerJoin(quotes, eq(quoteItems.quoteId, quotes.id))
-      .where(and(eq(quotes.organizationId, orgId), eq(quotes.status, "sent"))),
+      .from(proposals)
+      .where(and(eq(proposals.organizationId, orgId), eq(proposals.status, "issued"))),
     db
       .select({
         id: tickets.id,
@@ -210,34 +206,34 @@ export default async function DashboardPage() {
             footer={`of ${totalProjects.value} total`}
           />
         </Link>
-        <Link href="/quotes" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+        <Link href="/proposals" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
           <StatCard
             icon={<Send />}
-            label="Quotes awaiting reply"
+            label="Proposals awaiting reply"
             value={String(pendingQuotes.value)}
-            hint="Quotes sent to companies and awaiting a decision"
-            footer="sent, no decision yet"
+            hint="Proposals issued to clients and awaiting a decision"
+            footer="issued, no decision yet"
           />
         </Link>
-        <Link href="/quotes" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+        <Link href="/proposals" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
           <StatCard
             icon={<CircleDollarSign />}
             label="Pipeline"
-            value={fmtMoney(pipeline.value)}
-            hint="Combined value of all sent quotes"
-            footer={`across ${pendingQuotes.value} sent ${pendingQuotes.value === 1 ? "quote" : "quotes"}`}
+            value={formatCents(pipeline.oneTime)}
+            hint="One-time total of all issued proposals awaiting a decision (IVA included)"
+            footer={`+ ${formatCents(pipeline.recurring)} recurring`}
           />
         </Link>
-        <Link href="/quotes" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
+        <Link href="/proposals" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">
           <StatCard
             icon={<Percent />}
-            label="Quote acceptance"
+            label="Proposal acceptance"
             value={acceptanceRate === null ? "—" : `${acceptanceRate}%`}
-            hint="Accepted quotes as a share of all decided quotes"
+            hint="Accepted proposals as a share of all decided proposals"
             footer={
               decidedQuotes.value > 0
                 ? `${acceptedQuotes.value} of ${decidedQuotes.value} decided`
-                : "no decided quotes yet"
+                : "no decided proposals yet"
             }
           />
         </Link>
