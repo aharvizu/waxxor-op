@@ -1538,7 +1538,8 @@ export const assessments = pgTable(
  * - `folio` is null while draft and assigned ONLY on issue (WX-2026-0001), so
  *   numbers are never burned on proposals that never go out. Never reused.
  * - All money is integer CENTS. Totals are recomputed on the server on every
- *   save; the one-time and the recurring column are never added together.
+ *   save, one column per recurrence (one-time, monthly, annual) — never added
+ *   together.
  * - `snapshot` freezes everything needed to redraw the issued document
  *   identically (catalog texts, logos, totals). An issued proposal is
  *   immutable: to correct it, cancel and clone (`replacesProposalId`).
@@ -1572,6 +1573,18 @@ export const proposals = pgTable(
     subtotalOneTimeCents: bigint("subtotal_one_time_cents", { mode: "number" }).notNull().default(0),
     ivaOneTimeCents: bigint("iva_one_time_cents", { mode: "number" }).notNull().default(0),
     totalOneTimeCents: bigint("total_one_time_cents", { mode: "number" }).notNull().default(0),
+    subtotalMonthlyCents: bigint("subtotal_monthly_cents", { mode: "number" }).notNull().default(0),
+    ivaMonthlyCents: bigint("iva_monthly_cents", { mode: "number" }).notNull().default(0),
+    totalMonthlyCents: bigint("total_monthly_cents", { mode: "number" }).notNull().default(0),
+    subtotalAnnualCents: bigint("subtotal_annual_cents", { mode: "number" }).notNull().default(0),
+    ivaAnnualCents: bigint("iva_annual_cents", { mode: "number" }).notNull().default(0),
+    totalAnnualCents: bigint("total_annual_cents", { mode: "number" }).notNull().default(0),
+    /**
+     * @deprecated 2026-11-17 — one "recurring" column that folded monthly
+     * items ×12 into the annual total. Replaced by the monthly/annual columns
+     * above; kept only so the migration is additive (the build deployed while
+     * it runs still reads it). Nothing writes it. Drop in a follow-up.
+     */
     subtotalRecurringCents: bigint("subtotal_recurring_cents", { mode: "number" }).notNull().default(0),
     ivaRecurringCents: bigint("iva_recurring_cents", { mode: "number" }).notNull().default(0),
     totalRecurringCents: bigint("total_recurring_cents", { mode: "number" }).notNull().default(0),

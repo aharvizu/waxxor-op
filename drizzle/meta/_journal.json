@@ -302,6 +302,13 @@
       "when": 1794671078415,
       "tag": "0042_drop_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794951609226,
+      "tag": "0043_proposal_payment_columns",
+      "breakpoints": true
     }
   ]
 }

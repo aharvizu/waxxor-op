@@ -1,4 +1,4 @@
-import { computeTotals } from "./calc";
+import { COLUMN_LABELS, computeTotals, presentRecurrences } from "./calc";
 import {
   ACCEPTANCE_HTML,
   FOOTER,
@@ -41,10 +41,11 @@ export function buildDocument(
   const plan = getPlan(product, input.planKey);
   const period = resolvePeriod(product, input.billingPeriod);
   const ctx = { planKey: plan.key, period, validityDays: input.validityDays };
-  const totals = computeTotals(input.items, input.ivaBps, period);
+  const totals = computeTotals(input.items, input.ivaBps);
+  const recurrences = presentRecurrences(input.items);
 
   return {
-    version: 1,
+    version: 2,
     folio: issued?.folio ?? null,
     issuedAt: issued?.issuedAt ?? null,
     productKey: product.key,
@@ -74,16 +75,12 @@ export function buildDocument(
     items: input.items,
     note: input.note,
     totals: {
-      mode: product.totalsMode,
-      oneTime: totals.oneTime,
-      recurring: totals.recurring,
+      mode: product.totalsMode === "single" ? "single" : "split",
+      columns: recurrences.map((r) => ({ recurrence: r, ...COLUMN_LABELS[r], ...totals[r] })),
       ivaBps: input.ivaBps,
       currency: "MXN",
-      singleTotalLabel: "Inversión total",
-      recurringHeader: period === "annual" ? "Anualidad" : "Mensualidad",
-      recurringTotalLabel: period === "annual" ? "Por año" : "Por mes",
     },
-    termsHtml: product.termsHtml(ctx),
+    termsHtml: product.termsHtml(ctx, recurrences),
     termsAcceptanceHtml: TERMS_ACCEPTANCE_SHORT_HTML,
     acceptanceHtml: ACCEPTANCE_HTML,
     signatureLabel: SIGNATURE_LABEL,

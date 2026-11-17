@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTotals, itemAmountCents } from "./calc";
+import { computeTotals, itemAmountCents, presentRecurrences } from "./calc";
 import { PRODUCT_LIST, PRODUCTS, resolvePeriod } from "./catalog";
 import { buildDocument } from "./document";
 import { canTransition, composeFolio, effectiveStatus, expiryDate } from "./lifecycle";
@@ -22,6 +22,7 @@ function inputFor(key: keyof typeof PRODUCTS, over: Partial<ProposalInput> = {})
   const p = PRODUCTS[key];
   const period = resolvePeriod(p, null);
   const ctx = { planKey: p.defaultPlan, period, validityDays: 30 };
+  const items = p.suggestedItems(ctx);
   return {
     companyId: null,
     clientName: "Cliente de prueba",
@@ -31,8 +32,8 @@ function inputFor(key: keyof typeof PRODUCTS, over: Partial<ProposalInput> = {})
     productKey: key,
     planKey: p.planLabel ? p.defaultPlan : null,
     billingPeriod: period,
-    items: p.suggestedItems(ctx),
-    note: p.defaultNote(ctx),
+    items,
+    note: p.defaultNote(ctx, presentRecurrences(items)),
     ivaBps: 1600,
     ...over,
   };
@@ -60,10 +61,9 @@ describe("totals", () => {
         item({ quantity: 120, unitPriceCents: 6000 }),
       ],
       1600,
-      null,
     );
-    expect(totals.oneTime).toEqual({ subtotalCents: 23870000, ivaCents: 3819200, totalCents: 27689200 });
-    expect(totals.recurring.totalCents).toBe(0);
+    expect(totals.one_time).toEqual({ subtotalCents: 23870000, ivaCents: 3819200, totalCents: 27689200 });
+    expect(totals.monthly.totalCents + totals.annual.totalCents).toBe(0);
   });
 
   it("MSP360 dual totals never mix the columns (spec §12.9)", () => {
@@ -75,13 +75,12 @@ describe("totals", () => {
         item({ quantity: 1, unitPriceCents: 1800000 }),
       ],
       1600,
-      "monthly",
     );
-    expect(totals.oneTime).toEqual({ subtotalCents: 1800000, ivaCents: 288000, totalCents: 2088000 });
-    expect(totals.recurring).toEqual({ subtotalCents: 758000, ivaCents: 121280, totalCents: 879280 });
+    expect(totals.one_time).toEqual({ subtotalCents: 1800000, ivaCents: 288000, totalCents: 2088000 });
+    expect(totals.monthly).toEqual({ subtotalCents: 758000, ivaCents: 121280, totalCents: 879280 });
   });
 
-  it("annual period: a monthly item contributes twelve months, an annual one once", () => {
+  it("keeps one-time, monthly and annual in separate columns — monthly is never folded into the annuity", () => {
     const totals = computeTotals(
       [
         item({ quantity: 10, unitPriceCents: 100000, recurrence: "annual" }),
@@ -89,22 +88,29 @@ describe("totals", () => {
         item({ quantity: 1, unitPriceCents: 300000 }),
       ],
       1600,
-      "annual",
     );
-    expect(totals.recurring.subtotalCents).toBe(1000000 + 50000 * 12);
-    expect(totals.oneTime.subtotalCents).toBe(300000);
+    expect(totals.annual.subtotalCents).toBe(1000000);
+    expect(totals.monthly.subtotalCents).toBe(50000);
+    expect(totals.one_time.subtotalCents).toBe(300000);
+  });
+
+  it("shows a column for each recurrence that has an item, in document order", () => {
+    expect(presentRecurrences([item({ recurrence: "annual" }), item({}), item({ recurrence: "monthly" })])).toEqual(["one_time", "monthly", "annual"]);
+    expect(presentRecurrences([item({ recurrence: "annual" })])).toEqual(["annual"]);
+    // Una partida "No Incluido" también abre su columna: el periodo existe.
+    expect(presentRecurrences([item({ recurrence: "monthly", unitPriceCents: null })])).toEqual(["monthly"]);
   });
 
   it('"No Incluido" does not add, a null quantity multiplies by one', () => {
     expect(itemAmountCents({ quantity: 5, unitPriceCents: null })).toBeNull();
     expect(itemAmountCents({ quantity: null, unitPriceCents: 950000 })).toBe(950000);
-    expect(computeTotals([item({ unitPriceCents: null })], 1600, null).oneTime.totalCents).toBe(0);
+    expect(computeTotals([item({ unitPriceCents: null })], 1600).one_time.totalCents).toBe(0);
   });
 
   it("rounds IVA per column, not over the sum", () => {
     // 0.33 y 0.33 al 16 %: cada columna redondea 5.28 → 5; sobre la suma serían 11.
-    const totals = computeTotals([item({ unitPriceCents: 33 }), item({ unitPriceCents: 33, recurrence: "monthly" })], 1600, "monthly");
-    expect(totals.oneTime.ivaCents + totals.recurring.ivaCents).toBe(10);
+    const totals = computeTotals([item({ unitPriceCents: 33 }), item({ unitPriceCents: 33, recurrence: "monthly" })], 1600);
+    expect(totals.one_time.ivaCents + totals.monthly.ivaCents).toBe(10);
   });
 });
 
@@ -146,11 +152,15 @@ describe("validation", () => {
     expect(validateProposalInput({ ...base, items: [...base.items, item({})] }).ok).toBe(false);
   });
 
-  it("rejects recurring items on a single-total product and annual items on a monthly proposal", () => {
+  it("accepts only the payment types each product admits", () => {
     const s1 = inputFor("sentinelone");
     expect(validateProposalInput({ ...s1, items: [item({ recurrence: "monthly" })] }).ok).toBe(false);
+    const msp = inputFor("msp360");
+    expect(validateProposalInput({ ...msp, items: [item({ recurrence: "annual", termLabel: "Anual" })] }).ok).toBe(false);
+    // Microsoft 365 mezcla los tres, sin importar el compromiso de las licencias.
     const m365 = inputFor("microsoft365", { billingPeriod: "monthly" });
-    expect(validateProposalInput({ ...m365, items: [item({ recurrence: "annual", termLabel: "Anual" })] }).ok).toBe(false);
+    const mixed = [item({}), item({ recurrence: "monthly", termLabel: "Mensual" }), item({ recurrence: "annual", termLabel: "Anual" })];
+    expect(validateProposalInput({ ...m365, items: mixed }).ok).toBe(true);
   });
 
   it("rejects a plan the product does not have and normalizes a product without plans", () => {
@@ -190,15 +200,35 @@ describe("document", () => {
     expect(issued).toContain("<title>WX-2026-0007 · Cliente de prueba");
   });
 
-  it("the Microsoft 365 recurring column follows the billing period", () => {
-    const annual = buildDocument(inputFor("microsoft365", { billingPeriod: "annual" }), null);
-    expect(annual.totals.recurringHeader).toBe("Anualidad");
-    const monthly = buildDocument(inputFor("microsoft365", { billingPeriod: "monthly" }), null);
-    expect(monthly.totals.recurringHeader).toBe("Mensualidad");
-    expect(monthly.termsHtml[0][1]).toContain("renovación mensual");
+  it("Microsoft 365 prints one column per payment type present", () => {
+    const items = [
+      item({ quantity: 10, unitPriceCents: 100000, recurrence: "annual", termLabel: "Anual" }),
+      item({ unitPriceCents: 500000 }),
+      item({ quantity: 10, unitPriceCents: 20000, recurrence: "monthly", termLabel: "Mensual" }),
+    ];
+    const doc = buildDocument(inputFor("microsoft365", { items }), null);
+    expect(doc.totals.columns.map((c) => c.header)).toEqual(["Pago único", "Mensualidad", "Anualidad"]);
+    expect(doc.totals.columns.find((c) => c.recurrence === "monthly")!.subtotalCents).toBe(200000);
+    expect(doc.termsHtml[1][1]).toContain("Anualidades y mensualidades");
+    const html = renderProposalHtml(doc);
+    expect(html).toContain('class="totals cols-3"');
+    expect(html).toContain("Por mes");
+    expect(html).toContain("Por año");
+
+    const annualOnly = buildDocument(inputFor("microsoft365", { items: [items[0], items[1]] }), null);
+    expect(annualOnly.totals.columns.map((c) => c.header)).toEqual(["Pago único", "Anualidad"]);
   });
 
-  it("never prints a grand total adding both columns", () => {
+  it("the default Microsoft 365 note only speaks of the payments that exist", () => {
+    const m = PRODUCTS.microsoft365;
+    const ctx = { planKey: "basic", period: "annual" as const, validityDays: 30 };
+    expect(m.defaultNote(ctx, ["one_time", "annual"])).not.toContain("mensuales");
+    expect(m.defaultNote(ctx, ["one_time", "monthly", "annual"])).toContain("los conceptos mensuales");
+    // La anualidad ya no "incluye doce meses de los servicios mensuales".
+    expect(m.defaultNote(ctx, ["one_time", "monthly", "annual"])).not.toContain("doce meses");
+  });
+
+  it("never prints a grand total adding the columns", () => {
     const input = inputFor("msp360", {
       items: [item({ unitPriceCents: 1800000 }), item({ quantity: 25, unitPriceCents: 18000, recurrence: "monthly", termLabel: "Mensual" })],
     });

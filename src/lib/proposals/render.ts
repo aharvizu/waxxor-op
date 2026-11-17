@@ -48,6 +48,21 @@ function totalsColumn(header: string, totalLabel: string, col: MoneyColumn, ivaB
         </div>`;
 }
 
+/**
+ * Totales en columnas por recurrencia (2026-11-17, a pedido del dueño: pago
+ * único, mensual y anual identificados por separado). Extiende la caja
+ * `.box.dual` de la plantilla sin tocar sus reglas: una columna conserva el
+ * ancho de la caja simple, dos conservan los 120 mm de la plantilla, y tres
+ * ocupan el ancho completo con la nota en su propio renglón encima — a 120 mm
+ * tres columnas no caben con importes de seis cifras.
+ */
+const SPLIT_TOTALS_CSS = `
+.totals .box.dual.cols-1{ width:78mm; }
+.totals.cols-3{ flex-direction:column; align-items:stretch; gap:1.6mm; }
+.totals.cols-3 .note{ padding-top:0; }
+.totals.cols-3 .box.dual{ width:100%; }
+`;
+
 /** Capa de pantalla propia del portal (la de las plantillas era la de edición a mano y no se porta). */
 const SCREEN_CSS = `
 .draft-mark{ position:absolute; left:0; right:0; top:118mm; text-align:center; transform:rotate(-24deg);
@@ -129,7 +144,7 @@ export type RenderOptions = {
 export function renderProposalHtml(doc: ProposalDocument, options: RenderOptions = {}): string {
   const isDraft = doc.folio === null;
   const title = `${doc.folio ?? "Borrador"} · ${doc.header.clientName} · ${doc.productName}`;
-  const dual = doc.totals.mode === "dual";
+  const split = doc.totals.mode === "split";
   let n = 0;
 
   const partnerMarks = doc.partner.marks
@@ -194,15 +209,15 @@ export function renderProposalHtml(doc: ProposalDocument, options: RenderOptions
     })
     .join("\n        ");
 
-  const totalsBox = dual
-    ? `<div class="box dual">
-        ${totalsColumn("Pago único", "Total", doc.totals.oneTime, doc.totals.ivaBps)}
-        ${totalsColumn(doc.totals.recurringHeader, doc.totals.recurringTotalLabel, doc.totals.recurring, doc.totals.ivaBps)}
+  const columns = doc.totals.columns;
+  const totalsBox = split
+    ? `<div class="box dual cols-${columns.length}">
+        ${columns.map((c) => totalsColumn(c.header, c.totalLabel, c, doc.totals.ivaBps)).join("\n        ")}
       </div>`
     : `<div class="box">
-        <div class="row"><span>Subtotal</span><span>${formatCents(doc.totals.oneTime.subtotalCents)}</span></div>
-        <div class="row"><span>IVA <span class="iva">${ivaPercent(doc.totals.ivaBps)}</span> %</span><span>${formatCents(doc.totals.oneTime.ivaCents)}</span></div>
-        <div class="grand"><span>${doc.totals.singleTotalLabel}</span><span><span>${formatCents(doc.totals.oneTime.totalCents)}</span><small>MXN</small></span></div>
+        <div class="row"><span>Subtotal</span><span>${formatCents(columns[0]?.subtotalCents ?? 0)}</span></div>
+        <div class="row"><span>IVA <span class="iva">${ivaPercent(doc.totals.ivaBps)}</span> %</span><span>${formatCents(columns[0]?.ivaCents ?? 0)}</span></div>
+        <div class="grand"><span>Inversión total</span><span><span>${formatCents(columns[0]?.totalCents ?? 0)}</span><small>MXN</small></span></div>
       </div>`;
 
   // La viñeta corta de aceptación va al final de la primera columna; solo se
@@ -240,6 +255,7 @@ export function renderProposalHtml(doc: ProposalDocument, options: RenderOptions
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 ${doc.layout === "dense" ? CSS_DENSE : CSS_STANDARD}
+${SPLIT_TOTALS_CSS}
 ${SCREEN_CSS}
 </style>
 </head>
@@ -313,7 +329,7 @@ ${isDraft ? '  <div class="draft-mark">BORRADOR</div>' : ""}
       </tbody>
     </table>
 
-    <div class="totals">
+    <div class="totals${split ? ` cols-${columns.length}` : ""}">
       <div class="note">${doc.note ? `<b>Nota:</b> ${esc(doc.note)}` : ""}</div>
       ${totalsBox}
     </div>

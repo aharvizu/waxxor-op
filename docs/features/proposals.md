@@ -11,7 +11,7 @@ Propuestas comerciales de **una página carta**, una plantilla por producto, con
 ## 2. Reglas que se respetan tal cual de la especificación
 
 - **Dinero en centavos enteros.** Los totales se recalculan siempre en el servidor (`lib/proposals/calc.ts`); lo que muestra el formulario nunca se persiste.
-- **Totales por recurrencia, sin gran total.** Pago único y columna recurrente son unidades distintas; el IVA se redondea por columna. La recurrencia de cada partida es explícita, nunca deducida del texto de vigencia.
+- **Totales por recurrencia, sin gran total.** Una columna por tipo de pago — **pago único, mensualidad y anualidad** — y solo aparecen las que tienen partidas (una partida "No Incluido" también abre su columna). Son unidades distintas: nunca se suman ni se convierten entre sí, y el IVA se redondea por columna. La recurrencia de cada partida es explícita, nunca deducida del texto de vigencia.
 - **Folio solo al emitir**: `WX-2026-0001`, consecutivo que reinicia cada año, compartido por todos los productos. Sale de `folio_counters` con `INSERT … ON CONFLICT DO UPDATE` dentro de la transacción de emisión: dos emisiones simultáneas dan folios distintos y un fallo devuelve el número. Un folio cancelado no se reutiliza.
 - **Snapshot inmutable.** Al emitir se congela en `proposals.snapshot` todo lo necesario para redibujar el documento (textos del catálogo, logotipos en base64, totales). Emitida → se dibuja desde el snapshot; borrador → desde el catálogo vigente. Cambiar el catálogo no altera lo emitido.
 - **Lo emitido no se edita.** Para corregir: cancelar y clonar; el clon recuerda de dónde viene («Sustituye a…»).
@@ -35,7 +35,10 @@ Propuestas comerciales de **una página carta**, una plantilla por producto, con
 Sus reglas salen de su plantilla HTML y fueron aprobadas el 2026-11-14:
 
 - Tres planes (Basic, Standard, Premium) que cambian subtítulo, capacidades y panel, **sin** comparativo.
-- **Licenciamiento anual o mensual**, elegido por propuesta: define el compromiso de las licencias, la columna recurrente («Anualidad»/«Mensualidad») y los términos. En anual, una partida mensual aporta doce meses a la anualidad. Una partida anual en una propuesta mensual se rechaza.
+- **Licenciamiento anual o mensual**, elegido por propuesta: define el compromiso de las licencias (su vigencia por defecto y su precio) y la redacción de los términos. **No decide en qué columna suma cada partida**: eso lo dice la vigencia de cada concepto. Una propuesta puede llevar pago único, mensualidad y anualidad a la vez, cada uno en su columna.
+
+  > **Cambiado 2026-11-17** a pedido del dueño ("que se identifique por separado cuando sea pago único, mensual y anual, dependiendo de los conceptos"). Antes había una sola columna recurrente y, con licenciamiento anual, los conceptos mensuales se multiplicaban ×12 dentro de la anualidad, así que la mensualidad nunca se veía. La nota y los términos sugeridos se redactan según las columnas presentes; la plantilla decía que la anualidad "incluye doce meses de los servicios mensuales", lo que dejó de ser cierto.
+- **Tres columnas de totales** no caben en los 120 mm de la caja de la plantilla: con tres, la caja toma el ancho completo y la nota pasa a su propio renglón encima. Con una o dos columnas el documento queda igual que la plantilla. Es la única extensión al diseño aprobado.
 - **Licencias agregables** desde un catálogo: las once de la plantilla más las variantes que Microsoft comercializa. Los precios siempre se capturan a mano (dependen del compromiso, del tipo de cambio y del margen).
 - **Ajuste a una hoja por niveles**: retira la firma → pasa la aceptación a los términos → oculta descripciones de licencias agregadas. Los otros dos productos no compactan: si no caben, no se emiten.
 
@@ -48,5 +51,6 @@ Sus reglas salen de su plantilla HTML y fueron aprobadas el 2026-11-14:
 
 ## 6. Pendiente / abierto
 
+- Las columnas `subtotal/iva/total_recurring_cents` de `proposals` quedaron **sin uso** desde la migración `0043` (aditiva para no tirar producción entre migración y deploy). Borrarlas en una migración posterior.
 - El **folio no aparece impreso** en el documento: las plantillas no tienen dónde. Hoy va en el título de la página (nombre del PDF al guardar) y en la barra de pantalla. Decidir si se agrega a la franja de datos.
 - Agregar un producto = una entrada en `catalog.ts` con su `maxItems` medido sobre su plantilla.

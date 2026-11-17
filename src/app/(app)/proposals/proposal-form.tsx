@@ -8,7 +8,7 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { SubmitButton } from "@/components/submit-button";
 import { Card, buttonSecondaryClass, cx, iconButtonClass, inputClass, labelClass } from "@/components/ui";
 import type { ActionState } from "@/lib/action-result";
-import { computeTotals, itemAmountCents } from "@/lib/proposals/calc";
+import { COLUMN_LABELS, computeTotals, itemAmountCents, presentRecurrences } from "@/lib/proposals/calc";
 import { PRODUCT_LIST, PRODUCTS, getPlan, resolvePeriod, type CatalogContext, type Product } from "@/lib/proposals/catalog";
 import { centsToInput, formatCents, parseMoneyToCents } from "@/lib/proposals/money";
 import type { BillingPeriod, ProductKey, ProposalInput, ProposalItem, Recurrence } from "@/lib/proposals/types";
@@ -91,47 +91,57 @@ export function ProposalForm({
   });
 
   /**
+   * Aplica una lista nueva de partidas. La nota se actualiza sola mientras
+   * siga siendo la sugerida, porque menciona los pagos que existen (anualidad,
+   * mensualidades): si cambian las columnas, cambia el texto. Lo escrito a
+   * mano se respeta.
+   */
+  function commit(nextItems: DraftItem[], next: { product: Product; plan: string; period: BillingPeriod | null }) {
+    const before = product.defaultNote(ctx(product, planKey, period), presentRecurrences(items));
+    if (note === before) setNote(next.product.defaultNote(ctx(next.product, next.plan, next.period), presentRecurrences(nextItems)));
+    setItems(nextItems);
+  }
+  const keep = () => ({ product, plan: planKey, period });
+
+  /**
    * Al cambiar plan o periodo solo se actualiza lo que el usuario NO tocó:
-   * una partida (o la nota) que sigue igual a la sugerida anterior pasa a la
-   * sugerida nueva; lo editado a mano se respeta.
+   * una partida que sigue igual a la sugerida anterior pasa a la sugerida
+   * nueva; lo editado a mano se respeta.
    */
   function retarget(nextProduct: Product, nextPlan: string, nextPeriod: BillingPeriod | null) {
     const before = product.suggestedItems(ctx(product, planKey, period));
     const after = nextProduct.suggestedItems(ctx(nextProduct, nextPlan, nextPeriod));
-    setItems((prev) =>
-      prev.map((item, i) => {
-        if (item.extra) {
-          // Las licencias agregadas siguen el compromiso de la propuesta.
-          if (nextPeriod === null || item.recurrence === "one_time") return item;
-          return { ...item, recurrence: nextPeriod, termLabel: PERIOD_LABELS[nextPeriod] };
-        }
-        const b = before[i];
-        const a = after[i];
-        if (!b || !a) return item;
-        return {
-          ...item,
-          title: item.title === b.title ? a.title : item.title,
-          description: item.description === b.description ? a.description : item.description,
-          ...(item.termLabel === b.termLabel && item.recurrence === b.recurrence
-            ? { termLabel: a.termLabel, recurrence: a.recurrence }
-            : {}),
-        };
-      }),
-    );
-    if (note === product.defaultNote(ctx(product, planKey, period))) {
-      setNote(nextProduct.defaultNote(ctx(nextProduct, nextPlan, nextPeriod)));
-    }
+    const nextItems = items.map((item, i) => {
+      if (item.extra) {
+        // Las licencias agregadas siguen el compromiso de la propuesta.
+        if (nextPeriod === null || item.recurrence === "one_time") return item;
+        return { ...item, recurrence: nextPeriod, termLabel: PERIOD_LABELS[nextPeriod] };
+      }
+      const b = before[i];
+      const a = after[i];
+      if (!b || !a) return item;
+      return {
+        ...item,
+        title: item.title === b.title ? a.title : item.title,
+        description: item.description === b.description ? a.description : item.description,
+        ...(item.termLabel === b.termLabel && item.recurrence === b.recurrence
+          ? { termLabel: a.termLabel, recurrence: a.recurrence }
+          : {}),
+      };
+    });
+    commit(nextItems, { product: nextProduct, plan: nextPlan, period: nextPeriod });
   }
 
   function changeProduct(key: ProductKey) {
     // Otro producto es otro documento: partidas y nota vuelven a las sugeridas.
     const next = PRODUCTS[key];
     const nextPeriod = resolvePeriod(next, null);
+    const nextItems = next.suggestedItems(ctx(next, next.defaultPlan, nextPeriod));
     setProductKey(key);
     setPlanKey(next.defaultPlan);
     setPeriod(nextPeriod);
-    setItems(next.suggestedItems(ctx(next, next.defaultPlan, nextPeriod)).map(toDraft));
-    setNote(next.defaultNote(ctx(next, next.defaultPlan, nextPeriod)));
+    setItems(nextItems.map(toDraft));
+    setNote(next.defaultNote(ctx(next, next.defaultPlan, nextPeriod), presentRecurrences(nextItems)));
   }
 
   function changePlan(key: string) {
@@ -153,14 +163,14 @@ export function ProposalForm({
   }
 
   const patchItem = (index: number, patch: Partial<DraftItem>) =>
-    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+    commit(items.map((item, i) => (i === index ? { ...item, ...patch } : item)), keep());
 
   function addBlank() {
     const term = product.termOptions[0];
-    setItems((prev) => [
-      ...prev,
-      { title: "", description: "", quantity: "1", termLabel: term.label, recurrence: term.recurrence, price: "0.00", notIncluded: false, extra: false },
-    ]);
+    commit(
+      [...items, { title: "", description: "", quantity: "1", termLabel: term.label, recurrence: term.recurrence, price: "0.00", notIncluded: false, extra: false }],
+      keep(),
+    );
   }
 
   function addLicense() {
@@ -178,17 +188,16 @@ export function ProposalForm({
       extra: true,
     };
     // Igual que la plantilla: después de la licencia principal y de las ya agregadas.
-    setItems((prev) => {
-      const at = 1 + prev.filter((i) => i.extra).length;
-      return [...prev.slice(0, at), row, ...prev.slice(at)];
-    });
+    const at = 1 + items.filter((i) => i.extra).length;
+    commit([...items.slice(0, at), row, ...items.slice(at)], keep());
     setLicenseToAdd("");
   }
 
   const parsedItems = useMemo(() => items.map(fromDraft), [items]);
   const validItems = parsedItems.filter((i): i is ProposalItem => i !== null);
   const ivaBps = Math.round((Number(ivaPct) || 0) * 100);
-  const totals = computeTotals(validItems, ivaBps, period);
+  const totals = computeTotals(validItems, ivaBps);
+  const columns = presentRecurrences(items);
   const hasInvalid = parsedItems.some((i) => i === null);
   const overLimit = items.length > product.maxItems;
 
@@ -207,7 +216,6 @@ export function ProposalForm({
   };
 
   const small = cx(inputClass, "h-9 text-sm");
-  const recurringLabel = period === "annual" ? "Anualidad" : "Mensualidad";
 
   return (
     <form
@@ -253,7 +261,7 @@ export function ProposalForm({
                 ))}
               </select>
               <p className="mt-1.5 text-xs text-muted">
-                Define el compromiso de las licencias y la columna recurrente. Captura el precio que corresponda a ese compromiso.
+                Define el compromiso de las licencias y su precio. Cada concepto suma a su propia columna según su vigencia: pago único, mensual o anual.
               </p>
             </div>
           ) : null}
@@ -381,7 +389,7 @@ export function ProposalForm({
                       {parsed === null ? <span className="text-danger">Revisa</span> : amount === null ? "No Incluido" : formatCents(amount)}
                     </p>
                   </div>
-                  <button type="button" className={cx(iconButtonClass, "mt-5")} aria-label={`Quitar partida ${i + 1}`} onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}>
+                  <button type="button" className={cx(iconButtonClass, "mt-5")} aria-label={`Quitar partida ${i + 1}`} onClick={() => commit(items.filter((_, j) => j !== i), keep())}>
                     <Trash2 />
                   </button>
                 </div>
@@ -402,15 +410,18 @@ export function ProposalForm({
             <p className="mt-1.5 text-xs text-muted">Se imprime junto a los totales, precedida de «Nota:».</p>
           </div>
           <div className="flex flex-wrap gap-6 self-start rounded-lg bg-subtle p-4 text-sm">
-            <TotalsColumn title={product.totalsMode === "dual" ? "Pago único" : "Inversión total"} subtotal={totals.oneTime.subtotalCents} iva={totals.oneTime.ivaCents} total={totals.oneTime.totalCents} />
-            {product.totalsMode === "dual" ? (
-              <TotalsColumn title={recurringLabel} subtotal={totals.recurring.subtotalCents} iva={totals.recurring.ivaCents} total={totals.recurring.totalCents} />
-            ) : null}
+            {product.totalsMode === "single" ? (
+              <TotalsColumn title="Inversión total" subtotal={totals.one_time.subtotalCents} iva={totals.one_time.ivaCents} total={totals.one_time.totalCents} />
+            ) : (
+              columns.map((r) => (
+                <TotalsColumn key={r} title={COLUMN_LABELS[r].header} subtotal={totals[r].subtotalCents} iva={totals[r].ivaCents} total={totals[r].totalCents} />
+              ))
+            )}
           </div>
         </div>
-        {product.totalsMode === "dual" ? (
+        {columns.length > 1 ? (
           // Regla de la especificación: son unidades distintas y sumarlas no significa nada.
-          <p className="text-xs text-muted">El pago único y la {recurringLabel.toLowerCase()} nunca se suman: no existe un gran total.</p>
+          <p className="text-xs text-muted">Cada columna es un tipo de pago distinto y nunca se suman: no existe un gran total.</p>
         ) : null}
       </Card>
 

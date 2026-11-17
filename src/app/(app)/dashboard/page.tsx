@@ -104,12 +104,13 @@ export default async function DashboardPage() {
       .select({ value: count() })
       .from(proposals)
       .where(and(eq(proposals.organizationId, orgId), inArray(proposals.status, ["accepted", "rejected"]))),
-    // Two sums, never one: a one-time payment and a recurring one are
-    // different units (see lib/proposals/calc) and adding them means nothing.
+    // Three sums, never one: a one-time payment, a monthly one and an annual
+    // one are different units (see lib/proposals/calc) and adding them means nothing.
     db
       .select({
         oneTime: sql<number>`coalesce(sum(${proposals.totalOneTimeCents}), 0)::float8`,
-        recurring: sql<number>`coalesce(sum(${proposals.totalRecurringCents}), 0)::float8`,
+        monthly: sql<number>`coalesce(sum(${proposals.totalMonthlyCents}), 0)::float8`,
+        annual: sql<number>`coalesce(sum(${proposals.totalAnnualCents}), 0)::float8`,
       })
       .from(proposals)
       .where(and(eq(proposals.organizationId, orgId), eq(proposals.status, "issued"))),
@@ -221,7 +222,7 @@ export default async function DashboardPage() {
             label="Pipeline"
             value={formatCents(pipeline.oneTime)}
             hint="One-time total of all issued proposals awaiting a decision (IVA included)"
-            footer={`+ ${formatCents(pipeline.recurring)} recurring`}
+            footer={`+ ${formatCents(pipeline.monthly)}/month · + ${formatCents(pipeline.annual)}/year`}
           />
         </Link>
         <Link href="/proposals" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60">

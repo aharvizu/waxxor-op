@@ -10,7 +10,9 @@ import { getLabels } from "@/lib/labels";
 import { getOrgLocale } from "@/lib/get-org-locale";
 import { getPlan, getProduct } from "@/lib/proposals/catalog";
 import { allowedTransitions, effectiveStatus } from "@/lib/proposals/lifecycle";
+import { COLUMN_LABELS, presentRecurrences } from "@/lib/proposals/calc";
 import { formatCents } from "@/lib/proposals/money";
+import type { Recurrence } from "@/lib/proposals/types";
 import { ORG_TIMEZONE } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
 import { ProposalWorkspace } from "./proposal-workspace";
@@ -59,10 +61,18 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
     { label: "Producto", value: productName },
     { label: "Fecha", value: fmtDate(p.date) },
     { label: "Vence", value: fmtDate(p.expiresAt) },
-    { label: p.billingPeriod ? "Pago único" : "Inversión total", value: formatCents(p.totalOneTimeCents) },
   ];
-  if (p.billingPeriod) {
-    facts.push({ label: p.billingPeriod === "annual" ? "Anualidad" : "Mensualidad", value: formatCents(p.totalRecurringCents) });
+  // Una cifra por columna presente, igual que el documento: nunca un gran total.
+  const columnTotals: Record<Recurrence, number> = {
+    one_time: p.totalOneTimeCents,
+    monthly: p.totalMonthlyCents,
+    annual: p.totalAnnualCents,
+  };
+  for (const r of presentRecurrences(p.items)) {
+    facts.push({
+      label: product?.totalsMode === "single" ? "Inversión total" : COLUMN_LABELS[r].header,
+      value: formatCents(columnTotals[r]),
+    });
   }
   if (p.issuedAt) facts.push({ label: "Emitida", value: fmtDateTime(p.issuedAt) });
 

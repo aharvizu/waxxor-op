@@ -93,8 +93,9 @@ export type Product = {
   periods: BillingPeriod[];
   termOptions: TermOption[];
   suggestedItems: (ctx: CatalogContext) => ProposalItem[];
-  defaultNote: (ctx: CatalogContext) => string;
-  termsHtml: (ctx: CatalogContext) => string[][];
+  /** `recurrences`: columnas presentes (presentRecurrences) — la nota y los términos hablan solo de los pagos que existen. */
+  defaultNote: (ctx: CatalogContext, recurrences: readonly Recurrence[]) => string;
+  termsHtml: (ctx: CatalogContext, recurrences: readonly Recurrence[]) => string[][];
   /** Licencias y complementos que se pueden agregar como partida (Microsoft 365). */
   licenseCatalog: { key: string; title: string; description: string }[];
   /** Tope duro de partidas; el límite real es vertical y lo verifica el documento (spec §4.2, §9.1). */
@@ -468,8 +469,10 @@ const microsoft365: Product = {
   comparison: null,
   quantityHeader: "Cantidad",
   totalsMode: "dual",
-  // El compromiso de la licencia (anual o mensual) lo elige quien cotiza:
-  // cambia el precio que da Microsoft y la columna recurrente del documento.
+  // El compromiso de las licencias (anual o mensual) lo elige quien cotiza:
+  // cambia el precio que da Microsoft, la vigencia por defecto de las
+  // licencias y los términos. La columna de cada partida la decide su propia
+  // recurrencia, no este valor.
   periods: ["annual", "monthly"],
   termOptions: [
     { label: "Anual", recurrence: "annual" },
@@ -495,21 +498,41 @@ const microsoft365: Product = {
       { title: "Servicio administrado Waxxor", description: "Usuarios y permisos, atención de alertas de seguridad y reporte mensual.", quantity: 0, termLabel: "Mensual", unitPriceCents: 0, recurrence: "monthly" },
     ];
   },
-  defaultNote: ({ period }) =>
-    period === "monthly"
-      ? "el pago único se cubre una sola vez al inicio. Los conceptos mensuales se facturan cada mes a partir del alta del servicio y se ajustan al número real de usuarios."
-      : "el pago único se cubre una sola vez al inicio. La anualidad se factura al alta y en cada renovación, incluye doce meses de los servicios mensuales y se ajusta al número real de usuarios.",
-  termsHtml: ({ period }) => [
-    [
-      "Precios en <b>M.N.</b>; IVA por separado.",
-      period === "monthly" ? "<b>Licencias</b> con renovación mensual." : "<b>Licencias</b> con compromiso anual de Microsoft.",
-    ],
-    [
-      "<b>Pago único</b> previo al inicio del proyecto.",
-      period === "monthly" ? "<b>Mensualidades</b> pagaderas por adelantado." : "<b>Anualidades</b> pagaderas por adelantado.",
-    ],
-    ["Licencias sujetas a <b>tipo de cambio</b>.", "Soporte según <b>SLA de Waxxor</b> y fabricantes."],
-  ],
+  // Texto de la plantilla, ajustado a las columnas presentes: desde
+  // 2026-11-17 la mensualidad ya no se pliega en la anualidad, así que la nota
+  // no puede decir que "la anualidad incluye doce meses de los servicios
+  // mensuales".
+  defaultNote: (_ctx, recurrences) => {
+    const annual = recurrences.includes("annual");
+    const monthly = recurrences.includes("monthly");
+    const start = "el pago único se cubre una sola vez al inicio.";
+    if (annual && monthly) {
+      return `${start} La anualidad se factura al alta y en cada renovación; los conceptos mensuales, cada mes a partir del alta del servicio. Ambos se ajustan al número real de usuarios.`;
+    }
+    if (annual) return `${start} La anualidad se factura al alta y en cada renovación y se ajusta al número real de usuarios.`;
+    if (monthly) {
+      return `${start} Los conceptos mensuales se facturan cada mes a partir del alta del servicio y se ajustan al número real de usuarios.`;
+    }
+    return start;
+  },
+  termsHtml: ({ period }, recurrences) => {
+    const annual = recurrences.includes("annual");
+    const monthly = recurrences.includes("monthly");
+    const inAdvance =
+      annual && monthly
+        ? "<b>Anualidades y mensualidades</b> pagaderas por adelantado."
+        : monthly
+          ? "<b>Mensualidades</b> pagaderas por adelantado."
+          : "<b>Anualidades</b> pagaderas por adelantado.";
+    return [
+      [
+        "Precios en <b>M.N.</b>; IVA por separado.",
+        period === "monthly" ? "<b>Licencias</b> con renovación mensual." : "<b>Licencias</b> con compromiso anual de Microsoft.",
+      ],
+      ["<b>Pago único</b> previo al inicio del proyecto.", inAdvance],
+      ["Licencias sujetas a <b>tipo de cambio</b>.", "Soporte según <b>SLA de Waxxor</b> y fabricantes."],
+    ];
+  },
   // Las primeras once son las de la plantilla aprobada, con su texto literal.
   // El resto amplía el catálogo con las variantes que Microsoft comercializa
   // (2026-11); título y descripción se pueden editar en cada partida.

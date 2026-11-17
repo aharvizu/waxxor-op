@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { assessments } from "@/db/schema";
 import { PageHeader } from "@/components/ui";
 import { assessmentPrefill } from "@/lib/assessments/recommendations";
+import { presentRecurrences } from "@/lib/proposals/calc";
 import { getProduct, resolvePeriod } from "@/lib/proposals/catalog";
 import { ORG_TIMEZONE } from "@/lib/reports";
 import { requireUser } from "@/lib/session";
@@ -55,7 +56,7 @@ export default async function NewProposalPage({
     planKey,
     billingPeriod: period,
     items,
-    note: product.defaultNote(ctx),
+    note: product.defaultNote(ctx, presentRecurrences(items)),
     ivaBps: 1600,
   };
 

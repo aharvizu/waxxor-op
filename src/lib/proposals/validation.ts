@@ -58,12 +58,15 @@ export function validateProposalInput(raw: unknown): ValidationResult {
   }
 
   const period = resolvePeriod(product, data.billingPeriod);
-  if (product.totalsMode === "single") {
-    if (data.items.some((i) => i.recurrence !== "one_time")) {
-      errors.push(`${product.name} es de pago único: ninguna partida puede ser recurrente.`);
-    }
-  } else if (period === "monthly" && data.items.some((i) => i.recurrence === "annual")) {
-    errors.push("Una partida anual requiere que el licenciamiento de la propuesta sea anual.");
+  // Cada partida solo puede sumar a una columna que el producto admite:
+  // SentinelOne es todo pago único, MSP360 único o mensual, Microsoft 365 los tres.
+  const allowed = new Set(product.termOptions.map((o) => o.recurrence));
+  if (data.items.some((i) => !allowed.has(i.recurrence))) {
+    errors.push(
+      product.totalsMode === "single"
+        ? `${product.name} es de pago único: ninguna partida puede ser recurrente.`
+        : `${product.name} no admite ese tipo de pago en una partida.`,
+    );
   }
 
   if (errors.length > 0) return { ok: false, errors };

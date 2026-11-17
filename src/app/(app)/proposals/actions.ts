@@ -35,7 +35,7 @@ async function orgProposal(orgId: number, id: number | null) {
 
 /** Columnas que dependen de la captura. Los totales SIEMPRE se recalculan aquí; lo que mostró el cliente nunca se persiste. */
 function columnsFromInput(input: ProposalInput) {
-  const totals = computeTotals(input.items, input.ivaBps, input.billingPeriod);
+  const totals = computeTotals(input.items, input.ivaBps);
   return {
     companyId: input.companyId,
     clientName: input.clientName,
@@ -48,12 +48,15 @@ function columnsFromInput(input: ProposalInput) {
     items: input.items,
     note: input.note,
     ivaBps: input.ivaBps,
-    subtotalOneTimeCents: totals.oneTime.subtotalCents,
-    ivaOneTimeCents: totals.oneTime.ivaCents,
-    totalOneTimeCents: totals.oneTime.totalCents,
-    subtotalRecurringCents: totals.recurring.subtotalCents,
-    ivaRecurringCents: totals.recurring.ivaCents,
-    totalRecurringCents: totals.recurring.totalCents,
+    subtotalOneTimeCents: totals.one_time.subtotalCents,
+    ivaOneTimeCents: totals.one_time.ivaCents,
+    totalOneTimeCents: totals.one_time.totalCents,
+    subtotalMonthlyCents: totals.monthly.subtotalCents,
+    ivaMonthlyCents: totals.monthly.ivaCents,
+    totalMonthlyCents: totals.monthly.totalCents,
+    subtotalAnnualCents: totals.annual.subtotalCents,
+    ivaAnnualCents: totals.annual.ivaCents,
+    totalAnnualCents: totals.annual.totalCents,
     expiresAt: expiryDate(input.date, input.validityDays),
   };
 }
@@ -147,7 +150,11 @@ export async function saveProposal(_prev: ActionState, formData: FormData): Prom
         entityId: id,
         action: "update",
         field: "draft",
-        metadata: { totalOneTimeCents: columns.totalOneTimeCents, totalRecurringCents: columns.totalRecurringCents },
+        metadata: {
+          totalOneTimeCents: columns.totalOneTimeCents,
+          totalMonthlyCents: columns.totalMonthlyCents,
+          totalAnnualCents: columns.totalAnnualCents,
+        },
       });
       return id;
     });

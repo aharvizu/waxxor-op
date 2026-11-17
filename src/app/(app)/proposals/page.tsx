@@ -54,8 +54,8 @@ export default async function ProposalsPage({
       date: proposals.date,
       expiresAt: proposals.expiresAt,
       totalOneTimeCents: proposals.totalOneTimeCents,
-      totalRecurringCents: proposals.totalRecurringCents,
-      billingPeriod: proposals.billingPeriod,
+      totalMonthlyCents: proposals.totalMonthlyCents,
+      totalAnnualCents: proposals.totalAnnualCents,
     })
     .from(proposals)
     .where(and(...conditions))
@@ -144,7 +144,8 @@ export default async function ProposalsPage({
                 <Th>Fecha</Th>
                 <Th>Vence</Th>
                 <Th className="text-right">Pago único</Th>
-                <Th className="text-right">Recurrente</Th>
+                <Th className="text-right">Mensual</Th>
+                <Th className="text-right">Anual</Th>
               </tr>
             </THead>
             <tbody>
@@ -165,17 +166,9 @@ export default async function ProposalsPage({
                     </Td>
                     <Td className="tabular-nums">{fmtDate(r.date)}</Td>
                     <Td className="tabular-nums">{fmtDate(r.expiresAt)}</Td>
-                    <Td className="text-right tabular-nums">{formatCents(r.totalOneTimeCents)}</Td>
-                    <Td className="text-right tabular-nums">
-                      {r.billingPeriod ? (
-                        <>
-                          {formatCents(r.totalRecurringCents)}
-                          <span className="ml-1 text-xs text-faint">{r.billingPeriod === "annual" ? "/año" : "/mes"}</span>
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </Td>
+                    <Td className="text-right tabular-nums">{r.totalOneTimeCents > 0 ? formatCents(r.totalOneTimeCents) : "—"}</Td>
+                    <Td className="text-right tabular-nums">{r.totalMonthlyCents > 0 ? formatCents(r.totalMonthlyCents) : "—"}</Td>
+                    <Td className="text-right tabular-nums">{r.totalAnnualCents > 0 ? formatCents(r.totalAnnualCents) : "—"}</Td>
                   </tr>
                 );
               })}

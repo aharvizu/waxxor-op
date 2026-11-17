@@ -21,7 +21,11 @@ export type EffectiveProposalStatus = ProposalStatus | "expired";
 export const RECURRENCES = ["one_time", "monthly", "annual"] as const;
 export type Recurrence = (typeof RECURRENCES)[number];
 
-/** Periodicidad de la columna recurrente de una propuesta de totales duales. */
+/**
+ * Compromiso del licenciamiento (Microsoft 365): define la vigencia por
+ * defecto de las licencias y la redacción de los términos. NO decide en qué
+ * columna suma cada partida — eso lo dice la recurrencia de cada una.
+ */
 export const BILLING_PERIODS = ["monthly", "annual"] as const;
 export type BillingPeriod = (typeof BILLING_PERIODS)[number];
 
@@ -42,11 +46,8 @@ export type ProposalItem = {
 
 export type MoneyColumn = { subtotalCents: number; ivaCents: number; totalCents: number };
 
-export type ProposalTotals = {
-  oneTime: MoneyColumn;
-  /** Mensualidad o anualidad según el periodo. En totales simples queda en cero. */
-  recurring: MoneyColumn;
-};
+/** Una columna de totales por recurrencia. Nunca se suman entre sí: son unidades distintas. */
+export type ProposalTotals = Record<Recurrence, MoneyColumn>;
 
 /** Lo que captura el formulario y valida el servidor. */
 export type ProposalInput = {
@@ -75,7 +76,8 @@ export type ProposalInput = {
  * captura el usuario viaja como texto y el renderizador lo escapa.
  */
 export type ProposalDocument = {
-  version: 1;
+  /** 2 desde 2026-11-17: totales en columnas por recurrencia. Nunca se emitió una versión 1. */
+  version: 2;
   folio: string | null;
   issuedAt: string | null;
   productKey: ProductKey;
@@ -111,14 +113,11 @@ export type ProposalDocument = {
   items: ProposalItem[];
   note: string;
   totals: {
-    mode: "single" | "dual";
-    oneTime: MoneyColumn;
-    recurring: MoneyColumn;
+    /** single: un recuadro "Inversión total" (SentinelOne). split: una columna por recurrencia presente. */
+    mode: "single" | "split";
+    columns: ({ recurrence: Recurrence; header: string; totalLabel: string } & MoneyColumn)[];
     ivaBps: number;
     currency: "MXN";
-    singleTotalLabel: string;
-    recurringHeader: string;
-    recurringTotalLabel: string;
   };
   /** Tres columnas de viñetas. */
   termsHtml: string[][];
